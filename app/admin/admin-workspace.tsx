@@ -577,7 +577,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
       <div className="relative flex min-h-screen">
         <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/[0.07] bg-[#0a111c]/95 px-4 py-5 xl:w-[300px] 2xl:w-[320px] lg:flex lg:flex-col">
           <div className="flex items-center gap-3 px-2 pb-7">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-300 to-orange-600 text-lg font-black text-[#211205] shadow-lg shadow-orange-950/30">B</div>
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-orange-400/20 bg-[#080d15] shadow-lg shadow-orange-950/30"><img src="/balmz-logo.svg" alt="BALMZ AI" className="h-full w-full object-contain" /></div>
             <div><p className="text-sm font-bold tracking-[0.17em] text-white">BALMZ AI</p><p className="mt-0.5 text-[9px] font-semibold tracking-[0.2em] text-orange-300">ADMIN WORKPLACE</p></div>
           </div>
           <div className="mb-5 rounded-xl border border-orange-400/15 bg-orange-400/[0.055] px-3 py-3">
