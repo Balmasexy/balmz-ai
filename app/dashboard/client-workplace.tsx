@@ -200,6 +200,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <Link href="/dashboard#workspace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="book" /> Workspace guide</Link>
             <Link href="/dashboard#tools" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="code" /> Tools & integrations</Link>
             {isAdmin ? <Link href="/dashboard/billing" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">₦ Plans & billing</Link>
+            <Link href="/dashboard/charts" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▥ ChartGPT workspace</Link>
             <Link href="/dashboard/deployments" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="code" /> Deployment workplace</Link> : null}
             {isAdmin ? <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">♙ Super Admin</Link> : null}
           </div>
