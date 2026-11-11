@@ -6,12 +6,10 @@ import { getDbPool } from "@/lib/db";
 import { isAdminUser } from "@/lib/admin";
 import {
   checkStoredServiceCredential,
-  decryptServiceCredentials,
   encryptServiceCredentials,
   getServiceSecretStatus,
   publicServiceCatalog,
   SERVICE_CATALOG,
-  serviceCredentialsFromEnvironment,
   testServiceConnection,
   type ServiceCredentials,
   type ServiceEnvironment,
@@ -118,6 +116,24 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 }); }
 
   try {
+    if (body.action === "test-environment") {
+      const service = SERVICE_CATALOG.find((item) => item.id === body.serviceId);
+      if (!service) return NextResponse.json({ error: "UNKNOWN_SERVICE" }, { status: 400 });
+      const environment: ServiceEnvironment = body.environment === "demo" ? "demo" : "live";
+      const credentials = serviceCredentialsFromEnvironment(service.id, environment);
+      if (!credentials) return NextResponse.json({
+        error: "ENVIRONMENT_SECRET_NOT_FOUND",
+        message: "No matching service credential was found in the Render environment. Add the documented environment variable or connect a key here.",
+      }, { status: 404 });
+      const result = await testServiceConnection(service.id, credentials, environment);
+      return NextResponse.json({
+        success: true,
+        status: "connected",
+        source: "Render environment",
+        details: result,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     if (body.action === "test") {
       if (typeof body.id !== "string" || !/^[a-zA-Z0-9-]{16,64}$/.test(body.id)) {
         return NextResponse.json({ error: "INVALID_CONNECTION" }, { status: 400 });
