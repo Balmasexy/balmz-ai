@@ -201,6 +201,7 @@ export function WorkspaceClient({ userName, userEmail, isAdmin }: WorkspaceProps
       setMessages([]);
       return;
     }
+    if (sending) return;
     let active = true;
     async function loadMessages() {
       try {
@@ -224,7 +225,7 @@ export function WorkspaceClient({ userName, userEmail, isAdmin }: WorkspaceProps
     return () => {
       active = false;
     };
-  }, [conversationId]);
+  }, [conversationId, sending]);
 
   useEffect(() => {
     const container = scrollRef.current;

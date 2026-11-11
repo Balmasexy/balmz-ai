@@ -56,6 +56,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "INVALID_REQUEST", message: "The message request was not valid JSON." }, { status: 400 });
   }
 
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > 32768) {
+    return NextResponse.json({ error: "REQUEST_TOO_LARGE", message: "The message request is too large." }, { status: 413 });
+  }
+
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "INVALID_REQUEST", message: "A message is required." }, { status: 400 });
   }
@@ -146,8 +151,12 @@ export async function POST(request: Request) {
     client.release();
   }
 
+  const boundedHistory = priorMessages.slice(-16).map((item) => ({
+    role: item.role,
+    content: item.content.slice(0, 3000),
+  }));
   const apiInput = [
-    ...priorMessages.map((item) => ({ role: item.role, content: item.content })),
+    ...boundedHistory,
     { role: "user", content: message },
   ];
 

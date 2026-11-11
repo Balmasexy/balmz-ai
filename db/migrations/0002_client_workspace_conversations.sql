@@ -34,6 +34,10 @@ CREATE INDEX IF NOT EXISTS balmz_messages_conversation_created_idx
 CREATE INDEX IF NOT EXISTS balmz_messages_user_role_created_idx
   ON public.balmz_messages (user_id, role, created_at DESC);
 
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON TABLE public.balmz_conversations, public.balmz_messages
+  TO balmz_ai_app;
+
 INSERT INTO public.balmz_schema_migrations (version, name)
 VALUES ('0002', 'client_workspace_conversations')
 ON CONFLICT (version) DO NOTHING;
