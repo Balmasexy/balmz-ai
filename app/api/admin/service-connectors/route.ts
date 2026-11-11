@@ -62,7 +62,7 @@ function credentialsValid(serviceId: ServiceId, input: unknown): input is Servic
     ? ["token"]
     : serviceId === "paystack"
       ? ["secretKey", "publicKey"]
-      : serviceId === "coingecko"
+      : serviceId === "coingecko" || serviceId === "chartgpt"
         ? ["apiKey"]
         : serviceId === "notes-ai" || serviceId === "custom"
           ? ["baseUrl", "apiKey", "modelId"]
