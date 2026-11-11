@@ -40,7 +40,7 @@ export const SERVICE_CATALOG: Array<{
     demoLive: true,
     url: "https://dashboard.paystack.com/#/settings/developer",
     keyHelp: "Use sk_test_… for Demo and sk_live_… for Live. Paystack issues these keys in its dashboard.",
-    envAliases: { demo: ["PAYSTACK_TEST_SECRET_KEY", "PAYSTACK_SECRET_KEY"], live: ["PAYSTACK_LIVE_SECRET_KEY"] },
+    envAliases: { demo: ["PAYSTACK_TEST_SECRET_KEY", "PAYSTACK_SECRET_KEY"], live: ["PAYSTACK_LIVE_SECRET_KEY", "PAYSTACK_SECRET_KEY"] },
     capabilities: ["Verify API key", "Read-only connection test", "Test/live separation"],
   },
   {
@@ -339,6 +339,8 @@ export function serviceCredentialsFromEnvironment(
   environment: ServiceEnvironment,
 ): ServiceCredentials | null {
   if (serviceId === "paystack") {
+    const expectedMode = environment === "demo" ? "test" : "live";
+    if (process.env.PAYSTACK_MODE?.trim().toLowerCase() !== expectedMode) return null;
     const explicit = environment === "demo"
       ? [process.env.PAYSTACK_TEST_SECRET_KEY, process.env.PAYSTACK_SECRET_KEY]
       : [process.env.PAYSTACK_LIVE_SECRET_KEY, process.env.PAYSTACK_SECRET_KEY];
@@ -392,6 +394,10 @@ export async function checkStoredServiceCredential(encrypted: string, serviceId:
 }
 
 export function getServiceSecretStatus(serviceId: ServiceId, environment: ServiceEnvironment) {
+  if (serviceId === "paystack") {
+    const credentials = serviceCredentialsFromEnvironment(serviceId, environment);
+    return credentials ? { configured: true, source: "Render environment" } : { configured: false, source: null };
+  }
   const service = SERVICE_CATALOG.find((entry) => entry.id === serviceId);
   if (!service) return { configured: false, source: null };
   const aliases = service.envAliases[environment] ?? [];
