@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client";
 export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -52,18 +53,30 @@ export default function SignInPage() {
               placeholder="you@example.com"
             />
           </label>
-          <label className="block text-sm text-slate-300">
-            Password
-            <input
-              autoComplete="current-password"
-              type="password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition focus:border-orange-400"
-              placeholder="Your password"
-            />
-          </label>
+          <div className="block text-sm text-slate-300">
+            <label htmlFor="sign-in-password">Password</label>
+            <div className="mt-2 flex overflow-hidden rounded-xl border border-white/10 bg-[#0b1220] transition focus-within:border-orange-400">
+              <input
+                id="sign-in-password"
+                autoComplete="current-password"
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="min-w-0 flex-1 bg-transparent px-4 py-3 text-white outline-none"
+                placeholder="Your password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="shrink-0 px-4 text-sm font-semibold text-orange-400 transition hover:text-orange-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400"
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
           {error ? <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{error}</p> : null}
           <button
             type="submit"
