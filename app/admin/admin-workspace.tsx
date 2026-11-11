@@ -7,6 +7,8 @@ import { SignOutButton } from "@/app/components/sign-out-button";
 import type { AdminOverview, CountValue } from "@/lib/admin";
 import { StorageSection } from "./storage-section";
 import { AIConnectionsSection } from "./ai-connections-section";
+import { ServiceConnectorsSection } from "./service-connectors-section";
+import { ApiKeysSection } from "./api-keys-section";
 
 type Section =
   | "overview"
@@ -20,6 +22,8 @@ type Section =
   | "terminal"
   | "storage"
   | "ai-connections"
+  | "service-connectors"
+  | "api-keys"
   | "settings";
 
 type NavigationItem = {
@@ -52,6 +56,8 @@ const navigation: { title: string; items: NavigationItem[] }[] = [
     title: "AI & INTEGRATIONS",
     items: [
       { id: "ai-connections", label: "AI connections", icon: "✳", detail: "Connect AI models and providers" },
+      { id: "service-connectors", label: "Service connectors", icon: "⌘", detail: "GitHub, CoinGecko, Paystack and more" },
+      { id: "api-keys", label: "API keys", icon: "⚿", detail: "Create Demo and Live BALMZ keys" },
     ],
   },
   {
@@ -76,6 +82,8 @@ const titles: Record<Section, { eyebrow: string; title: string; description: str
   terminal: { eyebrow: "OPERATIONS CONSOLE", title: "Admin terminal", description: "Run built-in, read-only BALMZ AI diagnostics." },
   storage: { eyebrow: "FILE INFRASTRUCTURE", title: "Super Admin storage", description: "Manage private project files and deployment archives." },
   "ai-connections": { eyebrow: "AI & AGENT INFRASTRUCTURE", title: "AI connections", description: "Connect and manage external model providers." },
+  "service-connectors": { eyebrow: "DEVELOPER INTEGRATIONS", title: "Service connectors", description: "Search, connect and test external services." },
+  "api-keys": { eyebrow: "DEVELOPER ACCESS", title: "BALMZ API keys", description: "Create and revoke separate Demo and Live application keys." },
   settings: { eyebrow: "PLATFORM CONTROL", title: "System settings", description: "Review service configuration and protected capabilities." },
 };
 
@@ -660,6 +668,8 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             {active === "terminal" ? <TerminalSection email={adminEmail} /> : null}
             {active === "storage" ? <StorageSection /> : null}
             {active === "ai-connections" ? <AIConnectionsSection /> : null}
+            {active === "service-connectors" ? <ServiceConnectorsSection /> : null}
+            {active === "api-keys" ? <ApiKeysSection /> : null}
             {active === "settings" ? <SettingsSection /> : null}
 
             <footer className="mt-9 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-5 text-[10px] text-slate-600">
