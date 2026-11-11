@@ -48,6 +48,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [notice, setNotice] = useState("");
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [copied, setCopied] = useState("");
+  const [model, setModel] = useState("gpt-4.1-mini");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +121,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next.map(({ role, content }) => ({ role, content })) }),
+        body: JSON.stringify({ messages: next.map(({ role, content }) => ({ role, content })), model }),
       });
       const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
       if (!response.ok || !payload.reply) {
@@ -199,7 +200,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div><p className="text-sm font-semibold text-white">Chat</p><p className="hidden text-[10px] text-slate-500 sm:block">A focused space for your ideas and work</p></div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden rounded-full border border-white/[0.08] px-3 py-1.5 text-[10px] text-slate-500 sm:inline-flex">OpenAI · server-side</span>
+            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[118px] bg-transparent text-xs font-medium text-slate-200 outline-none"><option value="gpt-4.1-mini">GPT-4.1 mini</option><option value="gpt-4.1">GPT-4.1</option></select></label>
             <span className="h-2 w-2 rounded-full bg-emerald-400" title="Workspace interface ready" />
           </div>
         </header>
