@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { getAuth } from "@/lib/auth";
+import { isAdminUser } from "@/lib/admin";
 import { getCurrentSubscription } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
-  const isAdmin = (session.user as { role?: string }).role === "admin";
+  const isAdmin = await isAdminUser(session.user.id);
 
   const subscription = await getCurrentSubscription(session.user.id);
 
