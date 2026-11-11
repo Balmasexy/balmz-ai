@@ -1,0 +1,44 @@
+name: BALMZ AI verification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feat/super-admin-storage-render-workplace]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: balmz-ai-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: TypeScript and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm run typecheck
+
+      - name: Production build
+        run: pnpm run build

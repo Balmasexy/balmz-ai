@@ -47,7 +47,8 @@ BALMZ AI is an AI workplace built with Next.js and the OpenAI Apps SDK. The curr
 - `/sign-up`: email/password registration
 - `/sign-in`: email/password sign-in
 - `/dashboard`: authenticated account and subscription overview
-- `/admin`: responsive Super Admin workplace with live Neon monitoring and a restricted diagnostics console
+- `/admin`: responsive Super Admin workplace with live Neon monitoring, private file storage, AI provider connections, and a restricted diagnostics console
+- `/dashboard/deployments`: Render-style service workspace with service overview, deployment history, logs, metrics, storage and read-only settings
 - `/manifest.webmanifest`: BALMZ AI installable web app manifest
 - `/admin`: protected Super Admin workplace with live Neon monitoring and a restricted diagnostics console
 - `/api/auth/*`: Better Auth endpoints
@@ -59,11 +60,11 @@ BALMZ AI is an AI workplace built with Next.js and the OpenAI Apps SDK. The curr
 
 The dedicated Neon project is named **BALMZ AI** and uses the `balmz_ai` database. The schema migration is:
 
-`db/migrations/0001_identity_and_subscription_foundation.sql`
+`db/migrations/0001_identity_and_subscription_foundation.sql` and `db/migrations/0002_ai_provider_connections.sql`
 
 It creates the Better Auth core tables and BALMZ plan, subscription, payment-event, usage, audit, and migration-history tables. The matching applied migration is recorded as version `0001` in `balmz_schema_migrations`.
 
-The app runtime role is `balmz_ai_app`, scoped to read/write database access on the `public` schema. Schema migrations should be run using a separate owner/migration credential, not the runtime role.
+The app runtime role is `balmz_ai_app`, scoped to read/write database access on the `public` schema. Schema migrations should be run using a separate owner/migration credential, not the runtime role. Migration `0002` adds encrypted AI provider connection records; it is additive and does not alter account, subscription, payment or usage records.
 
 ## Accounts and subscriptions
 
@@ -104,3 +105,12 @@ GitHub Actions runs dependency/lockfile synchronization, TypeScript checking, an
 `feature/balmz-ai-workplace-neon-paystack`
 
 It also runs on pull requests targeting `main`.
+
+
+## AI provider connections
+
+The Super Admin can connect OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI and Fireworks AI from the AI Connections section. Provider keys are encrypted server-side and only tested model metadata is sent to the client workplace. See `docs/AI-CONNECTIONS.md`.
+
+## Super Admin object storage
+
+Use the private Cloudflare R2 archive for project files and deployment exports that must survive Render builds and restarts. Configure the R2 environment variables on the Render service and follow the bucket CORS/security instructions in `docs/SUPER-ADMIN-STORAGE.md`.
