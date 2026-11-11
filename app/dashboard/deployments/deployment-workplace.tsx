@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { confirmNativeAction, hapticNotice, hapticTap, openNativeBrowser, showNativeToast } from "@/lib/capacitor/native-helpers";
 
 type Deploy = {
   id: string;
@@ -23,6 +24,7 @@ type Service = {
   id: string;
   name: string;
   type: string;
+  suspended?: string;
   branch?: string;
   repo?: string;
   ownerId?: string;
@@ -42,10 +44,12 @@ type Service = {
   latestDeploy?: { id: string; status: string; commitId: string | null; commitMessage: string | null; updatedAt: string | null } | null;
 };
 type Payload = { configured: boolean; services: Service[]; message?: string };
-type View = "overview" | "deploys" | "logs" | "metrics" | "storage" | "settings";
+type View = "overview" | "deploys" | "logs" | "metrics" | "events" | "storage" | "settings" | "billing";
+type ServiceEvent = { id: string; type: string; timestamp: string; details?: Record<string, unknown> };
 type InspectPayload = {
   view: string;
   deploys?: Deploy[];
+  events?: ServiceEvent[];
   logs?: LogEntry[];
   cpu?: MetricSeries[];
   memory?: MetricSeries[];
@@ -58,8 +62,10 @@ const views: Array<{ id: View; label: string; description: string; icon: string 
   { id: "deploys", label: "Deploys", description: "Build and release history", icon: "⇧" },
   { id: "logs", label: "Logs", description: "Build and runtime output", icon: "≋" },
   { id: "metrics", label: "Metrics", description: "CPU, memory and instance data", icon: "⌁" },
+  { id: "events", label: "Events", description: "Server lifecycle and operational events", icon: "◷" },
   { id: "storage", label: "Storage", description: "Persistent and object storage", icon: "▤" },
   { id: "settings", label: "Settings", description: "Runtime and build configuration", icon: "⚙" },
+  { id: "billing", label: "Billing", description: "Compute plan and Render payment structure", icon: "₦" },
 ];
 
 function statusTone(status?: string) {
@@ -156,7 +162,7 @@ export function DeploymentWorkplace() {
   );
 
   const loadInspect = useCallback(async (serviceId: string, selectedView: View) => {
-    if (!serviceId || !["deploys", "logs", "metrics"].includes(selectedView)) {
+    if (!serviceId || !["deploys", "logs", "metrics", "events"].includes(selectedView)) {
       setInspect(null);
       setInspectError("");
       return;
@@ -180,7 +186,7 @@ export function DeploymentWorkplace() {
 
   async function deploy(service: Service) {
     if (busyId) return;
-    const confirmed = window.confirm(`Start a new Render build and deployment for “${service.name}” from its connected branch?${clearCache ? " This will also clear its build cache." : ""}`);
+    const confirmed = await confirmNativeAction("Deploy latest", `Start a Render build and deployment for “${service.name}” from its connected branch?${clearCache ? " This will also clear its build cache." : ""}`);
     if (!confirmed) return;
     setBusyId(service.id);
     setNotice("");
@@ -194,11 +200,46 @@ export function DeploymentWorkplace() {
       const result = await response.json() as { message?: string; deploy?: { id?: string; status?: string } };
       if (!response.ok) throw new Error(result.message || "Render could not start the deployment.");
       setNotice(`Deployment request accepted for ${service.name}. Its status will update after Render processes the build.`);
+      void hapticNotice(true);
       setView("deploys");
       await refresh();
       await loadInspect(service.id, "deploys");
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Deployment could not be started.");
+      void hapticNotice(false);
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function serverAction(service: Service, action: "restart" | "suspend" | "resume") {
+    if (busyId) return;
+    const labels = { restart: "Restart server", suspend: "Suspend server", resume: "Resume server" };
+    const effects = {
+      restart: "This briefly restarts the running service.",
+      suspend: "This takes the service offline until it is resumed.",
+      resume: "This starts the suspended service again. It may consume compute usage while running.",
+    };
+    const confirmed = await confirmNativeAction(labels[action], `${service.name}: ${effects[action]} Continue?`);
+    if (!confirmed) return;
+    setBusyId(service.id);
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch("/api/deployments/render/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId: service.id, action }),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Render could not complete this server action.");
+      setNotice(result.message || labels[action] + " request accepted by Render.");
+      void hapticTap();
+      void hapticNotice(true);
+      await refresh();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Server action failed.");
+      void hapticNotice(false);
     } finally {
       setBusyId("");
     }
@@ -268,7 +309,7 @@ export function DeploymentWorkplace() {
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500"><span>{selectedService.type.replaceAll("_", " ")}</span><span>{selectedService.region ?? selectedService.serviceDetails?.region ?? "Region not reported"}</span><span>{selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Plan not reported"}</span><span>{selectedService.runtime ?? selectedService.serviceDetails?.runtime ?? "Runtime not reported"}</span></div>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
-                    <a href={dashboardUrl} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/40">Open on Render ↗</a>
+                    <button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open this service in Render."))} className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/40">Open on Render ↗</button>
                     <button onClick={() => void deploy(selectedService)} disabled={Boolean(busyId)} className="min-h-10 rounded-xl bg-[var(--balmz-orange)] px-4 py-2.5 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">{busyId === selectedService.id ? "Starting…" : "Deploy latest"}</button>
                   </div>
                 </div>
@@ -288,6 +329,16 @@ export function DeploymentWorkplace() {
                     <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-4"><p className="text-xs text-slate-500">Connected branch</p><p className="mt-2 truncate text-sm font-semibold text-white">{selectedService.branch ?? "Not reported"}</p><p className="mt-1 text-[10px] text-slate-600">{selectedService.repo ?? "Repository not reported"}</p></article>
                     <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-4"><p className="text-xs text-slate-500">Hosting plan</p><p className="mt-2 text-sm font-semibold text-white">{selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Not reported"}</p><p className="mt-1 text-[10px] text-slate-600">Region: {selectedService.region ?? selectedService.serviceDetails?.region ?? "Not reported"}</p></article>
                   </div>
+                  <Panel title="Server requests" subtitle="Run approved service actions directly from BALMZ AI">
+                    <div className="grid gap-3 p-5 sm:grid-cols-3">
+                      <button type="button" disabled={Boolean(busyId) || !["web_service", "private_service", "background_worker"].includes(selectedService.type)} onClick={() => void serverAction(selectedService, "restart")} className="min-h-12 rounded-xl border border-white/10 px-3 text-xs font-semibold text-slate-200 transition hover:border-[var(--balmz-orange)]/40 disabled:opacity-40">{busyId === selectedService.id ? "Working…" : "↻ Restart service"}</button>
+                      {selectedService.suspended === "suspended"
+                        ? <button type="button" disabled={Boolean(busyId)} onClick={() => void serverAction(selectedService, "resume")} className="min-h-12 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 text-xs font-semibold text-emerald-200 disabled:opacity-40">▶ Resume service</button>
+                        : <button type="button" disabled={Boolean(busyId) || selectedService.suspended === "suspended"} onClick={() => void serverAction(selectedService, "suspend")} className="min-h-12 rounded-xl border border-rose-400/20 px-3 text-xs font-semibold text-rose-200 disabled:opacity-40">Ⅱ Suspend service</button>}
+                      <button type="button" onClick={() => setView("events")} className="min-h-12 rounded-xl border border-white/10 px-3 text-xs font-semibold text-slate-200 hover:border-[var(--balmz-orange)]/40">◷ Service events</button>
+                    </div>
+                    <p className="px-5 pb-4 text-[10px] leading-5 text-slate-500">Actions require a Super Admin session and a confirmation prompt. Suspending takes the selected service offline. Plan upgrades and paid resource changes are not performed here.</p>
+                  </Panel>
                   <Panel title="Latest release" subtitle="Most recently reported deployment from the connected Render service">
                     <div className="flex flex-wrap items-start justify-between gap-3 p-5 sm:p-6">
                       <div className="min-w-0 flex-1"><p className="break-all font-mono text-xs text-slate-300">{selectedService.latestDeploy?.commitId ?? "Commit ID not reported"}</p><p className="mt-2 text-sm text-slate-200">{selectedService.latestDeploy?.commitMessage ?? "No commit message returned by Render."}</p><p className="mt-2 text-[10px] text-slate-500">Updated {date(selectedService.latestDeploy?.updatedAt)}</p></div>
@@ -320,6 +371,14 @@ export function DeploymentWorkplace() {
                 </Panel>
               ) : null}
 
+              {view === "events" ? (
+                <Panel title="Service events" subtitle="Recent Render lifecycle events for this service">
+                  {inspectLoading ? <div className="p-8 text-center text-xs text-slate-500">Loading service events…</div>
+                    : inspectError ? <div role="alert" className="p-6 text-xs text-rose-300">{inspectError}</div>
+                    : inspect?.events?.length ? <div className="divide-y divide-white/[0.055]">{inspect.events.map((event) => <div key={event.id} className="flex flex-wrap items-start gap-3 px-5 py-4 sm:px-6"><span className="mt-1 text-[var(--balmz-orange)]">◷</span><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-slate-200">{event.type.replaceAll("_", " ")}</p><p className="mt-1 break-all font-mono text-[9px] text-slate-600">{event.id}</p>{event.details ? <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-5 text-slate-500">{JSON.stringify(event.details, null, 2)}</pre> : null}</div><time className="text-[10px] text-slate-500">{date(event.timestamp)}</time></div>)}</div>
+                    : <div className="p-8 text-center text-xs text-slate-500">No recent events were returned by Render.</div>}
+                </Panel>
+              ) : null}
               {view === "metrics" ? (
                 <div className="space-y-4">
                   {inspectLoading ? <div className="rounded-2xl border border-white/[0.08] p-8 text-center text-xs text-slate-500">Loading service metrics…</div>
@@ -337,6 +396,29 @@ export function DeploymentWorkplace() {
                 </div>
               ) : null}
 
+              {view === "billing" ? (
+                <div className="space-y-4">
+                  <Panel title="Render compute & payment structure" subtitle="The selected service plan is read from the connected Render service record">
+                    <div className="p-5 sm:p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.055] p-4">
+                        <div><p className="text-[10px] uppercase tracking-wider text-emerald-300">Current service compute plan</p><p className="mt-1 text-xl font-semibold text-white">{(selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Not reported").toUpperCase()}</p><p className="mt-1 text-[10px] text-slate-500">Service: {selectedService.name} · {selectedService.type.replaceAll("_", " ")}</p></div>
+                        <span className="rounded-full border border-emerald-400/20 px-3 py-1.5 text-[10px] font-semibold text-emerald-200">{(selectedService.plan ?? selectedService.serviceDetails?.plan ?? "").toLowerCase() === "free" ? "₦0 / $0 compute tier" : "Paid compute tier"}</span>
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Service compute billing</p><p className="mt-2 text-[11px] leading-5 text-slate-400">Render charges compute per service. Paid compute is prorated by active time; the current BALMZ AI service is on the Free compute tier.</p></div>
+                        <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Workspace billing</p><p className="mt-2 text-[11px] leading-5 text-slate-400">Workspace subscription, outbound bandwidth, build pipeline usage and invoices are managed in Render Billing. Those account-level amounts are not returned by this service API response.</p></div>
+                      </div>
+                    </div>
+                  </Panel>
+                  <Panel title="Published compute examples" subtitle="Illustrative Render service compute prices in USD per month; actual selection and bill are confirmed by Render">
+                    <div className="divide-y divide-white/[0.055]">
+                      {[[ "Free", "$0", "Free tier · reduced resources and sleep/ephemeral storage limits" ], [ "0.1 CPU / 256 MB", "$6", "Small paid compute" ], [ "0.5 CPU / 1 GB", "$19", "Entry standard compute" ], [ "1 CPU / 2 GB", "$40", "Higher memory and CPU" ], [ "1 CPU / 4 GB", "$55", "Higher memory" ]].map(([name, price, detail]) => <div key={name} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"><div><p className="text-xs font-semibold text-slate-200">{name}</p><p className="mt-1 text-[10px] text-slate-500">{detail}</p></div><p className="text-sm font-semibold tabular-nums text-white">{price}<span className="text-[10px] font-normal text-slate-500"> / month</span></p></div>)}
+                    </div>
+                    <div className="border-t border-white/[0.06] p-5"><p className="text-[10px] leading-5 text-slate-500">Prices are published examples, not a quote or a charge to your account. Bandwidth and build pipeline overages may be billed separately depending on workspace settings and payment method.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => void openNativeBrowser("https://render.com/pricing").catch(() => showNativeToast("Could not open Render pricing."))} className="min-h-10 rounded-xl border border-white/10 px-4 text-[10px] font-semibold text-slate-300">View Render pricing ↗</button><button type="button" onClick={() => void openNativeBrowser("https://dashboard.render.com").catch(() => showNativeToast("Could not open Render Dashboard."))} className="min-h-10 rounded-xl bg-[var(--balmz-orange)] px-4 text-[10px] font-semibold text-[#17100a]">Open Render Billing ↗</button></div></div>
+                  </Panel>
+                  <p className="px-1 text-[10px] leading-5 text-slate-600">BALMZ AI has not upgraded or changed this service plan. No billing method, spend limit, or paid resource was changed by this workplace.</p>
+                </div>
+              ) : null}
               {view === "storage" ? (
                 <div className="space-y-4">
                   <Panel title="Service-attached storage" subtitle="Persistent disks are separate from the Super Admin's shared file archive">
@@ -369,7 +451,7 @@ export function DeploymentWorkplace() {
                       ["Auto deploy", "Managed in Render"],
                     ].map(([label, value]) => <div key={label} className="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4"><p className="text-[10px] text-slate-500">{label}</p><p className="break-all text-xs text-slate-200">{typeof value === "string" && value ? value : "Not reported"}</p></div>)}
                   </div>
-                  <div className="border-t border-white/[0.06] p-5"><a href={dashboardUrl} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-[var(--balmz-orange)] hover:underline">Open editable settings in Render Dashboard ↗</a></div>
+                  <div className="border-t border-white/[0.06] p-5"><button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open Render settings."))} className="text-[10px] font-semibold text-[var(--balmz-orange)] hover:underline">Open editable settings in Render Dashboard ↗</button></div>
                 </Panel>
               ) : null}
             </>
