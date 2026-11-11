@@ -9,8 +9,10 @@ export function SignOutButton() {
   async function signOut() {
     setBusy(true);
     try {
+      // Preserve saved conversations but make the next signed-in session open a clean New chat.
+      try { localStorage.setItem("balmz-ai-open-new-chat-after-auth", "1"); } catch {}
       await authClient.signOut();
-      window.location.assign("/");
+      window.location.assign("/sign-in?newChat=1");
     } finally {
       setBusy(false);
     }
