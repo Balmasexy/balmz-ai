@@ -58,7 +58,7 @@ function migrationRequired() {
 function credentialsValid(serviceId: ServiceId, input: unknown): input is ServiceCredentials {
   if (!input || typeof input !== "object" || Array.isArray(input)) return false;
   const credentials = input as Record<string, unknown>;
-  const allowed = serviceId === "github" || serviceId === "render" || serviceId === "neon"
+  const allowed = serviceId === "github" || serviceId === "render" || serviceId === "neon" || serviceId === "notion"
     ? ["token"]
     : serviceId === "paystack"
       ? ["secretKey", "publicKey"]
