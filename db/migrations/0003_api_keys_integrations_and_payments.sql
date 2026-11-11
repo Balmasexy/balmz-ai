@@ -3,7 +3,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.balmz_service_credentials (
   id text PRIMARY KEY,
   service_id text NOT NULL
-    CHECK (service_id IN ('paystack', 'coingecko', 'github', 'render', 'neon', 'notion', 'agentic-ai', 'notes-ai', 'custom')),
+    CHECK (service_id IN ('paystack', 'coingecko', 'chartgpt', 'github', 'render', 'neon', 'notion', 'agentic-ai', 'notes-ai', 'custom')),
   display_name text NOT NULL,
   environment text NOT NULL CHECK (environment IN ('demo', 'live')),
   encrypted_credentials text NOT NULL,
