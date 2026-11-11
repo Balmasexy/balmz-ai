@@ -15,6 +15,11 @@ export type AdminOverview = {
     pending_payments: CountValue;
     usage_events: CountValue;
     pending_webhooks: CountValue;
+    subscription_plans: CountValue;
+    subscriptions: CountValue;
+    usage_counters: CountValue;
+    webhook_events: CountValue;
+    audit_events: CountValue;
   };
   users: Array<{
     id: string;
@@ -163,7 +168,12 @@ export async function getAdminOverview(): Promise<AdminOverview> {
            (SELECT count(*)::int FROM public.balmz_payment_records) AS payment_records,
            (SELECT count(*)::int FROM public.balmz_payment_records WHERE status = 'pending') AS pending_payments,
            (SELECT count(*)::int FROM public.balmz_usage_events) AS usage_events,
-           (SELECT count(*)::int FROM public.balmz_billing_webhook_events WHERE processing_status IN ('received','failed')) AS pending_webhooks`,
+           (SELECT count(*)::int FROM public.balmz_billing_webhook_events WHERE processing_status IN ('received','failed')) AS pending_webhooks,
+           (SELECT count(*)::int FROM public.balmz_subscription_plans) AS subscription_plans,
+           (SELECT count(*)::int FROM public.balmz_subscriptions) AS subscriptions,
+           (SELECT count(*)::int FROM public.balmz_usage_counters) AS usage_counters,
+           (SELECT count(*)::int FROM public.balmz_billing_webhook_events) AS webhook_events,
+           (SELECT count(*)::int FROM public.balmz_admin_audit_log) AS audit_events`,
       ),
     ]);
 
