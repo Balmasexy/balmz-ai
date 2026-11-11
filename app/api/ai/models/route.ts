@@ -14,7 +14,7 @@ export async function GET() {
   let connectionsAvailable = true;
   try {
     const connections = await listAIProviderConnections();
-    for (const connection of connections) {
+    for (const connection of connections.filter((item) => item.last_test_status === "connected")) {
       models.push({
         value: `connection:${connection.id}`,
         label: `${connection.display_name} · ${connection.model_id}`,
