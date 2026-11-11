@@ -174,6 +174,101 @@ export async function testAIProvider(provider: AIProviderId, apiKey: string, mod
   ], 12);
 }
 
+export type AIProviderModelOption = { id: string; label: string };
+
+const AI_MODEL_ENDPOINTS: Record<AIProviderId, string> = {
+  openai: "https://api.openai.com/v1/models",
+  anthropic: "https://api.anthropic.com/v1/models",
+  google: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100",
+  xai: "https://api.x.ai/v1/models",
+  openrouter: "https://openrouter.ai/api/v1/models",
+  deepseek: "https://api.deepseek.com/models",
+  groq: "https://api.groq.com/openai/v1/models",
+  mistral: "https://api.mistral.ai/v1/models",
+  together: "https://api.together.xyz/v1/models",
+  fireworks: "https://api.fireworks.ai/inference/v1/models",
+};
+
+/**
+ * Fetch the provider's live model catalogue using the unsaved key supplied by
+ * the Super Admin. Keys are sent only to this server route and are never saved
+ * by this operation. Only fixed provider endpoints are contacted.
+ */
+export async function listAIProviderModels(
+  provider: AIProviderId,
+  apiKey: string,
+): Promise<AIProviderModelOption[]> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (provider === "anthropic") {
+    headers["x-api-key"] = apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+  } else if (provider === "google") {
+    headers["x-goog-api-key"] = apiKey;
+  } else {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(AI_MODEL_ENDPOINTS[provider], {
+      method: "GET",
+      headers,
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new Error("AI_PROVIDER_UNAVAILABLE");
+  }
+  if (!response.ok) throw new Error(errorCode(response.status));
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("AI_PROVIDER_INVALID_RESPONSE");
+  }
+
+  const root = payload && typeof payload === "object"
+    ? payload as Record<string, unknown>
+    : {};
+  const rawItems = provider === "google"
+    ? Array.isArray(root.models) ? root.models : []
+    : Array.isArray(root.data) ? root.data
+      : Array.isArray(root.models) ? root.models : [];
+
+  const models = rawItems.flatMap((item): AIProviderModelOption[] => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    if (provider === "google") {
+      const methods = Array.isArray(row.supportedGenerationMethods)
+        ? row.supportedGenerationMethods.filter((method): method is string => typeof method === "string")
+        : [];
+      if (methods.length && !methods.includes("generateContent")) return [];
+    }
+    const rawId = typeof row.id === "string"
+      ? row.id
+      : typeof row.name === "string" ? row.name : "";
+    const id = (provider === "google" ? rawId.replace(/^models\//, "") : rawId).trim();
+    if (!id || id.length > 180 || /[\r\n]/.test(id)) return [];
+    // The chat adapter supports text generation, not embeddings, audio,
+    // moderation, image generation, transcription or reranking endpoints.
+    if (/(^|[-/.])(embedding|embeddings|embed|moderation|whisper|transcribe|transcription|tts|speech|dall-e|image|rerank|audio|realtime)([-/.]|$)/i.test(id)) return [];
+    const label = typeof row.display_name === "string" && row.display_name.trim()
+      ? row.display_name.trim().slice(0, 180)
+      : typeof row.name === "string" && provider !== "google" && row.name.trim()
+        ? row.name.trim().slice(0, 180)
+        : id;
+    return [{ id, label }];
+  });
+
+  const unique = new Map<string, AIProviderModelOption>();
+  for (const model of models) unique.set(model.id, model);
+  return [...unique.values()]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .slice(0, 150);
+}
+
 export async function sendAIProviderMessage(connection: AIProviderConnection, messages: AIMessage[]): Promise<string> {
   if (!connection.enabled) throw new Error("AI_PROVIDER_DISABLED");
   const apiKey = decryptProviderKey(connection.encrypted_api_key);

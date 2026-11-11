@@ -49,8 +49,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [notice, setNotice] = useState("");
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [copied, setCopied] = useState("");
-  const [model, setModel] = useState("env:gpt-4.1-mini");
+  const [model, setModel] = useState("");
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsMessage, setModelsMessage] = useState("");
   const [planCheck, setPlanCheck] = useState<"checking" | "active" | "inactive" | "unavailable">("checking");
   const [currentPlanName, setCurrentPlanName] = useState(planName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -98,20 +100,30 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     return () => { cancelled = true; };
   }, []);
 
+  async function refreshModels() {
+    setModelsLoading(true);
+    try {
+      const response = await fetch("/api/ai/models", { cache: "no-store" });
+      const payload = await response.json() as { models?: ModelOption[]; message?: string };
+      if (!response.ok || !Array.isArray(payload.models)) {
+        throw new Error(payload.message || "AI model list could not be loaded.");
+      }
+      setModelOptions(payload.models);
+      setModelsMessage(payload.message || "");
+      setModel((current) => payload.models!.some((option) => option.value === current)
+        ? current
+        : payload.models![0]?.value ?? "");
+    } catch (cause) {
+      setModelOptions([]);
+      setModel("");
+      setModelsMessage(cause instanceof Error ? cause.message : "AI model list could not be loaded.");
+    } finally {
+      setModelsLoading(false);
+    }
+  }
+
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/ai/models", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as { models?: ModelOption[] };
-        if (!response.ok || !Array.isArray(payload.models)) return;
-        if (cancelled) return;
-        setModelOptions(payload.models);
-        setModel((current) => payload.models!.some((option) => option.value === current)
-          ? current
-          : payload.models![0]?.value ?? current);
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
+    void refreshModels();
   }, []);
 
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
@@ -143,6 +155,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setNotice(planCheck === "unavailable"
         ? "Your BALMZ AI plan could not be verified. No AI request was sent. Refresh the workspace and try again."
         : "An active BALMZ AI plan is required before sending AI requests. Choose a plan to continue.");
+      return;
+    }
+    if (!model || !modelOptions.some((option) => option.value === model)) {
+      setNotice(modelsMessage || "No AI model is connected yet. Ask the Super Admin to connect and test a provider in AI connections.");
       return;
     }
     let conversation = active;
@@ -248,7 +264,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           </div>
           <div className="flex items-center gap-2">
             <Link href="/dashboard/plugins" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Plugins</Link>
-            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[140px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
+            <label className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select aria-label="Choose AI model" disabled={modelsLoading || !modelOptions.length} value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[150px] bg-transparent text-xs font-medium text-slate-200 outline-none disabled:opacity-60">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.provider} · {option.label}</option>) : <option value="">{modelsLoading ? "Loading models…" : "No connected models"}</option>}</select></label>
+            <button type="button" onClick={() => void refreshModels()} disabled={modelsLoading} className="hidden rounded-lg border border-white/[0.08] px-2.5 py-2 text-[10px] font-medium text-slate-400 hover:border-[var(--balmz-orange)]/40 hover:text-white disabled:opacity-40 sm:inline-flex">{modelsLoading ? "Loading…" : "Refresh models"}</button>
+            {!modelsLoading && !modelOptions.length ? <Link href={isAdmin ? "/admin?section=ai-connections" : "/dashboard/plugins"} className="hidden rounded-lg bg-[var(--balmz-orange)]/[0.09] px-2.5 py-2 text-[10px] font-semibold text-[var(--balmz-orange)] hover:bg-[var(--balmz-orange)]/[0.15] sm:inline-flex">{isAdmin ? "Connect provider" : "Provider setup"}</Link> : null}
             <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--balmz-orange)]/15 text-xs font-bold text-[var(--balmz-orange)]">{userName.trim().slice(0, 1).toUpperCase() || "B"}</Link>
           </div>
         </header>
@@ -257,6 +275,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           {planCheck !== "active" && planCheck !== "checking" ? <div className="mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] px-4 py-3">
             <p className="text-xs leading-5 text-slate-200">{planCheck === "unavailable" ? "We could not verify your plan. AI requests are paused until your plan status can be checked." : "An active BALMZ AI plan is required before sending AI requests."}</p>
             <Link href="/dashboard/billing" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">View plans</Link>
+          </div> : null}
+          {!modelsLoading && !modelOptions.length ? <div className="mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] px-4 py-3">
+            <div><p className="text-xs font-semibold text-slate-200">No chat model is connected</p><p className="mt-1 text-[10px] leading-5 text-slate-500">{modelsMessage || "A Super Admin must connect and test an AI provider before chat can start."}</p></div>
+            {isAdmin ? <Link href="/admin?section=ai-connections" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">Connect a provider</Link> : <span className="text-[10px] text-slate-500">Ask your administrator to configure a provider</span>}
           </div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
@@ -271,7 +293,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                 <span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
