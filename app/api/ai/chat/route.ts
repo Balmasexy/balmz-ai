@@ -29,6 +29,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const candidate = (body as { messages?: unknown } | null)?.messages;
+  const requestedRequestId = (body as { requestId?: unknown } | null)?.requestId;
+  const requestId = typeof requestedRequestId === "string" && /^[0-9a-f-]{36}$/i.test(requestedRequestId)
+    ? requestedRequestId
+    : randomUUID();
   if (!Array.isArray(candidate) || candidate.length < 1 || candidate.length > 20) {
     return safeError("INVALID_MESSAGES", 400, "Send between 1 and 20 recent messages.");
   }
@@ -81,7 +85,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       metric: "ai_messages",
       units: 1,
       source: "client_chat",
-      idempotencyKey: randomUUID(),
+      idempotencyKey: requestId,
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : "USAGE_UNAVAILABLE";
