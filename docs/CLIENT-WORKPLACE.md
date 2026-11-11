@@ -26,7 +26,7 @@ The browser sends the current conversation to `POST /api/ai/chat`. The server:
 6. Calls the OpenAI Chat Completions API using the allow-listed `gpt-4.1-mini` model (or `gpt-4.1` when explicitly selected in server configuration).
 7. Returns only the assistant text and model identifier; provider credentials never reach the browser.
 
-Optional server variable: `OPENAI_CHAT_MODEL` (supported values: `gpt-4.1-mini`, `gpt-4.1`). The server defaults to `gpt-4.1-mini`.
+The client offers `gpt-4.1-mini` and `gpt-4.1`; the server independently enforces this allow-list and defaults unknown values to `gpt-4.1-mini`.
 
 ## Enablement gates
 
