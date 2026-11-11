@@ -1,11 +1,11 @@
 import { headers } from "next/headers";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { getDbPool } from "@/lib/db";
 import { isAdminUser } from "@/lib/admin";
 import {
   decryptServiceCredentials,
-  encryptServiceCredentials,
   testServiceConnection,
 } from "@/lib/service-connectors";
 import type { PaymentEnvironment } from "@/lib/payments/paystack-billing";
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       `INSERT INTO public.balmz_admin_audit_log (id, actor_user_id, action, metadata)
        VALUES ($1, $2, $3, $4::jsonb)`,
       [
-        crypto.randomUUID(),
+        randomUUID(),
         auth.session.user.id,
         body.enabled ? "payment_environment_enabled" : "payment_environment_disabled",
         JSON.stringify({ environment }),
