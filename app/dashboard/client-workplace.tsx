@@ -6,6 +6,7 @@ import { SignOutButton } from "@/app/components/sign-out-button";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
+type ModelOption = { value: string; label: string; provider: string; modelId: string };
 
 const STORAGE_KEY = "balmz-ai-client-workplace-v1";
 const starterPrompts = [
@@ -48,7 +49,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [notice, setNotice] = useState("");
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [copied, setCopied] = useState("");
-  const [model, setModel] = useState("gpt-4.1-mini");
+  const [model, setModel] = useState("env:gpt-4.1-mini");
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +81,22 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [activeId, conversations, busy]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ai/models", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { models?: ModelOption[] };
+        if (!response.ok || !Array.isArray(payload.models)) return;
+        if (cancelled) return;
+        setModelOptions(payload.models);
+        setModel((current) => payload.models!.some((option) => option.value === current)
+          ? current
+          : payload.models![0]?.value ?? current);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
   const filtered = useMemo(() => conversations.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())), [conversations, query]);
@@ -201,7 +219,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div><p className="text-sm font-semibold text-white">Chat</p><p className="hidden text-[10px] text-slate-500 sm:block">A focused space for your ideas and work</p></div>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[118px] bg-transparent text-xs font-medium text-slate-200 outline-none"><option value="gpt-4.1-mini">GPT-4.1 mini</option><option value="gpt-4.1">GPT-4.1</option></select></label>
+            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[180px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
             <span className="h-2 w-2 rounded-full bg-emerald-400" title="Workspace interface ready" />
           </div>
         </header>
@@ -223,7 +241,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
                 <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
               </div>
             </div>
-            <p className="mt-4 text-center text-[10px] text-slate-600">AI responses require an active plan and a configured provider key. Verify important information.</p>
+            <p className="mt-4 text-center text-[10px] text-slate-600">AI responses require an active plan and a connected provider. Switch models from the selector when more providers are available.</p>
           </div> : <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-8">
             <div className="space-y-8">{active?.messages.map((message) => <article key={message.id} className={message.role === "user" ? "flex justify-end" : "flex gap-3"}>
               {message.role === "assistant" ? <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span> : null}
