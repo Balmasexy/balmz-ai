@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 type Plugin = {
   id: string;
@@ -15,11 +16,11 @@ type Plugin = {
 };
 
 const plugins: Plugin[] = [
-  { id: "openai", name: "ChatGPT / OpenAI", category: "AI", description: "Use OpenAI chat models through a server-side provider connection. API credentials stay on the BALMZ AI server.", capabilities: ["Chat", "GPT models", "Usage metering"], route: "/admin?section=ai-connections", access: "admin", provider: "OpenAI" },
-  { id: "models", name: "AI model providers", category: "AI", description: "Use connected language models from Anthropic, Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI and Fireworks AI.", capabilities: ["Chat", "Model selection", "Provider switching"], route: "/admin?section=ai-connections", access: "admin", provider: "BALMZ AI" },
+  { id: "openai", name: "ChatGPT / OpenAI", category: "AI", description: "Use the workspace’s shared, administrator-tested OpenAI connection in BALMZ AI chat. Provider credentials stay on the server.", capabilities: ["Chat", "GPT models", "Usage metering"], route: "/dashboard", access: "info", provider: "OpenAI" },
+  { id: "models", name: "AI model providers", category: "AI", description: "Select any shared, tested provider model enabled by the administrator from the ChatGPT-style model selector.", capabilities: ["Chat", "Model selection", "Provider switching"], route: "/dashboard", access: "info", provider: "BALMZ AI" },
   { id: "github", name: "GitHub", category: "Developer", description: "Connect repositories for code, issues and project workflows through the Super Admin connector.", capabilities: ["Repositories", "Issues", "Development"], route: "/admin?section=service-connectors", access: "admin", provider: "GitHub" },
   { id: "coingecko", name: "CoinGecko", category: "Finance", description: "Configure verified market-data credentials for supported CoinGecko endpoints.", capabilities: ["Crypto market data", "Demo / Pro key"], route: "/admin?section=service-connectors", access: "admin", provider: "CoinGecko" },
-  { id: "chartgpt", name: "ChartGPT", category: "Work", description: "Generate charts from prompts and structured data using the connected ChartGPT service.", capabilities: ["Chart generation", "Chart history"], route: "/dashboard/charts", access: "info", provider: "ChartGPT" },
+  { id: "chartgpt", name: "ChartGPT", category: "Work", description: "Generate charts from prompts and your structured data using the shared administrator-tested ChartGPT connection. Export your results; chart history is not retained by ChartGPT.", capabilities: ["Chart generation", "SVG / PNG / JSON export"], route: "/dashboard/charts", access: "info", provider: "ChartGPT" },
   { id: "notion", name: "Notion", category: "Work", description: "Add a Notion integration credential for the workspace. Actual actions depend on the connected Notion API and granted permissions.", capabilities: ["Knowledge workspace", "Pages and databases"], route: "/admin?section=service-connectors", access: "admin", provider: "Notion" },
   { id: "agentic", name: "Agentic AI directory", category: "AI", description: "Search the Agentic.ai public directory for compatible AI agents and services.", capabilities: ["Agent discovery", "Directory search"], route: "/admin?section=service-connectors", access: "admin", provider: "Agentic.ai" },
   { id: "paystack", name: "Paystack", category: "Finance", description: "Workspace-managed payment integration. Demo and Live modes remain separate and Live requires verified credentials and explicit activation.", capabilities: ["Checkout", "Transaction verification", "Webhooks"], route: "/dashboard/billing", access: "billing", provider: "Paystack" },
@@ -43,7 +44,7 @@ export function PluginWorkspace({ isAdmin, planName }: { isAdmin: boolean; planN
       <header className="sticky top-0 z-20 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#080c14]/95 px-4 backdrop-blur-xl sm:px-8">
         <Link href="/dashboard" aria-label="Back to chat" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-xl text-slate-300 hover:bg-white/5">←</Link>
         <div className="text-center"><p className="text-sm font-semibold text-white">Plugins</p><p className="text-[10px] text-slate-500">BALMZ AI tool directory</p></div>
-        <Link href="/dashboard/settings" className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--balmz-orange)]/15 text-sm font-semibold text-[var(--balmz-orange)]">B</Link>
+        <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#0b111c]"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={32} height={32} className="h-8 w-8 rounded-full object-contain" /></Link>
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-7 sm:px-8 sm:py-10">
