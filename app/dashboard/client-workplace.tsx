@@ -9,6 +9,7 @@ type Conversation = { id: string; title: string; updatedAt: string; messages: Me
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
 
 const STORAGE_KEY = "balmz-ai-client-workplace-v1";
+const NEW_CHAT_AFTER_AUTH_KEY = "balmz-ai-open-new-chat-after-auth";
 const starterPrompts = [
   { title: "Write something", detail: "Draft an email, proposal or post", prompt: "Help me draft a clear, professional email about " },
   { title: "Learn something", detail: "Explain a topic step by step", prompt: "Explain this topic step by step, with practical examples: " },
@@ -60,14 +61,25 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const saved = raw ? JSON.parse(raw) as Conversation[] : [];
-      if (Array.isArray(saved)) {
-        setConversations(saved);
-        if (saved[0]?.id) setActiveId(saved[0].id);
-        else {
-          const first = makeConversation();
-          setConversations([first]);
-          setActiveId(first.id);
+      const validSaved = Array.isArray(saved) ? saved : [];
+      const url = new URL(window.location.href);
+      const forceNewChat = localStorage.getItem(NEW_CHAT_AFTER_AUTH_KEY) === "1" || url.searchParams.get("new") === "1";
+      if (forceNewChat) {
+        const fresh = makeConversation();
+        setConversations([fresh, ...validSaved.filter((item) => item && item.id !== fresh.id)]);
+        setActiveId(fresh.id);
+        localStorage.removeItem(NEW_CHAT_AFTER_AUTH_KEY);
+        if (url.searchParams.has("new")) {
+          url.searchParams.delete("new");
+          window.history.replaceState({}, "", url.pathname + url.search + url.hash);
         }
+      } else if (validSaved[0]?.id) {
+        setConversations(validSaved);
+        setActiveId(validSaved[0].id);
+      } else {
+        const first = makeConversation();
+        setConversations([first]);
+        setActiveId(first.id);
       }
     } catch {
       const first = makeConversation();
@@ -125,6 +137,29 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     setNotice("");
     setMobileSidebar(false);
     window.setTimeout(() => textareaRef.current?.focus(), 50);
+  }
+
+  function minimizeChat() {
+    // Keep the active conversation in local storage and return to the page
+    // that opened the workspace. This is not the same as starting a new chat.
+    const referrer = document.referrer;
+    if (referrer) {
+      try {
+        const previous = new URL(referrer);
+        if (previous.origin === window.location.origin && previous.href !== window.location.href) {
+          window.history.back();
+          return;
+        }
+      } catch {
+        // Fall through to the safe application landing page.
+      }
+    }
+    window.location.assign("/");
+  }
+
+  function closeChat() {
+    // Closing a chat leaves its saved history intact and opens a clean thread.
+    newChat();
   }
 
   function updateMessages(id: string, messages: Message[]) {
@@ -246,9 +281,11 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <button onClick={() => setMobileSidebar(true)} className="rounded-lg p-2 text-slate-400 hover:bg-white/5 lg:hidden" aria-label="Open navigation"><Icon name="menu" /></button>
             <div><p className="text-sm font-semibold text-white">Chat</p><p className="hidden text-[10px] text-slate-500 sm:block">A focused space for your ideas and work</p></div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Link href="/dashboard/plugins" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Plugins</Link>
-            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[140px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
+            <label className="hidden items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500 sm:flex">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[140px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
+            <button type="button" onClick={minimizeChat} title="Minimize and return to the previous page" aria-label="Minimize chat and return to the previous page" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] text-lg text-slate-400 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white">−</button>
+            <button type="button" onClick={closeChat} title="Close this chat and open a new chat" aria-label="Close this chat and start a new chat" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] text-slate-400 transition hover:border-rose-400/30 hover:bg-rose-400/[0.07] hover:text-rose-200"><Icon name="close" /></button>
             <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--balmz-orange)]/15 text-xs font-bold text-[var(--balmz-orange)]">{userName.trim().slice(0, 1).toUpperCase() || "B"}</Link>
           </div>
         </header>
