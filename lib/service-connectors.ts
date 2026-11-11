@@ -247,7 +247,7 @@ async function testPaystack(credentials: ServiceCredentials, environment: Servic
   if (!secretKey) throw new Error("PAYSTACK_SECRET_KEY_REQUIRED");
   const prefix = environment === "demo" ? "sk_test_" : "sk_live_";
   if (!secretKey.startsWith(prefix)) throw new Error(environment === "demo" ? "PAYSTACK_DEMO_KEY_REQUIRED" : "PAYSTACK_LIVE_KEY_REQUIRED");
-  await checkedFetch("https://api.paystack.co/bank?country=nigeria", {
+  await checkedFetch("https://api.paystack.co/balance", {
     headers: { Authorization: `Bearer ${secretKey}`, Accept: "application/json" },
   });
   return { endpoint: environment === "demo" ? "Paystack Test" : "Paystack Live", keyPrefix: prefix };
