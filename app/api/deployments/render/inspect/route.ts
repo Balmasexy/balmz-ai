@@ -68,7 +68,7 @@ export async function GET(request: Request) {
   if (!/^srv-[a-zA-Z0-9]+$/.test(serviceId)) {
     return NextResponse.json({ error: "INVALID_SERVICE" }, { status: 400 });
   }
-  if (!["deploys", "logs", "metrics"].includes(view)) {
+  if (!["deploys", "logs", "metrics", "events"].includes(view)) {
     return NextResponse.json({ error: "INVALID_VIEW" }, { status: 400 });
   }
 
@@ -76,6 +76,14 @@ export async function GET(request: Request) {
     const services = unwrapList<RenderService>(await renderRequest("/services?limit=100"));
     const service = services.find((item) => item.id === serviceId);
     if (!service) return NextResponse.json({ error: "SERVICE_NOT_IN_CONNECTED_ACCOUNT" }, { status: 404 });
+
+    if (view === "events") {
+      const params = new URLSearchParams({ limit: "30" });
+      const events = unwrapList<Record<string, unknown>>(await renderRequest(
+        "/services/" + encodeURIComponent(serviceId) + "/events?" + params.toString(),
+      ));
+      return NextResponse.json({ view, serviceId, events }, { headers: { "Cache-Control": "no-store" } });
+    }
 
     if (view === "deploys") {
       const params = new URLSearchParams({ limit: "25" });
