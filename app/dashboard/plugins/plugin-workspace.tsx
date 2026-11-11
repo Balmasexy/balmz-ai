@@ -95,7 +95,7 @@ export function PluginWorkspace({ isAdmin, planName }: { isAdmin: boolean; planN
           <p className="mt-2 text-xs leading-6 text-slate-400">BALMZ AI uses explicit tool registrations and server-side connectors. A directory listing is not proof that a service is connected. Admin-managed integrations must pass their connection test before they become usable; external credentials are never sent to the browser as plain text.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link href="/dashboard/billing" className="rounded-xl border border-white/10 px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5">Plans and billing</Link>
-            {isAdmin ? <Link href="/admin?section=service-connectors" className="rounded-xl border border-[var(--balmz-orange)]/30 px-4 py-2.5 text-xs text-[var(--balmz-orange)] hover:bg-[var(--balmz-orange)]/10">Manage service connectors</Link> : null}
+            {isAdmin ? <><Link href="/admin?section=ai-connections" className="rounded-xl border border-[var(--balmz-orange)]/30 px-4 py-2.5 text-xs text-[var(--balmz-orange)] hover:bg-[var(--balmz-orange)]/10">Manage AI providers</Link><Link href="/admin?section=service-connectors" className="rounded-xl border border-[var(--balmz-orange)]/30 px-4 py-2.5 text-xs text-[var(--balmz-orange)] hover:bg-[var(--balmz-orange)]/10">Manage service connectors</Link></> : null}
           </div>
         </div>
       </div>
