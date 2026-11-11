@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
-type ServiceId = "paystack" | "coingecko" | "github" | "render" | "neon" | "agentic-ai" | "notes-ai" | "custom";
+type ServiceId = "paystack" | "coingecko" | "chartgpt" | "github" | "render" | "neon" | "notion" | "agentic-ai" | "notes-ai" | "custom";
 type Environment = "demo" | "live";
 type CatalogItem = {
   id: ServiceId; name: string; category: string; description: string; keyRequired: boolean;
@@ -16,7 +17,7 @@ type EnvStatus = { serviceId: ServiceId; environment: Environment; configured: b
 type Repository = { id: number; name: string; fullName: string; private: boolean; url: string; defaultBranch: string; updatedAt: string; description: string | null };
 
 const serviceLogos: Record<ServiceId, string> = {
-  paystack: "P", coingecko: "CG", github: "GH", render: "R", neon: "N", "agentic-ai": "A", "notes-ai": "NA", custom: "API",
+  paystack: "P", coingecko: "CG", chartgpt: "CH", github: "GH", render: "R", neon: "N", notion: "NO", "agentic-ai": "A", "notes-ai": "NA", custom: "API",
 };
 function date(value: string | null) {
   if (!value) return "Not tested";
@@ -93,15 +94,15 @@ export function ServiceConnectorsSection() {
     setNotice("");
   }, [selectedId, catalog]);
 
-  async function connect(event: React.FormEvent<HTMLFormElement>) {
+  async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || saving) return;
     setSaving(true);
     setError("");
     setNotice("");
     const credentials: Record<string, string> = {};
-    if (["github", "render", "neon"].includes(selected.id)) credentials.token = token;
-    if (selected.id === "coingecko") credentials.apiKey = apiKey;
+    if (["github", "render", "neon", "notion"].includes(selected.id)) credentials.token = token;
+    if (["coingecko", "chartgpt"].includes(selected.id)) credentials.apiKey = apiKey;
     if (selected.id === "paystack") {
       credentials.secretKey = apiKey;
       if (publicKey.trim()) credentials.publicKey = publicKey.trim();
@@ -239,8 +240,8 @@ export function ServiceConnectorsSection() {
                 <div className="relative flex items-center gap-3"><div className="h-px flex-1 bg-white/[0.08]" /><span className="text-[9px] uppercase tracking-wider text-slate-600">or add a connector secret</span><div className="h-px flex-1 bg-white/[0.08]" /></div>
                 <form onSubmit={connect} className="space-y-3">
                   <label className="block"><span className="text-[10px] text-slate-400">Connection label</span><input required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label>
-                  {["github", "render", "neon"].includes(selected.id) ? <label className="block"><span className="text-[10px] text-slate-400">Personal / service API token</span><input type="password" autoComplete="new-password" required minLength={10} value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste API token" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
-                  {["paystack", "coingecko"].includes(selected.id) ? <label className="block"><span className="text-[10px] text-slate-400">{selected.id === "paystack" ? "Paystack secret key" : "CoinGecko API key"}</span><input type="password" autoComplete="new-password" required minLength={10} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={selected.id === "paystack" ? (environment === "demo" ? "sk_test_…" : "sk_live_…") : "API key"} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
+                  {["github", "render", "neon", "notion"].includes(selected.id) ? <label className="block"><span className="text-[10px] text-slate-400">Personal / service API token</span><input type="password" autoComplete="new-password" required minLength={10} value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste API token" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
+                  {["paystack", "coingecko", "chartgpt"].includes(selected.id) ? <label className="block"><span className="text-[10px] text-slate-400">{selected.id === "paystack" ? "Paystack secret key" : selected.id === "chartgpt" ? "ChartGPT API key" : "CoinGecko API key"}</span><input type="password" autoComplete="new-password" required minLength={10} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={selected.id === "paystack" ? (environment === "demo" ? "sk_test_…" : "sk_live_…") : "API key"} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
                   {selected.id === "paystack" ? <label className="block"><span className="text-[10px] text-slate-400">Paystack public key (optional)</span><input type="password" autoComplete="new-password" value={publicKey} onChange={(event) => setPublicKey(event.target.value)} placeholder={environment === "demo" ? "pk_test_…" : "pk_live_…"} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
                   {["notes-ai", "custom"].includes(selected.id) ? <><label className="block"><span className="text-[10px] text-slate-400">Public HTTPS API base URL</span><input type="url" required value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.vendor.com/v1" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label><label className="block"><span className="text-[10px] text-slate-400">Model ID</span><input required value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="provider-model-id" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label><label className="block"><span className="text-[10px] text-slate-400">API key</span><input type="password" autoComplete="new-password" required minLength={10} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Provider API key" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label></> : null}
                   {selected.id === "agentic-ai" ? <p className="rounded-xl border border-sky-400/15 bg-sky-400/[0.04] p-3 text-[10px] leading-5 text-sky-100">No API key is required. Connect & test will contact the public Agentic.ai directory directly.</p> : null}
