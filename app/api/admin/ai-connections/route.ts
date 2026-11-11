@@ -9,6 +9,7 @@ import {
   encryptProviderKey,
   isAIProviderId,
   listAIProviderConnections,
+  listAIProviderModels,
   testAIProvider,
   type AIProviderConnection,
 } from "@/lib/ai/providers";
@@ -83,6 +84,21 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (body.action === "list-models") {
+      if (!isAIProviderId(body.providerId)) {
+        return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
+      }
+      if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
+        return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter the provider API key before loading its models." }, { status: 400 });
+      }
+      const models = await listAIProviderModels(body.providerId, body.apiKey.trim());
+      return NextResponse.json({
+        success: true,
+        models,
+        message: models.length ? null : "The provider returned no chat models for this key or account.",
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     if (body.action === "test") {
       if (typeof body.id !== "string" || !/^[a-zA-Z0-9-]{16,64}$/.test(body.id)) {
         return NextResponse.json({ error: "INVALID_CONNECTION" }, { status: 400 });
@@ -168,12 +184,12 @@ export async function POST(request: Request) {
       message: code === "AI_PROVIDER_AUTH_FAILED"
         ? "The provider rejected this API key. Check that the key is active and belongs to this provider."
         : code === "AI_PROVIDER_RATE_LIMITED"
-          ? "The provider rate-limited the small test request. Wait and try again."
+          ? "The provider rate-limited the model catalogue request or test. Wait and try again."
           : code === "AI_PROVIDER_REQUEST_REJECTED"
-            ? "The provider rejected the model or request. Check the model ID and provider account access."
+            ? "The provider rejected the model catalogue request. Check key permissions and provider account access."
             : code === "AI_PROVIDER_UNAVAILABLE"
-              ? "The provider could not be reached right now. No connection was saved."
-              : "The connection could not be saved. Check the server and database configuration.",
+              ? "The provider could not be reached right now. Check the provider status and try again."
+              : "The provider operation could not be completed. Check the server and provider configuration.",
     }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }
