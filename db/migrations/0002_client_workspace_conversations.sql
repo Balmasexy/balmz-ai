@@ -39,7 +39,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE
   TO balmz_ai_app;
 
 INSERT INTO public.balmz_schema_migrations (version, name)
-VALUES ('0003', 'client_workspace_conversations')
+VALUES ('0005', 'client_workspace_conversations')
 ON CONFLICT (version) DO NOTHING;
 
 COMMIT;
