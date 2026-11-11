@@ -39,6 +39,7 @@ function unwrapList<T>(value: unknown): T[] {
   return value.map((entry) => {
     if (entry && typeof entry === "object" && "service" in entry && entry.service) return entry.service as T;
     if (entry && typeof entry === "object" && "deploy" in entry && entry.deploy) return entry.deploy as T;
+    if (entry && typeof entry === "object" && "event" in entry && entry.event) return entry.event as T;
     return entry as T;
   });
 }
