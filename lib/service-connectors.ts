@@ -275,15 +275,33 @@ export function serviceCredentialsFromEnvironment(
   serviceId: ServiceId,
   environment: ServiceEnvironment,
 ): ServiceCredentials | null {
+  if (serviceId === "paystack") {
+    const explicit = environment === "demo"
+      ? [process.env.PAYSTACK_TEST_SECRET_KEY, process.env.PAYSTACK_SECRET_KEY]
+      : [process.env.PAYSTACK_LIVE_SECRET_KEY, process.env.PAYSTACK_SECRET_KEY];
+    const prefix = environment === "demo" ? "sk_test_" : "sk_live_";
+    const value = explicit.find((candidate) => candidate?.trim().startsWith(prefix))?.trim();
+    return value ? { secretKey: value } : null;
+  }
+  if (serviceId === "coingecko") {
+    const explicit = environment === "demo"
+      ? [process.env.COINGECKO_DEMO_API_KEY, process.env.COINGECKO_API_KEY]
+      : [process.env.COINGECKO_PRO_API_KEY];
+    const value = explicit.find((candidate) => candidate?.trim())?.trim();
+    return value ? { apiKey: value } : null;
+  }
+  if (serviceId === "notes-ai") {
+    const apiKey = process.env.NOTES_AI_API_KEY?.trim();
+    const baseUrl = process.env.NOTES_AI_BASE_URL?.trim();
+    const modelId = process.env.NOTES_AI_MODEL?.trim();
+    return apiKey && baseUrl && modelId ? { apiKey, baseUrl, modelId } : null;
+  }
   const service = SERVICE_CATALOG.find((entry) => entry.id === serviceId);
   if (!service) return null;
   const aliases = service.envAliases[environment] ?? [];
   for (const name of aliases) {
     const value = process.env[name]?.trim();
-    if (!value) continue;
-    if (serviceId === "paystack") return { secretKey: value };
-    if (serviceId === "coingecko") return { apiKey: value };
-    return { token: value };
+    if (value) return { token: value };
   }
   return null;
 }
