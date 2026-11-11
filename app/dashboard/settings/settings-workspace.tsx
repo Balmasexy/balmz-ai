@@ -72,14 +72,12 @@ export function SettingsWorkspace({ name, email, planName, isAdmin }: Props) {
           <SettingGroup items={identityRows} />
           <p className="px-1 pt-5 text-sm text-white/60">Preferences</p>
           <SettingGroup items={appearanceRows} />
-          <p className="px-1 pt-5 text-sm text-white/60">Workspace</p>
-          <SettingGroup items={[
-            { id: "help", icon: "?", label: "Help and support", value: "Open" , href: "mailto:support@balmz.ai" },
-            ...(isAdmin ? [{ id: "admin", icon: "⌘", label: "Super Admin workplace", value: "Manage", href: "/admin" } as SettingRow] : []),
-            { id: "signout", icon: "↪", label: "Sign out", value: "End session" },
-          ].filter((item) => !query || (item.label + " " + item.value).toLowerCase().includes(query)).map((item) =>
-            item.id === "signout" ? { ...item, href: undefined } : item
-          )} />
+          {isAdmin ? <>
+            <p className="px-1 pt-5 text-sm text-white/60">Administration</p>
+            <SettingGroup items={[
+              { id: "admin", icon: "⌘", label: "Super Admin workplace", value: "Manage", href: "/admin" },
+            ].filter((item) => !query || (item.label + " " + item.value).toLowerCase().includes(query))} />
+          </> : null}
           <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-2 text-[11px] text-white/35">
             <span>Signed in as {email}</span>
             <span>Current plan: {planName || "None"}</span>
