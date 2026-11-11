@@ -409,8 +409,6 @@ function AuditSection({ data }: { data: AdminOverview }) {
 
 type TerminalLine = { id: number; text: string; kind: "input" | "output" | "error" | "system" };
 
-type TerminalLine = { id: number; text: string; kind: "input" | "output" | "error" | "system" };
-
 function TerminalSection({ email }: { email: string }) {
   const [command, setCommand] = useState("");
   const [busy, setBusy] = useState(false);
@@ -425,11 +423,13 @@ function TerminalSection({ email }: { email: string }) {
     if (!input || busy) return;
 
     const now = Date.now();
-    setLines((current) => [...current, { id: now, kind: "input", text: `admin@balmz-ai:~$ ${input}` }].slice(-80));
+    const inputLine: TerminalLine = { id: now, kind: "input", text: `admin@balmz-ai:~$ ${input}` };
+    setLines((current) => [...current, inputLine].slice(-80));
     setCommand("");
 
     if (input.toLowerCase() === "clear") {
-      setLines([{ id: now + 1, kind: "system", text: "Console cleared. Type help to view commands." }]);
+      const systemLine: TerminalLine = { id: now + 1, kind: "system", text: "Console cleared. Type help to view commands." };
+      setLines([systemLine]);
       return;
     }
 
@@ -457,11 +457,12 @@ function TerminalSection({ email }: { email: string }) {
         },
       ].slice(-80));
     } catch {
-      setLines((current) => [...current, {
+      const errorLine: TerminalLine = {
         id: now + 1,
         kind: "error",
         text: "The admin diagnostics service is unavailable. Try again.",
-      }].slice(-80));
+      };
+      setLines((current) => [...current, errorLine].slice(-80));
     } finally {
       setBusy(false);
     }
