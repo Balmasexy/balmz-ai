@@ -58,8 +58,8 @@ function endpoint(settings: R2Config) {
   return { host, origin: `https://${host}` };
 }
 
-function objectPath(key: string): string {
-  return `/${encodePath(key)}`;
+function objectPath(bucket: string, key: string): string {
+  return `/${encodePath(bucket)}${key ? `/${encodePath(key)}` : ""}`;
 }
 
 export function isR2Configured(): boolean {
@@ -92,7 +92,7 @@ export function createR2PresignedUrl(method: "GET" | "PUT", key: string, content
     : `host:${host}\n`;
   const canonicalRequest = [
     method,
-    objectPath(key),
+    objectPath(settings.bucket, key),
     query,
     headers,
     signedHeaders,
