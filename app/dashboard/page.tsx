@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
+  const isAdmin = (session.user as { role?: string }).role === "admin";
 
   const subscription = await getCurrentSubscription(session.user.id);
 
@@ -18,7 +19,7 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
           <Link href="/" className="text-sm font-bold tracking-[0.2em] text-orange-400">BALMZ AI</Link>
-          <SignOutButton />
+          <div className="flex items-center gap-4">{isAdmin && <Link href="/admin" className="rounded-lg border border-orange-400/30 px-3 py-2 text-sm font-medium text-orange-300 hover:bg-orange-400/10">Super Admin</Link>}<SignOutButton /></div>
         </header>
 
         <section className="py-10">
