@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 
-  let body: { prompt?: unknown; data?: unknown; format?: unknown };
+  let body: { prompt?: unknown; data?: unknown; format?: unknown; thinkHarder?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -31,6 +31,15 @@ export async function POST(request: Request) {
   if (!prompt || prompt.length > 10_000) {
     return NextResponse.json({ error: "INVALID_PROMPT", message: "Enter a chart prompt under 10,000 characters." }, { status: 400 });
   }
+
+  const thinkHarder = body.thinkHarder === true;
+  const chartPrompt = thinkHarder
+    ? [
+        prompt,
+        "",
+        "Enhanced chart-design review: carefully inspect the supplied data and the user goal before choosing the visualization. Check field types, units, missing or inconsistent values, comparison structure, time ordering, scale choices, misleading truncation, labeling, readability, and accessibility. Select the clearest chart type for the actual data. Do not invent, fill in, or alter values. Keep the chart title and labels faithful to the source. Perform this review internally and return the requested chart output without exposing private reasoning.",
+      ].join("\n")
+    : prompt;
 
   let data: ChartRow[] | undefined;
   if (body.data !== undefined) {
@@ -101,7 +110,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ prompt, ...(data ? { data } : {}), format }),
+      body: JSON.stringify({ prompt: chartPrompt, ...(data ? { data } : {}), format }),
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(60_000),
