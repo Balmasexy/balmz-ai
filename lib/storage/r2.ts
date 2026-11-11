@@ -13,7 +13,7 @@ function config(): R2Config | null {
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
   const bucket = process.env.R2_BUCKET_NAME?.trim();
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket) return null;
-  if (!/^[a-z0-9]{32}$/.test(accountId)) return null;
+  if (!/^[a-f0-9]{32}$/i.test(accountId)) return null;
   if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) return null;
   return { accountId, accessKeyId, secretAccessKey, bucket };
 }
@@ -54,7 +54,7 @@ function signingKey(secret: string, date: string): Buffer {
 }
 
 function endpoint(settings: R2Config) {
-  const host = `${settings.bucket}.${settings.accountId}.r2.cloudflarestorage.com`;
+  const host = `${settings.accountId}.r2.cloudflarestorage.com`;
   return { host, origin: `https://${host}` };
 }
 
@@ -106,7 +106,7 @@ export function createR2PresignedUrl(method: "GET" | "PUT", key: string, content
   ].join("\n");
   const signature = hmac(signingKey(settings.secretAccessKey, date), stringToSign).toString("hex");
   return {
-    url: `${origin}${objectPath(key)}?${query}&X-Amz-Signature=${signature}`,
+    url: `${origin}${objectPath(settings.bucket, key)}?${query}&X-Amz-Signature=${signature}`,
     headers: contentType && method === "PUT" ? { "Content-Type": contentType } : {},
     expiresInSeconds: 900,
   };
@@ -121,7 +121,7 @@ async function signedR2Request(method: "GET" | "DELETE", key: string, query: Rec
   const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
   const scope = `${shortDate}/auto/s3/aws4_request`;
   const payloadHash = sha256("");
-  const canonicalUri = key ? objectPath(key) : "/";
+  const canonicalUri = objectPath(settings.bucket, key);
   const canonicalQueryString = canonicalQuery(query);
   const canonicalHeaders = [
     `host:${host}`,
