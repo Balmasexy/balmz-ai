@@ -205,6 +205,11 @@ export async function consumeUsage(input: {
         configuredLimit = subscription.entitlements?.limits?.[metric];
       }
     }
+    if (typeof configuredLimit !== "number" || !Number.isSafeInteger(configuredLimit) || configuredLimit < 0) {
+      throw new Error("USAGE_LIMIT_NOT_CONFIGURED");
+    }
+    const limit = configuredLimit;
+
     const now = new Date();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
