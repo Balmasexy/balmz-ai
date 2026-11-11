@@ -56,6 +56,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [currentPlanName, setCurrentPlanName] = useState(planName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const conversationMessagesRef = useRef<Map<string, Message[]>>(new Map());
+  const pendingMessagesRef = useRef<PendingChatMessage[]>([]);
+  const processingQueueRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -66,7 +69,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       const forceNewChat = localStorage.getItem(NEW_CHAT_AFTER_AUTH_KEY) === "1" || url.searchParams.get("new") === "1";
       if (forceNewChat) {
         const fresh = makeConversation();
-        setConversations([fresh, ...validSaved.filter((item) => item && item.id !== fresh.id)]);
+        const restored = [fresh, ...validSaved.filter((item) => item && item.id !== fresh.id)];
+        conversationMessagesRef.current = new Map(restored.map((item) => [item.id, item.messages]));
+        setConversations(restored);
         setActiveId(fresh.id);
         localStorage.removeItem(NEW_CHAT_AFTER_AUTH_KEY);
         if (url.searchParams.has("new")) {
@@ -74,15 +79,18 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           window.history.replaceState({}, "", url.pathname + url.search + url.hash);
         }
       } else if (validSaved[0]?.id) {
+        conversationMessagesRef.current = new Map(validSaved.map((item) => [item.id, item.messages]));
         setConversations(validSaved);
         setActiveId(validSaved[0].id);
       } else {
         const first = makeConversation();
+        conversationMessagesRef.current = new Map([[first.id, []]]);
         setConversations([first]);
         setActiveId(first.id);
       }
     } catch {
       const first = makeConversation();
+      conversationMessagesRef.current = new Map([[first.id, []]]);
       setConversations([first]);
       setActiveId(first.id);
     }
@@ -131,6 +139,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   function newChat() {
     const item = makeConversation();
+    conversationMessagesRef.current.set(item.id, []);
     setConversations((current) => [item, ...current]);
     setActiveId(item.id);
     setPrompt("");
@@ -163,6 +172,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   }
 
   function updateMessages(id: string, messages: Message[]) {
+    conversationMessagesRef.current.set(id, messages);
     setConversations((current) => current.map((item) => item.id === id ? {
       ...item,
       messages,
