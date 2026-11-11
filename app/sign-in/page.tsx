@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
@@ -36,7 +37,7 @@ export default function SignInPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#080c14] px-5 py-12 text-white">
       <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl sm:p-9">
-        <Link href="/" className="text-sm font-semibold tracking-[0.2em] text-orange-400">BALMZ AI</Link>
+        <Link href="/" className="inline-flex items-center gap-3 text-sm font-semibold tracking-[0.2em] text-white"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={40} height={40} priority className="h-10 w-10 rounded-xl object-contain" /><span>BALMZ AI</span></Link>
         <h1 className="mt-7 text-3xl font-semibold tracking-tight">Welcome back</h1>
         <p className="mt-2 text-sm text-slate-400">Sign in to continue to your workspace.</p>
 
