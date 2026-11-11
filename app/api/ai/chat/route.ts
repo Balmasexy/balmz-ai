@@ -59,7 +59,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let providerMessages: AIMessage[] = messages;
   try {
-    const familyAccess = await getActiveComplimentaryAccess(session.user.id);
+    const familyAccess = subscription.plan_code === "family_complimentary"
+      ? await getActiveComplimentaryAccess(session.user.id)
+      : null;
     if (familyAccess) {
       providerMessages = [
         {
