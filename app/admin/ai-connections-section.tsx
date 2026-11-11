@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 
 type Provider = { id: string; name: string };
 type Connection = {
@@ -63,7 +64,7 @@ export function AIConnectionsSection() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function connect(event: React.FormEvent<HTMLFormElement>) {
+  async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
