@@ -181,6 +181,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           <div className="space-y-1">
             <Link href="/dashboard#workspace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="book" /> Workspace guide</Link>
             <Link href="/dashboard#tools" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="code" /> Tools & integrations</Link>
+            {isAdmin ? <Link href="/dashboard/deployments" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="code" /> Deployment workplace</Link> : null}
             {isAdmin ? <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">♙ Super Admin</Link> : null}
           </div>
         </div>
