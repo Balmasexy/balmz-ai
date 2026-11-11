@@ -205,7 +205,7 @@ function MetricCard({
   accent?: "orange" | "green" | "blue" | "purple";
 }) {
   const accents = {
-    orange: "border-orange-400/20 bg-orange-400/[0.07] text-orange-300",
+    orange: "border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] text-[var(--balmz-orange)]",
     green: "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-300",
     blue: "border-sky-400/20 bg-sky-400/[0.07] text-sky-300",
     purple: "border-violet-400/20 bg-violet-400/[0.07] text-violet-300",
@@ -218,7 +218,7 @@ function MetricCard({
       </div>
       <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums text-white">{count(value)}</p>
       <p className="mt-1.5 text-[11px] text-slate-500">{sub}</p>
-      <div className="pointer-events-none absolute -bottom-8 -right-5 h-24 w-24 rounded-full bg-orange-400/[0.035] blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-8 -right-5 h-24 w-24 rounded-full bg-[var(--balmz-orange)]/[0.035] blur-2xl" />
     </article>
   );
 }
@@ -267,7 +267,7 @@ function OverviewSection({ data, onNavigate }: { data: AdminOverview; onNavigate
           <div className="divide-y divide-white/[0.055]">
             {quickLinks.map((item) => (
               <button key={item.section} type="button" onClick={() => onNavigate(item.section)} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-white/[0.035]">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-400/15 bg-orange-400/[0.06] text-sm text-orange-300">{item.icon}</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--balmz-orange)]/15 bg-[var(--balmz-orange)]/[0.06] text-sm text-[var(--balmz-orange)]">{item.icon}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-slate-200">{item.title}</span>
                   <span className="mt-1 block text-xs text-slate-500">{item.detail}</span>
@@ -279,12 +279,12 @@ function OverviewSection({ data, onNavigate }: { data: AdminOverview; onNavigate
         </Panel>
       </div>
 
-      <Panel title="Latest administrative activity" subtitle="Most recent entries from the audit log" action={<button type="button" onClick={() => onNavigate("audit")} className="text-xs font-semibold text-orange-300 hover:text-orange-200">View audit trail ↗</button>}>
+      <Panel title="Latest administrative activity" subtitle="Most recent entries from the audit log" action={<button type="button" onClick={() => onNavigate("audit")} className="text-xs font-semibold text-[var(--balmz-orange)] hover:text-[var(--balmz-orange)]">View audit trail ↗</button>}>
         {latestAudit.length ? (
           <div className="divide-y divide-white/[0.055]">
             {latestAudit.map((item) => (
               <div key={item.id} className="flex flex-wrap items-center gap-3 px-5 py-4 sm:px-6">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-xs text-orange-300">↳</span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-xs text-[var(--balmz-orange)]">↳</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-200">{item.action.replaceAll("_", " ")}</p>
                   <p className="mt-1 text-xs text-slate-500">{item.actor_email || "System"}{item.target_email ? ` · ${item.target_email}` : ""}</p>
@@ -303,9 +303,12 @@ function AccountsSection({ data }: { data: AdminOverview }) {
   const filtered = data.users;
   return (
     <Panel title="Registered accounts" subtitle={`Showing ${filtered.length} of ${data.users.length} most recent accounts`}>
+      <div className="mx-5 mt-4 rounded-xl border border-amber-400/15 bg-amber-400/[0.045] px-4 py-3 text-xs leading-5 text-amber-100/80">
+        Email verification delivery is not configured yet. This badge shows the stored Better Auth verification flag; it does not determine whether a Gmail inbox is valid. Connect a verified transactional email sender before requesting verification. The account becomes verified only after its owner completes the emailed verification link.
+      </div>
       {filtered.length ? <TableWrap><Table><TableHead labels={["Account", "Role", "Email verification", "Registered"]} /><tbody>
         {filtered.map((user) => <TableRow key={user.id}>
-          <Cell><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-400/20 bg-orange-400/[0.08] text-xs font-bold text-orange-300">{user.name.trim().slice(0, 1).toUpperCase() || "U"}</span><div><p className="font-medium text-slate-200">{user.name}</p><p className="mt-0.5 text-xs text-slate-500">{user.email}</p></div></div></Cell>
+          <Cell><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.08] text-xs font-bold text-[var(--balmz-orange)]">{user.name.trim().slice(0, 1).toUpperCase() || "U"}</span><div><p className="font-medium text-slate-200">{user.name}</p><p className="mt-0.5 text-xs text-slate-500">{user.email}</p></div></div></Cell>
           <Cell><Status value={user.role} /></Cell>
           <Cell><Status value={user.emailVerified ? "verified" : "unverified"} /></Cell>
           <Cell className="text-xs text-slate-500">{date(user.createdAt)}</Cell>
@@ -387,7 +390,7 @@ function UsageSection({ data }: { data: AdminOverview }) {
             <Cell>{item.units_limit == null ? "Not set" : count(item.units_limit)}</Cell>
             <Cell className="text-xs text-slate-500">{date(item.period_end)}</Cell>
             <Cell className="text-xs text-slate-500">{date(item.updated_at)}</Cell>
-            <td className="px-5 py-3"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-orange-400" style={{ width: `${ratio}%` }} /></div><p className="mt-1 text-[9px] text-slate-600">{limit && limit > 0 ? `${Math.round(ratio)}%` : "No limit"}</p></td>
+            <td className="px-5 py-3"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[var(--balmz-orange)]" style={{ width: `${ratio}%` }} /></div><p className="mt-1 text-[9px] text-slate-600">{limit && limit > 0 ? `${Math.round(ratio)}%` : "No limit"}</p></td>
           </TableRow>;
         })}
       </tbody></Table></TableWrap> : <EmptyState title="No usage counters yet" detail="The dashboard will show usage when BALMZ AI records tracked activity. No usage totals are fabricated." />}
@@ -603,18 +606,18 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
   return (
     <main className="min-h-screen bg-[#080d15] pb-20 text-slate-100 lg:pb-0">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -left-48 -top-40 h-[520px] w-[520px] rounded-full bg-orange-500/[0.055] blur-[130px]" />
+        <div className="absolute -left-48 -top-40 h-[520px] w-[520px] rounded-full bg-[var(--balmz-orange)]/[0.055] blur-[130px]" />
         <div className="absolute right-0 top-1/3 h-[420px] w-[420px] rounded-full bg-sky-500/[0.035] blur-[130px]" />
       </div>
 
       <div className="relative flex min-h-screen">
         <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/[0.07] bg-[#0a111c]/95 px-4 py-5 xl:w-[300px] 2xl:w-[320px] lg:flex lg:flex-col">
           <div className="flex items-center gap-3 px-2 pb-7">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-orange-400/20 bg-[#080d15] shadow-lg shadow-orange-950/30"><img src="/balmz-logo.svg" alt="BALMZ AI" className="h-full w-full object-contain" /></div>
-            <div><p className="text-sm font-bold tracking-[0.17em] text-white">BALMZ AI</p><p className="mt-0.5 text-[9px] font-semibold tracking-[0.2em] text-orange-300">ADMIN WORKPLACE</p></div>
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-[var(--balmz-orange)]/20 bg-[#080d15] shadow-lg shadow-orange-950/30"><img src="/balmz-logo.svg" alt="BALMZ AI" className="h-full w-full object-contain" /></div>
+            <div><p className="text-sm font-bold tracking-[0.17em] text-white">BALMZ AI</p><p className="mt-0.5 text-[9px] font-semibold tracking-[0.2em] text-[var(--balmz-orange)]">ADMIN WORKPLACE</p></div>
           </div>
-          <div className="mb-5 rounded-xl border border-orange-400/15 bg-orange-400/[0.055] px-3 py-3">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-orange-300">Workspace access</p>
+          <div className="mb-5 rounded-xl border border-[var(--balmz-orange)]/15 bg-[var(--balmz-orange)]/[0.055] px-3 py-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--balmz-orange)]">Workspace access</p>
             <p className="mt-1.5 text-xs font-semibold text-white">Super Administrator</p>
             <p className="mt-1 truncate text-[10px] text-slate-500">{adminEmail}</p>
           </div>
@@ -622,8 +625,8 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             {navigation.map((group) => <div key={group.title}>
               <p className="mb-2 px-3 text-[9px] font-bold tracking-[0.18em] text-slate-600">{group.title}</p>
               <div className="space-y-1">
-                {group.items.map((item) => <button key={item.id} type="button" onClick={() => navigate(item.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition ${active === item.id ? "border border-orange-400/15 bg-orange-400/[0.09] text-orange-200 shadow-[inset_2px_0_0_0_#fb923c]" : "border border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
-                  <span className="flex w-5 justify-center text-sm">{item.icon}</span><span className="flex-1">{item.label}</span>{active === item.id ? <span className="h-1.5 w-1.5 rounded-full bg-orange-300" /> : null}
+                {group.items.map((item) => <button key={item.id} type="button" onClick={() => navigate(item.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition ${active === item.id ? "border border-[var(--balmz-orange)]/15 bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)] shadow-[inset_2px_0_0_0_#f97316]" : "border border-transparent text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
+                  <span className="flex w-5 justify-center text-sm">{item.icon}</span><span className="flex-1">{item.label}</span>{active === item.id ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--balmz-orange)]" /> : null}
                 </button>)}
               </div>
             </div>)}
@@ -639,13 +642,13 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             <div className="flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6 xl:px-9">
               <div className="flex min-w-0 items-center gap-3">
                 <button type="button" onClick={() => setMobileNavOpen((value) => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-lg text-slate-200 lg:hidden" aria-label="Toggle navigation">☰</button>
-                <div className="lg:hidden"><p className="text-xs font-bold tracking-[0.16em] text-orange-300">BALMZ AI</p><p className="text-[9px] text-slate-500">ADMIN WORKPLACE</p></div>
-                <div className="hidden lg:block"><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-slate-500">Super Admin / <span className="text-orange-300">{current.title}</span></p><p className="mt-1 text-xs text-slate-400">{current.eyebrow}</p></div>
+                <div className="lg:hidden"><p className="text-xs font-bold tracking-[0.16em] text-[var(--balmz-orange)]">BALMZ AI</p><p className="text-[9px] text-slate-500">ADMIN WORKPLACE</p></div>
+                <div className="hidden lg:block"><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-slate-500">Super Admin / <span className="text-[var(--balmz-orange)]">{current.title}</span></p><p className="mt-1 text-xs text-slate-400">{current.eyebrow}</p></div>
               </div>
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 md:flex"><span className="text-xs text-emerald-300">●</span><span className="text-[10px] text-slate-400">Admin session active</span></div>
-                <div className="hidden max-w-44 truncate text-right sm:block"><p className="text-[11px] font-semibold text-slate-200">{adminEmail}</p><p className="text-[9px] uppercase tracking-wider text-orange-300">Super Admin</p></div>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-400/20 bg-orange-400/[0.08] text-xs font-bold text-orange-200">{adminEmail.slice(0, 1).toUpperCase()}</div>
+                <div className="hidden max-w-44 truncate text-right sm:block"><p className="text-[11px] font-semibold text-slate-200">{adminEmail}</p><p className="text-[9px] uppercase tracking-wider text-[var(--balmz-orange)]">Super Admin</p></div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.08] text-xs font-bold text-[var(--balmz-orange)]">{adminEmail.slice(0, 1).toUpperCase()}</div>
                 <SignOutButton />
               </div>
             </div>
@@ -653,7 +656,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
               {navigation.map((group) => <div key={group.title} className="mb-4">
                 <p className="mb-2 px-2 text-[9px] font-bold tracking-[0.18em] text-slate-600">{group.title}</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {group.items.map((item) => <button key={item.id} type="button" onClick={() => navigate(item.id)} className={`rounded-xl border px-3 py-3 text-left text-xs ${active === item.id ? "border-orange-400/20 bg-orange-400/[0.08] text-orange-200" : "border-white/[0.07] bg-white/[0.025] text-slate-300"}`}><span className="mr-2">{item.icon}</span>{item.label}</button>)}
+                  {group.items.map((item) => <button key={item.id} type="button" onClick={() => navigate(item.id)} className={`rounded-xl border px-3 py-3 text-left text-xs ${active === item.id ? "border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.08] text-[var(--balmz-orange)]" : "border-white/[0.07] bg-white/[0.025] text-slate-300"}`}><span className="mr-2">{item.icon}</span>{item.label}</button>)}
                 </div>
               </div>)}
             </div> : null}
@@ -662,11 +665,11 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
           <div className="mx-auto max-w-[1740px] px-4 py-6 pb-28 sm:px-6 sm:py-9 sm:pb-28 xl:px-10 2xl:px-12">
             <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
               <div className="max-w-2xl">
-                <p className="text-[10px] font-bold tracking-[0.22em] text-orange-300">{current.eyebrow}</p>
+                <p className="text-[10px] font-bold tracking-[0.22em] text-[var(--balmz-orange)]">{current.eyebrow}</p>
                 <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{current.title}</h1>
                 <p className="mt-2 text-sm leading-6 text-slate-400">{current.description}</p>
               </div>
-              {searchableSections.includes(active) ? <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0d1420] px-3 py-2.5 sm:w-auto sm:min-w-[250px]"><span className="text-slate-500">⌕</span><input aria-label="Search current records" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search in this section…" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-slate-600" /><button type="button" onClick={() => setQuery("")} className="text-[10px] text-slate-500 hover:text-white">Clear</button></div> : active === "terminal" ? <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2 text-[10px] font-semibold text-emerald-300">SAFE CONSOLE · READ ONLY</div> : <button type="button" onClick={() => router.refresh()} className="rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-xs font-medium text-slate-300 transition hover:border-orange-400/20 hover:text-orange-200">↻ Refresh live data</button>}
+              {searchableSections.includes(active) ? <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0d1420] px-3 py-2.5 sm:w-auto sm:min-w-[250px]"><span className="text-slate-500">⌕</span><input aria-label="Search current records" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search in this section…" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-slate-600" /><button type="button" onClick={() => setQuery("")} className="text-[10px] text-slate-500 hover:text-white">Clear</button></div> : active === "terminal" ? <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2 text-[10px] font-semibold text-emerald-300">SAFE CONSOLE · READ ONLY</div> : <button type="button" onClick={() => router.refresh()} className="rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-xs font-medium text-slate-300 transition hover:border-[var(--balmz-orange)]/20 hover:text-[var(--balmz-orange)]">↻ Refresh live data</button>}
             </div>
 
             {active === "overview" ? <OverviewSection data={data} onNavigate={navigate} /> : null}
@@ -699,12 +702,12 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
                 { id: "payments" as Section, label: "Payments", icon: "₦" },
                 { id: "terminal" as Section, label: "Terminal", icon: "›_" },
               ]).map((item) => (
-                <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-orange-400/[0.09] text-orange-200" : "text-slate-500 hover:text-slate-200"}`}>
+                <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)]" : "text-slate-500 hover:text-slate-200"}`}>
                   <span className="text-base leading-4">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               ))}
-              <button type="button" onClick={() => setMobileNavOpen((value) => !value)} aria-expanded={mobileNavOpen} aria-label="Open all admin sections" className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${mobileNavOpen ? "bg-orange-400/[0.09] text-orange-200" : "text-slate-500 hover:text-slate-200"}`}>
+              <button type="button" onClick={() => setMobileNavOpen((value) => !value)} aria-expanded={mobileNavOpen} aria-label="Open all admin sections" className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${mobileNavOpen ? "bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)]" : "text-slate-500 hover:text-slate-200"}`}>
                 <span className="text-base leading-4">☰</span>
                 <span>More</span>
               </button>
