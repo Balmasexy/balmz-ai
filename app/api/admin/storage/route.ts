@@ -32,7 +32,7 @@ function notConfigured() {
 }
 
 function validAdminKey(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith("admin/") && value.length <= 1024 && !value.includes("\\0");
+  return typeof value === "string" && value.startsWith("admin/") && value.length <= 1024 && !value.includes(String.fromCharCode(0));
 }
 
 export async function GET() {
