@@ -314,7 +314,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       {uploadMenuOpen ? (
         <div role="menu" aria-label="Add to message" className="absolute bottom-12 left-0 z-50 w-56 rounded-2xl border border-white/10 bg-[#151f2e] p-2 shadow-2xl shadow-black/50">
           <button type="button" role="menuitem" onClick={() => { setUploadMenuOpen(false); galleryInputRef.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs text-slate-200 transition hover:bg-white/[0.07]">
-            <span className="text-lg text-[var(--balmz-orange)]">▧</span><span><span className="block font-semibold">Photos & files</span><span className="mt-0.5 block text-[10px] text-slate-500">Choose from your device</span></span>
+            <span className="text-lg text-[var(--balmz-orange)]">▧</span><span><span className="block font-semibold">Photos</span><span className="mt-0.5 block text-[10px] text-slate-500">Choose from your device</span></span>
           </button>
           <button type="button" role="menuitem" onClick={() => { setUploadMenuOpen(false); cameraInputRef.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs text-slate-200 transition hover:bg-white/[0.07]">
             <span className="text-lg text-[var(--balmz-orange)]">◎</span><span><span className="block font-semibold">Take photo</span><span className="mt-0.5 block text-[10px] text-slate-500">Open your camera</span></span>
@@ -326,7 +326,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   const uploadInputs = (
     <>
-      <input ref={galleryInputRef} type="file" accept="image/*" multiple aria-label="Choose photos and files" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
+      <input ref={galleryInputRef} type="file" accept="image/*" multiple aria-label="Choose photos" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" aria-label="Take a photo with your camera" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
     </>
   );
@@ -405,7 +405,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           </div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
-              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(249,115,22,0.18)]">W</div>
+              <Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={48} height={48} className="mx-auto mb-5 h-12 w-12 rounded-2xl object-contain shadow-[0_0_38px_rgba(249,115,22,0.18)]" />
               <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">What can I help you with?</h1>
               <p className="mt-3 text-sm leading-6 text-slate-500">Ask a question, develop an idea, or continue your work.</p>
             </div>
