@@ -635,6 +635,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
           <div className="mt-6 border-t border-white/[0.07] pt-4">
             <a href="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>↗</span> User workspace</a>
             <a href="/dashboard/charts" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>▥</span> ChartGPT workspace</a>
+            <a href="/admin?section=ai-connections" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>✳</span> AI provider connections</a>
             <a href="/dashboard/plugins" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>⌘</span> Plugin directory</a>
             <div className="mt-3 rounded-xl bg-white/[0.025] px-3 py-3"><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-400" /><p className="text-[10px] text-slate-400">Protected admin session</p></div><p className="mt-1.5 text-[9px] text-slate-600">BALMZ AI · Production</p></div>
           </div>
