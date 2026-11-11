@@ -72,6 +72,16 @@ export async function consumeUsage(input: {
   try {
     await client.query("BEGIN");
 
+    // Serialize usage reservations per user so duplicate requests cannot
+    // pass the idempotency check concurrently.
+    const accountLock = await client.query<{ id: string }>(
+      `SELECT id FROM public."user" WHERE id = $1 FOR UPDATE`,
+      [userId],
+    );
+    if (!accountLock.rowCount) {
+      throw new Error("USER_NOT_FOUND");
+    }
+
     const prior = await client.query<{ id: string }>(
       `SELECT id
        FROM public.balmz_usage_events
@@ -108,10 +118,14 @@ export async function consumeUsage(input: {
     }
 
     const configuredLimit = subscription.entitlements?.limits?.[metric];
-    if (!Number.isSafeInteger(configuredLimit) || configuredLimit! < 0) {
+    if (
+      typeof configuredLimit !== "number" ||
+      !Number.isSafeInteger(configuredLimit) ||
+      configuredLimit < 0
+    ) {
       throw new Error("USAGE_LIMIT_NOT_CONFIGURED");
     }
-    const limit = configuredLimit as number;
+    const limit = configuredLimit;
 
     const now = new Date();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
