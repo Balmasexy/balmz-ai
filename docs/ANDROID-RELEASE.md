@@ -6,7 +6,7 @@
 - Android application ID: `com.balmz.ai`
 - Production web origin: `https://balmz-ai.onrender.com`
 - Native wrapper: Capacitor 8
-- Brand asset: `assets/logo.svg` (shield with the BALMZ W mark; orange #FF6900 palette)
+- Brand asset: `assets/logo.svg` (shield with the BALMZ W mark; orange #F97316 palette)
 - Minimum supported Android API: 24 (Android 7+)
 - CI target SDK: Android API 36
 
