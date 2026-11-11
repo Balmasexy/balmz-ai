@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 
 type ChartRow = Record<string, string | number | boolean | null>;
 type ChartResult = { requestId: string; spec: unknown; file: string | null; format: "svg" | "png" | "json" };
@@ -114,6 +115,7 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </section>
       </div>
+      <QuickChatHelper isAdmin={isAdmin} />
     </main>
   );
 }
