@@ -58,6 +58,29 @@ function createAuth(config: {
     secret: config.secret,
     trustedOrigins: getTrustedOrigins(config.authBaseUrl),
     database: getDbPool(),
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            // The public Free plan is the default entitlement for every new registration.
+            // The AI route also has a safe lazy-provision fallback if this hook is interrupted.
+            try {
+              await getDbPool().query(
+                `INSERT INTO public.balmz_subscriptions
+                   (id, user_id, plan_id, status, billing_provider, current_period_starts_at, current_period_ends_at)
+                 SELECT $1, $2, p.id, 'active', 'admin', now(), NULL
+                   FROM public.balmz_subscription_plans p
+                  WHERE p.code = 'free' AND p.is_enabled = true
+                 ON CONFLICT (id) DO NOTHING`,
+                [`free-${user.id}`, user.id],
+              );
+            } catch (error) {
+              console.error("BALMZ AI default Free plan provisioning failed:", error instanceof Error ? error.message : "unknown error");
+            }
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 12,
