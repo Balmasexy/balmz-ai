@@ -260,7 +260,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           </div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
-              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(255,105,0,0.18)]">W</div>
+              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(249,115,22,0.18)]">W</div>
               <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">What can I help you with?</h1>
               <p className="mt-3 text-sm leading-6 text-slate-500">Ask a question, develop an idea, or continue your work.</p>
             </div>
