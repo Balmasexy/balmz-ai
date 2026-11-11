@@ -17,7 +17,7 @@ type Connection = {
 };
 
 const providers: Provider[] = [
-  { id: "openai", name: "OpenAI" },
+  { id: "openai", name: "ChatGPT / OpenAI" },
   { id: "anthropic", name: "Anthropic Claude" },
   { id: "google", name: "Google Gemini" },
   { id: "xai", name: "xAI Grok" },
