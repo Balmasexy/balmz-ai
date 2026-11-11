@@ -35,7 +35,7 @@ export async function GET(): Promise<NextResponse> {
     const limits = configuredLimits && typeof configuredLimits === "object" && !Array.isArray(configuredLimits)
       ? configuredLimits as Record<string, unknown>
       : {};
-    const usage = Object.entries(limits)
+    const usage: Array<{ metric: string; used: number; limit: number | null; periodEnd: string | null }> = Object.entries(limits)
       .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isSafeInteger(entry[1]) && entry[1] >= 0)
       .map(([metric, limit]) => {
         const recorded = recordedUsage.get(metric);
