@@ -14,7 +14,7 @@ export default function AdminError({
         <h1 className="mt-3 text-2xl font-semibold">The admin workspace could not load</h1>
         <p className="mt-2 text-sm leading-6 text-slate-400">The live admin data request failed. No account, payment or subscription data has been changed. Retry the page or return to your workspace.</p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
-          <button type="button" onClick={() => reset()} className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-[#17100a] hover:bg-orange-400">Retry workspace</button>
+          <button type="button" onClick={() => reset()} className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-[#17100a] hover:bg-orange-600">Retry workspace</button>
           <a href="/dashboard" className="rounded-xl border border-white/10 px-5 py-3 text-sm font-medium text-slate-200 hover:bg-white/5">User workspace</a>
         </div>
       </section>

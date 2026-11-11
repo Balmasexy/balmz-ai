@@ -61,7 +61,7 @@ export default function Home() {
             <Link href="/sign-in" className="rounded-xl px-3 py-2 text-slate-300 transition hover:text-white">
               Sign in
             </Link>
-            <Link href="/sign-up" className="rounded-xl bg-orange-500 px-4 py-2 font-semibold text-[#17100a] transition hover:bg-orange-400">
+            <Link href="/sign-up" className="rounded-xl bg-orange-500 px-4 py-2 font-semibold text-[#17100a] transition hover:bg-orange-600">
               Create account
             </Link>
           </nav>
@@ -81,7 +81,7 @@ export default function Home() {
               Your account and subscription controls stay connected to your own BALMZ AI database.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/sign-up" className="rounded-xl bg-orange-500 px-6 py-3 font-semibold text-[#17100a] transition hover:bg-orange-400">
+              <Link href="/sign-up" className="rounded-xl bg-orange-500 px-6 py-3 font-semibold text-[#17100a] transition hover:bg-orange-600">
                 Start your workspace
               </Link>
               <Link href="/sign-in" className="rounded-xl border border-white/15 px-6 py-3 font-semibold text-white transition hover:bg-white/10">
