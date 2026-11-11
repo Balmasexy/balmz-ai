@@ -42,7 +42,7 @@ type PaystackVerifyPayload = {
 function paymentSecretFromEnvironment(environment: PaymentEnvironment): string | null {
   const mode = process.env.PAYSTACK_MODE?.trim().toLowerCase();
   const prefix = environment === "demo" ? "sk_test_" : "sk_live_";
-  if (mode && mode !== (environment === "demo" ? "test" : "live")) {
+  if (mode !== (environment === "demo" ? "test" : "live")) {
     return null;
   }
   const candidates = environment === "demo"
