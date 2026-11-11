@@ -38,6 +38,18 @@ export async function POST(): Promise<NextResponse> {
       return response("TRIAL_ALREADY_USED", "The seven-day Pro trial can only be activated once per account.", 409);
     }
 
+    const familyGrant = await client.query<{ id: string }>(
+      `SELECT id FROM public.balmz_complimentary_access_grants
+        WHERE user_id = $1 AND revoked_at IS NULL AND starts_at <= now()
+          AND (expires_at IS NULL OR expires_at > now())
+        LIMIT 1 FOR UPDATE`,
+      [userId],
+    );
+    if (familyGrant.rowCount) {
+      await client.query("ROLLBACK");
+      return response("COMPLIMENTARY_ACCESS_ACTIVE", "Your account already has administrator-granted complimentary access.", 409);
+    }
+
     const existing = await client.query<{ id: string; code: string }>(
       `SELECT s.id, p.code
          FROM public.balmz_subscriptions s
