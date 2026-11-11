@@ -96,8 +96,6 @@ export async function GET() {
 export async function POST(request: Request) {
   const auth = await authorized();
   if (auth.response) return auth.response;
-  if (!process.env.RENDER_API_KEY) return unavailable();
-
   let body: { serviceId?: unknown; clearCache?: unknown };
   try {
     body = await request.json();
