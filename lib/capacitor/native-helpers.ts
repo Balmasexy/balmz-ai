@@ -240,21 +240,20 @@ export async function enablePushNotificationsAfterConsent(): Promise<string> {
   if (!isNativeApp()) throw new Error("PUSH_NOTIFICATIONS_REQUIRE_NATIVE_APP");
   const permission = await PushNotifications.requestPermissions();
   if (permission.receive !== "granted") throw new Error("PUSH_PERMISSION_NOT_GRANTED");
-
   let registrationListener: { remove: () => Promise<void> } | undefined;
   let errorListener: { remove: () => Promise<void> } | undefined;
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const tokenPromise = new Promise<string>((resolve, reject) => {
-      void PushNotifications.addListener("registration", (token) => resolve(token.value))
-        .then((listener) => { registrationListener = listener; })
-        .catch(reject);
-      void PushNotifications.addListener("registrationError", (error) => {
-        reject(new Error(error.error || "PUSH_REGISTRATION_FAILED"));
-      }).then((listener) => { errorListener = listener; }).catch(reject);
       timeout = setTimeout(() => reject(new Error("PUSH_REGISTRATION_TIMEOUT")), 15000);
+      void (async () => {
+        registrationListener = await PushNotifications.addListener("registration", (token) => resolve(token.value));
+        errorListener = await PushNotifications.addListener("registrationError", (error) => {
+          reject(new Error(error.error || "PUSH_REGISTRATION_FAILED"));
+        });
+        await PushNotifications.register();
+      })().catch(reject);
     });
-    await PushNotifications.register();
     return await tokenPromise;
   } finally {
     if (timeout) clearTimeout(timeout);
