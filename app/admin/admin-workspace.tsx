@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 import type { AdminOverview, CountValue } from "@/lib/admin";
 import { StorageSection } from "./storage-section";
 import { AIConnectionsSection } from "./ai-connections-section";
@@ -717,6 +718,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
               </button>
             </div>
           </nav>
+      <QuickChatHelper isAdmin />
     </main>
   );
 }
