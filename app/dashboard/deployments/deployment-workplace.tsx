@@ -125,7 +125,7 @@ export function DeploymentWorkplace() {
                   </div>
                   <button onClick={() => void deploy(service)} disabled={Boolean(busyId)} className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">{busyId === service.id ? "Starting…" : "Deploy latest"}</button>
                 </div>
-              </article>) : null}
+              </article>)}
           </div>
         </section>
 
