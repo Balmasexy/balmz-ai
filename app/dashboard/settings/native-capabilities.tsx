@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  announceForAccessibility, checkPushPermission, getDeviceDetails, getNativeAppInfo, getNetworkState, getRuntimePlatform, hapticTap, isNativeApp, lockPortraitOrientation, scheduleLocalReminder, setBalmzStatusBar, shareNativeContent, unlockScreenOrientation, copyNativeText
+  announceForAccessibility, checkPushPermission, getDeviceDetails, getNativeAppInfo, getNetworkState, getRuntimePlatform, hapticTap, isNativeApp, lockPortraitOrientation, scheduleLocalReminder, setBalmzStatusBar, shareNativeContent, unlockScreenOrientation, copyNativeText, isScreenReaderActive, removeNativePreference
 } from "@/lib/capacitor/native-helpers";
 
 type Notice = { kind: "success" | "error"; text: string };
@@ -12,16 +12,17 @@ export function NativeCapabilitiesSection() {
   const [appInfo, setAppInfo] = useState<Awaited<ReturnType<typeof getNativeAppInfo>>>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const [pushStatus, setPushStatus] = useState("Not checked");
+  const [screenReaderActive, setScreenReaderActive] = useState(false);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const native = isNativeApp();
 
   useEffect(() => {
     let active = true;
-    void Promise.all([getDeviceDetails(), getNativeAppInfo(), getNetworkState(), checkPushPermission()])
-      .then(([info, app, network, push]) => {
+    void Promise.all([getDeviceDetails(), getNativeAppInfo(), getNetworkState(), checkPushPermission(), isScreenReaderActive()])
+      .then(([info, app, network, push, screenReader]) => {
         if (!active) return;
-        setDevice(info); setAppInfo(app); setOnline(network.connected); setPushStatus(push.receive);
+        setDevice(info); setAppInfo(app); setOnline(network.connected); setPushStatus(push.receive); setScreenReaderActive(screenReader);
       })
       .catch(() => { if (active) setNotice({ kind: "error", text: "Some device capabilities could not be read." }); });
     void setBalmzStatusBar();
@@ -48,6 +49,7 @@ export function NativeCapabilitiesSection() {
           <div><p className="text-[10px] uppercase tracking-wider text-white/35">Connection</p><p className="mt-1 text-sm text-white">{online === null ? "Checking…" : online ? "Online" : "Offline"}</p></div>
           <div><p className="text-[10px] uppercase tracking-wider text-white/35">App version</p><p className="mt-1 text-sm text-white">{appInfo?.version ?? "Web / unavailable"}</p></div>
           <div><p className="text-[10px] uppercase tracking-wider text-white/35">Push permission</p><p className="mt-1 text-sm text-white">{native ? pushStatus : "Not applicable in browser"}</p></div>
+          <div><p className="text-[10px] uppercase tracking-wider text-white/35">Screen reader</p><p className="mt-1 text-sm text-white">{screenReaderActive ? "Active" : "Not detected"}</p></div>
           <div><p className="text-[10px] uppercase tracking-wider text-white/35">Persistent device ID</p><p className="mt-1 text-sm text-white">Not collected by BALMZ AI diagnostics</p></div>
         </div>
       </div>
@@ -59,6 +61,7 @@ export function NativeCapabilitiesSection() {
         <button type="button" disabled={Boolean(busy)} onClick={() => void run("Local reminder", () => scheduleLocalReminder({ id: Math.trunc(Date.now() / 1000), title: "BALMZ AI reminder", body: "Your BALMZ AI workplace is ready when you are.", at: new Date(Date.now() + 15000) }))} className="min-h-11 rounded-xl border border-white/10 px-3 text-left text-xs text-white/80 disabled:opacity-40">Send a test local notification</button>
         <button type="button" disabled={Boolean(busy)} onClick={() => void run("Portrait lock", lockPortraitOrientation)} className="min-h-11 rounded-xl border border-white/10 px-3 text-left text-xs text-white/80 disabled:opacity-40">Lock portrait orientation</button>
         <button type="button" disabled={Boolean(busy)} onClick={() => void run("Adaptive orientation", unlockScreenOrientation)} className="min-h-11 rounded-xl border border-white/10 px-3 text-left text-xs text-white/80 disabled:opacity-40">Restore adaptive orientation</button>
+        <button type="button" disabled={Boolean(busy)} onClick={() => void run("Reset saved model preference", () => removeNativePreference("balmz-ai-preferred-model"))} className="min-h-11 rounded-xl border border-white/10 px-3 text-left text-xs text-white/80 disabled:opacity-40">Reset saved AI model preference</button>
         <button type="button" disabled={Boolean(busy)} onClick={() => void run("Share diagnostics", () => shareNativeContent({ title: "BALMZ AI device diagnostics", text: ["Platform: " + getRuntimePlatform(), "Model: " + (device?.model ?? "unknown"), "OS: " + (device?.operatingSystem ?? "unknown"), "Connection: " + (online ? "online" : "offline")].join("\n") }))} className="min-h-11 rounded-xl border border-white/10 px-3 text-left text-xs text-white/80 disabled:opacity-40">Share safe device diagnostics</button>
       </div>
       <p className="px-1 text-[10px] leading-5 text-white/35">Push registration is not activated because a server-side delivery provider/token endpoint has not been configured. No notification permission is requested automatically. The local reminder test requests OS permission only when you press its button.</p>
