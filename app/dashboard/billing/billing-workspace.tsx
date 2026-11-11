@@ -16,7 +16,8 @@ type Plan = {
 type BillingPayload = {
   plans: Plan[];
   paymentModes: { demo: boolean; live: boolean };
-  activeSubscription: { plan_name: string; status: string; current_period_ends_at: string | null } | null;
+  activeSubscription: { plan_name: string; plan_code: string; status: string; current_period_ends_at: string | null } | null;
+  trialAvailable: boolean;
 };
 
 function money(minor: number, currency: string) {
@@ -79,6 +80,24 @@ export function BillingWorkspace() {
     if (status === "success") void refresh();
   }, [refresh]);
 
+  async function startTrial() {
+    if (!payload?.trialAvailable || busyPlan) return;
+    setBusyPlan("pro-trial");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/subscription/trial", { method: "POST", credentials: "same-origin" });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "The Pro trial could not be started.");
+      setNotice("Your seven-day Pro trial is active. Your account will return to Free when the trial expires.");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The Pro trial could not be started.");
+    } finally {
+      setBusyPlan("");
+    }
+  }
+
   async function checkout(plan: Plan) {
     if (busyPlan || !payload || !payload.paymentModes[environment]) return;
     setBusyPlan(plan.id);
@@ -101,6 +120,7 @@ export function BillingWorkspace() {
 
   const available = payload ? payload.paymentModes[environment] : false;
   const modeCount = payload ? Number(payload.paymentModes.demo) + Number(payload.paymentModes.live) : 0;
+  const paidPlanActive = ["pro_monthly", "pro_yearly", "pro_trial"].includes(payload?.activeSubscription?.plan_code ?? "");
 
   return (
     <main className="min-h-[100dvh] bg-[#080c14] text-slate-100">
@@ -121,6 +141,8 @@ export function BillingWorkspace() {
 
         {payload?.activeSubscription ? <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.045] p-5"><p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Current subscription</p><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><p className="text-lg font-semibold text-white">{payload.activeSubscription.plan_name}</p><p className="mt-1 text-xs text-slate-400">Status: {payload.activeSubscription.status} · Paid through: {date(payload.activeSubscription.current_period_ends_at)}</p></div><span className="rounded-full border border-emerald-400/20 px-3 py-1 text-[10px] font-semibold text-emerald-300">Active</span></div></section> : null}
 
+        {payload?.trialAvailable ? <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.055] p-5"><div><p className="text-sm font-semibold text-white">Try BALMZ AI Pro free for 7 days</p><p className="mt-1 text-xs leading-5 text-slate-400">500 AI messages per UTC calendar month during the trial. No payment card or Paystack checkout is required. After seven days your account returns to Free.</p></div><button type="button" onClick={() => void startTrial()} disabled={Boolean(busyPlan)} className="min-h-11 rounded-xl bg-[var(--balmz-orange)] px-5 text-xs font-bold text-[#17100a] disabled:opacity-40">{busyPlan === "pro-trial" ? "Starting trial…" : "Start 7-day Pro trial"}</button></section> : null}
+
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#0d1420]/90 p-4">
           <div><p className="text-xs font-semibold text-white">Checkout environment</p><p className="mt-1 text-[10px] text-slate-500">Demo payments do not charge real money. Live payments use the activated merchant account.</p></div>
           {modeCount > 1 ? <div className="flex rounded-xl border border-white/10 bg-black/20 p-1"><button type="button" onClick={() => setEnvironment("demo")} className={"rounded-lg px-4 py-2 text-[10px] font-semibold " + (environment === "demo" ? "bg-amber-300 text-[#17100a]" : "text-slate-400")}>Demo</button><button type="button" onClick={() => setEnvironment("live")} className={"rounded-lg px-4 py-2 text-[10px] font-semibold " + (environment === "live" ? "bg-emerald-300 text-[#07130b]" : "text-slate-400")}>Live</button></div> : <span className={"rounded-full border px-3 py-1 text-[10px] " + (environment === "live" ? "border-emerald-400/20 text-emerald-300" : "border-amber-400/20 text-amber-200")}>{environment.toUpperCase()}</span>}
@@ -130,10 +152,10 @@ export function BillingWorkspace() {
         {!loading && !payload?.plans.length ? <div className="rounded-2xl border border-white/[0.08] p-10 text-center"><p className="text-sm font-semibold text-white">No published plans yet</p><p className="mt-2 text-xs text-slate-500">The administrator must publish a plan with a price, currency and billing interval before checkout can begin.</p></div> : null}
         {!loading && payload?.plans.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{payload.plans.map((plan) => {
           const validPrice = plan.priceMinorNumber !== null && plan.priceMinorNumber > 0 && Boolean(plan.currency);
-          const canCheckout = available && validPrice && !payload.activeSubscription;
+          const canCheckout = available && validPrice && !paidPlanActive;
           return <article key={plan.id} className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d1420]/90 p-5 transition hover:border-[var(--balmz-orange)]/25">
             <div className="flex-1"><p className="text-xs font-semibold text-slate-200">{plan.display_name}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">{plan.billing_interval ?? "Billing interval not configured"}</p><p className="mt-5 text-3xl font-semibold tracking-tight text-white">{validPrice ? money(plan.priceMinorNumber!, plan.currency!) : "Not configured"}</p>{plan.description ? <p className="mt-3 text-xs leading-6 text-slate-400">{plan.description}</p> : null}</div>
-            <button type="button" onClick={() => void checkout(plan)} disabled={!canCheckout || Boolean(busyPlan)} className="mt-6 min-h-11 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">{busyPlan === plan.id ? "Opening secure checkout…" : !validPrice ? "Price not configured" : !available ? "Checkout unavailable" : payload.activeSubscription ? "Active plan already exists" : "Continue to Paystack"}</button>
+            <button type="button" onClick={() => void checkout(plan)} disabled={!canCheckout || Boolean(busyPlan)} className="mt-6 min-h-11 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">{busyPlan === plan.id ? "Opening secure checkout…" : !validPrice ? "Price not configured" : !available ? "Checkout unavailable" : paidPlanActive ? "Pro plan already active" : "Continue to Paystack"}</button>
           </article>;
         })}</div> : null}
 
