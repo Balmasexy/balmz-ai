@@ -29,12 +29,34 @@ export async function GET(): Promise<NextResponse> {
         ORDER BY metric ASC`,
       [session.user.id, periodStart],
     );
-    const usage = usageResult.rows.map((row) => ({
-      metric: row.metric,
-      used: Number(row.units_used),
-      limit: row.units_limit === null ? null : Number(row.units_limit),
-      periodEnd: row.period_end.toISOString(),
-    }));
+
+    const recordedUsage = new Map(usageResult.rows.map((row) => [row.metric, row]));
+    const configuredLimits = subscription?.entitlements?.limits;
+    const limits = configuredLimits && typeof configuredLimits === "object" && !Array.isArray(configuredLimits)
+      ? configuredLimits as Record<string, unknown>
+      : {};
+    const usage = Object.entries(limits)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isSafeInteger(entry[1]) && entry[1] >= 0)
+      .map(([metric, limit]) => {
+        const recorded = recordedUsage.get(metric);
+        return {
+          metric,
+          used: recorded ? Number(recorded.units_used) : 0,
+          limit,
+          periodEnd: recorded ? recorded.period_end.toISOString() : null,
+        };
+      });
+    for (const row of usageResult.rows) {
+      if (!usage.some((item) => item.metric === row.metric)) {
+        usage.push({
+          metric: row.metric,
+          used: Number(row.units_used),
+          limit: row.units_limit === null ? null : Number(row.units_limit),
+          periodEnd: row.period_end.toISOString(),
+        });
+      }
+    }
+
     return NextResponse.json({
       subscription,
       active: Boolean(subscription),
