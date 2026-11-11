@@ -47,6 +47,8 @@ BALMZ AI is an AI workplace built with Next.js and the OpenAI Apps SDK. The curr
 - `/sign-up`: email/password registration
 - `/sign-in`: email/password sign-in
 - `/dashboard`: authenticated account and subscription overview
+- `/admin`: responsive Super Admin workplace with live Neon monitoring and a restricted diagnostics console
+- `/manifest.webmanifest`: BALMZ AI installable web app manifest
 - `/admin`: protected Super Admin workplace with live Neon monitoring and a restricted diagnostics console
 - `/api/auth/*`: Better Auth endpoints
 - `/api/health/db`: safe database connectivity probe
@@ -74,6 +76,10 @@ Transactional email is not configured yet, so password-reset delivery and mandat
 ## Payments
 
 Payments are intentionally disabled at this stage. No plan price or entitlement has been seeded, and no browser redirect is allowed to activate a subscription. Paystack initialization, signature-verified webhooks, idempotent event processing, verification, and reconciliation belong in a separate release after pricing and merchant credentials have been confirmed.
+
+## Android application
+
+The project includes a Capacitor 8 Android wrapper for `com.balmz.ai` that opens the production Render app and uses the BALMZ shield logo for its launcher/splash assets. APK/AAB builds run through `.github/workflows/android-build.yml`. See `docs/ANDROID-RELEASE.md` for build artifacts and the optional private upload-key setup required for a Play Store signed release.
 
 ## Render deployment
 
