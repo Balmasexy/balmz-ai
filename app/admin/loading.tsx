@@ -6,7 +6,7 @@ export default function AdminLoading() {
           <div className="h-10 w-10 rounded-xl bg-white/10" />
           <div><div className="h-3 w-28 rounded bg-white/10" /><div className="mt-2 h-2 w-24 rounded bg-white/5" /></div>
         </div>
-        <div className="mt-10 h-3 w-32 rounded bg-orange-400/15" />
+        <div className="mt-10 h-3 w-32 rounded bg-[var(--balmz-orange)]/15" />
         <div className="mt-3 h-9 w-72 rounded-xl bg-white/10" />
         <div className="mt-3 h-4 w-[min(520px,90%)] rounded bg-white/5" />
         <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
