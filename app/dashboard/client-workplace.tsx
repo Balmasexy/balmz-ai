@@ -6,6 +6,7 @@ import { SignOutButton } from "@/app/components/sign-out-button";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
+type PendingChatMessage = { conversationId: string; messageId: string; model: string };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
 
 const STORAGE_KEY = "balmz-ai-client-workplace-v1";
@@ -198,7 +199,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           const response = await fetch("/api/ai/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: requestMessages, model }),
+            body: JSON.stringify({ messages: requestMessages, model: task.model }),
           });
           const payload = await response.json().catch(() => ({})) as { message?: string; reply?: string };
           if (!response.ok || !payload.reply) {
@@ -250,7 +251,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       createdAt: new Date().toISOString(),
     };
     updateMessages(conversation.id, [...existing, userMessage]);
-    pendingMessagesRef.current.push({ conversationId: conversation.id, messageId: userMessage.id });
+    pendingMessagesRef.current.push({ conversationId: conversation.id, messageId: userMessage.id, model });
     setPrompt("");
     setNotice("");
     setMobileSidebar(false);
