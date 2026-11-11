@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   title: "BALMZ AI — Your AI Workplace",
   description: "A secure AI workspace for research, creation, and work.",
   applicationName: "BALMZ AI",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/balmz-logo.svg",
+    shortcut: "/balmz-logo.svg",
+    apple: "/balmz-logo.svg",
+  },
 };
 
 export default function RootLayout({
