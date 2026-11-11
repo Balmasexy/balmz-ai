@@ -74,7 +74,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("USAGE_UNAVAILABLE", 503, "The usage allowance could not be reserved. No AI request was sent.");
   }
 
-  const model = process.env.OPENAI_CHAT_MODEL === "gpt-4.1" ? "gpt-4.1" : "gpt-4.1-mini";
+  const requestedModel = (body as { model?: unknown } | null)?.model;
+  const model = requestedModel === "gpt-4.1" ? "gpt-4.1" : "gpt-4.1-mini";
   let providerResponse: Response;
   try {
     providerResponse = await fetch("https://api.openai.com/v1/chat/completions", {
