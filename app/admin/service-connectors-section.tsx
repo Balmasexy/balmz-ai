@@ -53,6 +53,9 @@ export function ServiceConnectorsSection() {
   const [modelId, setModelId] = useState("");
   const [repos, setRepos] = useState<Repository[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
+  const [agentQuery, setAgentQuery] = useState("");
+  const [agentResults, setAgentResults] = useState<Array<{ name: string; description: string; url: string; category: string; mcpSupport: boolean | null; openSource: boolean | null }>>([]);
+  const [agentBusy, setAgentBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -194,6 +197,21 @@ export function ServiceConnectorsSection() {
     } finally { setReposLoading(false); }
   }
 
+  async function searchAgentDirectory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (agentQuery.trim().length < 2 || agentBusy) return;
+    setAgentBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/admin/service-connectors/agentic/search?q=${encodeURIComponent(agentQuery.trim())}`, { cache: "no-store" });
+      const result = await response.json() as { results?: typeof agentResults; message?: string; attribution?: string };
+      if (!response.ok) throw new Error(result.message || "Agent directory search failed.");
+      setAgentResults(result.results ?? []);
+      setNotice(`Found ${result.results?.length ?? 0} agent directory matches. ${result.attribution ?? ""}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Agent directory search failed.");
+    } finally { setAgentBusy(false); }
+  }
+
   return (
     <div className="space-y-5">
       <section className="rounded-3xl border border-white/[0.08] bg-gradient-to-br from-[#111b2b] to-[#0b111c] p-5 sm:p-7">
@@ -255,6 +273,23 @@ export function ServiceConnectorsSection() {
               <div className="border-b border-white/[0.07] px-5 py-4"><h4 className="text-sm font-semibold text-white">Saved connections</h4><p className="mt-1 text-xs text-slate-500">{environment.toUpperCase()} connections for {selected.name}</p></div>
               {loading ? <p className="p-6 text-xs text-slate-500">Loading…</p> : visibleConnections.length ? <div className="divide-y divide-white/[0.055]">{visibleConnections.map((connection) => <article key={connection.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-semibold text-white">{connection.displayName}</p><p className="mt-1 text-[10px] text-slate-500">Last tested: {date(connection.lastTestedAt)}</p></div><Status value={connection.status} /></div><div className="flex gap-2"><button type="button" disabled={Boolean(busyId)} onClick={() => void testSaved(connection)} className="min-h-9 rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{busyId === connection.id ? "Testing…" : "Test again"}</button><button type="button" disabled={Boolean(busyId)} onClick={() => void disconnect(connection)} className="min-h-9 rounded-lg border border-rose-400/15 px-3 text-[10px] font-semibold text-rose-300 disabled:opacity-40">Disconnect</button></div></article>)}</div> : <div className="p-7 text-center"><p className="text-xs font-medium text-slate-300">No saved {environment} connection</p><p className="mt-2 text-[10px] text-slate-500">Test an existing Render variable or add a connector key.</p></div>}
               {selected.id === "github" ? <div className="border-t border-white/[0.06] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold text-white">GitHub repositories</p><p className="mt-1 text-[10px] text-slate-500">Browse repositories accessible to the connected token.</p></div><button type="button" onClick={() => void loadGitHubRepositories()} disabled={reposLoading} className="min-h-9 rounded-lg bg-[var(--balmz-orange)] px-3 text-[10px] font-semibold text-[#17100a] disabled:opacity-40">{reposLoading ? "Loading…" : "Load repositories"}</button></div>{repos.length ? <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">{repos.map((repo) => <a key={repo.id} href={repo.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/[0.07] bg-black/20 p-3 hover:border-[var(--balmz-orange)]/30"><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-semibold text-slate-200">{repo.fullName}</span><span className="text-[9px] text-slate-500">{repo.private ? "Private" : "Public"}</span></div><p className="mt-1 text-[10px] text-slate-500">Branch: {repo.defaultBranch} · Updated {date(repo.updatedAt)}</p></a>)}</div> : null}</div> : null}
+              {selected.id === "agentic-ai" ? <div className="border-t border-white/[0.06] p-4">
+                <h4 className="text-xs font-semibold text-white">Search agent directory</h4>
+                <p className="mt-1 text-[10px] text-slate-500">Search available AI agents, tools and MCP servers. No vendor key required.</p>
+                <form onSubmit={searchAgentDirectory} className="mt-3 flex gap-2">
+                  <input value={agentQuery} onChange={(event) => setAgentQuery(event.target.value)} minLength={2} maxLength={160} placeholder="e.g. coding agent with browser tools" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" />
+                  <button type="submit" disabled={agentBusy || agentQuery.trim().length < 2} className="rounded-lg bg-[var(--balmz-orange)] px-3 text-[10px] font-semibold text-[#17100a] disabled:opacity-40">{agentBusy ? "Searching…" : "Search"}</button>
+                </form>
+                {agentResults.length ? <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+                  {agentResults.map((item, index) => <article key={item.url || item.name + index} className="rounded-lg border border-white/[0.07] bg-black/20 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-200">{item.name}</p>{item.category ? <span className="text-[9px] text-slate-500">{item.category}</span> : null}</div>
+                    <p className="mt-1 text-[10px] leading-5 text-slate-400">{item.description}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-slate-500"><span>MCP: {item.mcpSupport === null ? "Unknown" : item.mcpSupport ? "Yes" : "No"}</span><span>Open source: {item.openSource === null ? "Unknown" : item.openSource ? "Yes" : "No"}</span></div>
+                    {item.url ? <a className="mt-2 inline-block text-[10px] font-semibold text-[var(--balmz-orange)] hover:underline" href={item.url} target="_blank" rel="noreferrer">Open listing ↗</a> : null}
+                  </article>)}
+                </div> : null}
+                <p className="mt-3 text-[9px] leading-5 text-slate-600">Data from Agentic.ai Directory · public API rate limit: 100 requests/hour per IP.</p>
+              </div> : null}
             </section>
           </div>
         </section> : null}
