@@ -313,7 +313,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   const attachmentPicker = (
     <div className="relative flex items-center gap-2">
-      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos and files" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length + (active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0) >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
+      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length + (active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0) >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
         <span aria-hidden="true">+</span>
       </button>
       {uploadMenuOpen ? (
@@ -360,7 +360,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
           <p className="px-2 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Recent</p>
-          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
+          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setPrompt(""); setSelectedImages([]); setUploadMenuOpen(false); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
           <p className="px-2 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Explore</p>
           <div className="space-y-1">
             <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
