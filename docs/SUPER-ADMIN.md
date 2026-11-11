@@ -21,6 +21,6 @@ Confirm exactly one row was updated. If zero rows were updated, sign up/sign in 
 
 ## Current scope
 
-The dashboard reports account totals, latest user accounts, subscription records, payment records, usage counters, and audit history. The overview endpoint is read-only. Payment initiation, Paystack activation, role mutation, subscription overrides, usage-limit mutation, and terminal command execution are intentionally not exposed by this release.
+The workspace reports live totals and the latest user accounts, configured plans, subscriptions, payment records, usage counters, webhook events, and administrative audit history. It includes section navigation, search, refresh, loading/error states, and a restricted diagnostics console. The console supports only documented read-only commands over the data already loaded by the admin page. It does not execute operating-system shell commands, arbitrary SQL, scripts, or network operations. Payment initiation, Paystack activation, role mutation, subscription overrides, usage-limit mutation, and balance changes are intentionally not exposed by this release.
 
 PWFB Microfinance and BALMZ AI retain separate databases, sessions, credentials, and customer records.
