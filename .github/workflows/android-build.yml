@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - feat/super-admin-workplace
   workflow_dispatch:
 
 permissions:
