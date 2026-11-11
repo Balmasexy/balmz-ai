@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   useWidgetProps,
   useMaxHeight,
@@ -54,8 +55,9 @@ export default function Home() {
 
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 sm:px-8">
         <header className="flex items-center justify-between border-b border-white/10 py-6">
-          <Link href="/" className="text-sm font-bold tracking-[0.22em] text-orange-400">
-            BALMZ AI
+          <Link href="/" className="flex items-center gap-3 text-sm font-bold tracking-[0.22em] text-white">
+            <Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={40} height={40} priority className="h-10 w-10 rounded-xl object-contain" />
+            <span>BALMZ AI</span>
           </Link>
           <nav className="flex items-center gap-3 text-sm">
             <Link href="/sign-in" className="rounded-xl px-3 py-2 text-slate-300 transition hover:text-white">
