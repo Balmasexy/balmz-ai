@@ -3,9 +3,7 @@ import { nextCookies } from "better-auth/next-js";
 import { baseURL } from "@/baseUrl";
 import { getDbPool } from "@/lib/db";
 
-type AuthInstance = ReturnType<typeof betterAuth>;
-
-let authInstance: AuthInstance | undefined;
+let authInstance: ReturnType<typeof createAuth> | undefined;
 
 function getAuthBaseUrl(): string {
   const configured = process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL || baseURL;
@@ -33,7 +31,7 @@ function getTrustedOrigins(authBaseUrl: string): string[] {
  * production secrets. The first auth request fails closed if configuration
  * is missing or invalid.
  */
-export function getAuth(): AuthInstance {
+export function getAuth(): ReturnType<typeof createAuth> {
   if (authInstance) return authInstance;
 
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -44,7 +42,13 @@ export function getAuth(): AuthInstance {
   const authBaseUrl = getAuthBaseUrl();
   const isProduction = process.env.NODE_ENV === "production";
 
-  authInstance = betterAuth({
+  const instance = createAuth();
+  authInstance = instance;
+  return instance;
+}
+
+function createAuth() {
+  return betterAuth({
     appName: "BALMZ AI",
     baseURL: authBaseUrl,
     secret,
@@ -83,6 +87,4 @@ export function getAuth(): AuthInstance {
     },
     plugins: [nextCookies()],
   });
-
-  return authInstance;
 }
