@@ -2,11 +2,22 @@ import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { getDbPool } from "@/lib/db";
 
+/**
+ * Read the role from PostgreSQL, not the short-lived Better Auth cookie cache.
+ * This makes grants and revocations effective immediately on protected routes.
+ */
+export async function isAdminUser(userId: string): Promise<boolean> {
+  const result = await getDbPool().query<{ role: string }>(
+    `SELECT role FROM public."user" WHERE id = $1 LIMIT 1`,
+    [userId],
+  );
+  return result.rows[0]?.role === "admin";
+}
+
 export async function getAdminSession() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return null;
-  const role = (session.user as { role?: string }).role;
-  if (role !== "admin") return null;
+  if (!(await isAdminUser(session.user.id))) return null;
   return session;
 }
 
