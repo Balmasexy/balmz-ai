@@ -4,7 +4,7 @@
   <defs>
     <linearGradient id="shield" x1="64" y1="48" x2="440" y2="468" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFB15A"/>
-      <stop offset=".48" stop-color="#FF6900"/>
+      <stop offset=".48" stop-color="#F97316"/>
       <stop offset="1" stop-color="#D94D00"/>
     </linearGradient>
     <linearGradient id="inner" x1="90" y1="70" x2="420" y2="440" gradientUnits="userSpaceOnUse">
@@ -22,5 +22,5 @@
     <path d="m145 165 48 174 63-105 63 105 48-174h-51l-23 90-37-66-37 66-23-90h-51Z" fill="#FFF7EF"/>
     <path d="m172 142 27 10 10 29-24-8-13-31Zm168 0-27 10-10 29 24-8 13-31Z" fill="#FF9B43" opacity=".9"/>
   </g>
-  <path d="M185 378h142" stroke="#FF6900" stroke-width="10" stroke-linecap="round" opacity=".85"/>
+  <path d="M185 378h142" stroke="#F97316" stroke-width="10" stroke-linecap="round" opacity=".85"/>
 </svg>
