@@ -386,14 +386,24 @@ export async function verifyAndActivatePaystackCheckout(reference: string, expec
     }
     if (lockedAttempt.rows[0]?.status !== "pending") throw new Error("CHECKOUT_NOT_PENDING");
 
-    const current = await client.query(
-      `SELECT id FROM public.balmz_subscriptions
-        WHERE user_id = $1 AND status IN ('active', 'trialing', 'past_due')
-        AND (current_period_ends_at IS NULL OR current_period_ends_at > now())
-        LIMIT 1 FOR UPDATE`,
+    const current = await client.query<{ id: string; code: string }>(
+      `SELECT s.id, p.code
+         FROM public.balmz_subscriptions s
+         JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
+        WHERE s.user_id = $1 AND s.status IN ('active', 'trialing', 'past_due')
+          AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
+        LIMIT 1 FOR UPDATE OF s`,
       [attempt.user_id],
     );
-    if (current.rowCount) throw new Error("SUBSCRIPTION_ALREADY_ACTIVE");
+    if (current.rows.some((row) => row.code !== "free")) throw new Error("SUBSCRIPTION_ALREADY_ACTIVE");
+    // A Free subscription is the default baseline, not a barrier to a paid plan.
+    await client.query(
+      `UPDATE public.balmz_subscriptions
+          SET status = 'paused', updated_at = now()
+        WHERE user_id = $1 AND status = 'active'
+          AND plan_id = (SELECT id FROM public.balmz_subscription_plans WHERE code = 'free')`,
+      [attempt.user_id],
+    );
 
     const periodStart = new Date();
     let periodEnd: Date | null = null;
