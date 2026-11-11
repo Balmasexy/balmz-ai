@@ -57,3 +57,8 @@ Before publishing a store release:
 - Test sign-up, sign-in, PIN setup/login, recovery, dashboard, and the Super Admin route on a physical Android device.
 - Confirm external links, keyboard behavior, safe-area layout, back navigation and network-loss recovery.
 - Complete Play Console policy, privacy, data safety, content rating and signing setup.
+
+
+## Device validation record
+
+The CI job verifies that the Android project, launcher assets, debug APK, debug AAB, and release bundle compile. It does not replace an on-device smoke test. Before public distribution, install the debug APK on a physical Android phone and test the authentication and responsive workspace routes listed in the release checklist above.
