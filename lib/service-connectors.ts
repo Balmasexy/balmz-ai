@@ -8,6 +8,7 @@ export type ServiceEnvironment = "demo" | "live";
 export type ServiceId =
   | "paystack"
   | "coingecko"
+  | "chartgpt"
   | "github"
   | "render"
   | "neon"
@@ -41,6 +42,18 @@ export const SERVICE_CATALOG: Array<{
     keyHelp: "Use sk_test_… for Demo and sk_live_… for Live. Paystack issues these keys in its dashboard.",
     envAliases: { demo: ["PAYSTACK_TEST_SECRET_KEY", "PAYSTACK_SECRET_KEY"], live: ["PAYSTACK_LIVE_SECRET_KEY"] },
     capabilities: ["Verify API key", "Read-only connection test", "Test/live separation"],
+  },
+  {
+    id: "chartgpt",
+    name: "ChartGPT",
+    category: "Chart generation",
+    description: "Connect ChartGPT's chart-generation API to turn prompts and structured data into chart specifications and SVG/PNG output.",
+    keyRequired: true,
+    demoLive: false,
+    url: "https://www.chartgpt.co/api/",
+    keyHelp: "ChartGPT API access is documented for Team plans; Pro access is listed as private testing. Get an API key from ChartGPT and use it here.",
+    envAliases: { live: ["CHARTGPT_API_KEY"] },
+    capabilities: ["Generate charts from prompts", "Structured data input", "SVG, PNG and JSON output"],
   },
   {
     id: "coingecko",
@@ -208,6 +221,27 @@ async function testCoinGecko(credentials: ServiceCredentials, environment: Servi
   return { endpoint: isPro ? "CoinGecko Pro" : "CoinGecko Demo" };
 }
 
+async function testChartGPT(credentials: ServiceCredentials) {
+  const key = credentials.apiKey?.trim();
+  if (!key) throw new Error("CHARTGPT_API_KEY_REQUIRED");
+  const response = await checkedFetch("https://api.chartgpt.co/v1/charts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      prompt: "Create a simple bar chart titled Connection test with two sample categories.",
+      data: [{ label: "A", value: 1 }, { label: "B", value: 2 }],
+      format: "json",
+    }),
+  });
+  const payload = await response.json() as { request_id?: string; spec?: unknown };
+  if (typeof payload.request_id !== "string" || !payload.spec) throw new Error("CHARTGPT_INVALID_RESPONSE");
+  return { requestId: payload.request_id, chartGenerated: true };
+}
+
 async function testPaystack(credentials: ServiceCredentials, environment: ServiceEnvironment) {
   const secretKey = credentials.secretKey?.trim();
   if (!secretKey) throw new Error("PAYSTACK_SECRET_KEY_REQUIRED");
@@ -289,6 +323,7 @@ export async function testServiceConnection(
   switch (serviceId) {
     case "github": return testGitHub(credentials);
     case "coingecko": return testCoinGecko(credentials, environment);
+    case "chartgpt": return testChartGPT(credentials);
     case "paystack": return testPaystack(credentials, environment);
     case "render": return testRender(credentials);
     case "neon": return testNeon(credentials);
@@ -310,6 +345,10 @@ export function serviceCredentialsFromEnvironment(
     const prefix = environment === "demo" ? "sk_test_" : "sk_live_";
     const value = explicit.find((candidate) => candidate?.trim().startsWith(prefix))?.trim();
     return value ? { secretKey: value } : null;
+  }
+  if (serviceId === "chartgpt") {
+    const value = process.env.CHARTGPT_API_KEY?.trim();
+    return value ? { apiKey: value } : null;
   }
   if (serviceId === "coingecko") {
     const explicit = environment === "demo"
