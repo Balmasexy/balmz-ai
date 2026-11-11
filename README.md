@@ -47,6 +47,7 @@ BALMZ AI is an AI workplace built with Next.js and the OpenAI Apps SDK. The curr
 - `/sign-up`: email/password registration
 - `/sign-in`: email/password sign-in
 - `/dashboard`: authenticated account and subscription overview
+- `/admin`: protected Super Admin workplace with live Neon monitoring and a restricted diagnostics console
 - `/api/auth/*`: Better Auth endpoints
 - `/api/health/db`: safe database connectivity probe
 - `/api/subscription`: authenticated, server-derived subscription status
