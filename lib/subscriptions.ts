@@ -91,6 +91,21 @@ async function ensureFreePlanAccess(userId: string): Promise<void> {
 export async function getCurrentSubscription(userId: string): Promise<SubscriptionSummary | null> {
   await ensureFreePlanAccess(userId);
 
+  // Paid and trial plans remain authoritative over complimentary family grants.
+  const paid = await getDbPool().query<SubscriptionSummary>(
+    `SELECT s.id, s.status, p.code AS plan_code, p.display_name AS plan_name,
+            s.current_period_starts_at, s.current_period_ends_at, p.entitlements
+       FROM public.balmz_subscriptions s
+       JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
+      WHERE s.user_id = $1 AND p.code <> 'free'
+        AND s.status IN ('active', 'trialing')
+        AND p.is_enabled = true
+        AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
+      ORDER BY s.created_at DESC LIMIT 1`,
+    [userId],
+  );
+  if (paid.rows[0]) return paid.rows[0];
+
   const familyGrant = await getActiveComplimentaryAccess(userId);
   if (familyGrant) {
     return {
@@ -108,22 +123,19 @@ export async function getCurrentSubscription(userId: string): Promise<Subscripti
     };
   }
 
-  const result = await getDbPool().query<SubscriptionSummary>(
+  const free = await getDbPool().query<SubscriptionSummary>(
     `SELECT s.id, s.status, p.code AS plan_code, p.display_name AS plan_name,
             s.current_period_starts_at, s.current_period_ends_at, p.entitlements
        FROM public.balmz_subscriptions s
        JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
-      WHERE s.user_id = $1 AND s.status IN ('active', 'trialing')
-        AND p.is_enabled = true
+      WHERE s.user_id = $1 AND p.code = 'free'
+        AND s.status = 'active' AND p.is_enabled = true
         AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
-      ORDER BY CASE s.status WHEN 'active' THEN 0 WHEN 'trialing' THEN 1 ELSE 2 END,
-               s.created_at DESC
-      LIMIT 1`,
+      ORDER BY s.created_at DESC LIMIT 1`,
     [userId],
   );
-  return result.rows[0] ?? null;
+  return free.rows[0] ?? null;
 }
-
 /**
  * Atomically records usage against an entitlements.limits[metric] value.
  * Counters are measured per UTC calendar month. Missing limits fail closed.
@@ -159,41 +171,40 @@ export async function consumeUsage(input: {
       return { accepted: true, duplicate: true };
     }
 
-    const grant = await client.query<{ id: string }>(
-      `SELECT id FROM public.balmz_complimentary_access_grants
-        WHERE user_id = $1 AND revoked_at IS NULL AND starts_at <= now()
-          AND (expires_at IS NULL OR expires_at > now())
-        ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+    const subscriptionResult = await client.query<{
+      subscription_id: string;
+      plan_code: string;
+      entitlements: Entitlements;
+    }>(
+      `SELECT s.id AS subscription_id, p.code AS plan_code, p.entitlements
+         FROM public.balmz_subscriptions s
+         JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
+        WHERE s.user_id = $1 AND s.status IN ('active', 'trialing')
+          AND p.is_enabled = true
+          AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
+        ORDER BY s.created_at DESC LIMIT 1 FOR UPDATE OF s`,
       [userId],
     );
+    const subscription = subscriptionResult.rows[0];
 
     let configuredLimit: number | undefined;
-    if (grant.rowCount) {
-      configuredLimit = metric === "ai_messages" ? 500 : undefined;
+    if (subscription && subscription.plan_code !== "free") {
+      configuredLimit = subscription.entitlements?.limits?.[metric];
     } else {
-      const subscriptionResult = await client.query<{
-        subscription_id: string;
-        entitlements: Entitlements;
-      }>(
-        `SELECT s.id AS subscription_id, p.entitlements
-           FROM public.balmz_subscriptions s
-           JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
-          WHERE s.user_id = $1 AND s.status IN ('active', 'trialing')
-            AND p.is_enabled = true
-            AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
-          ORDER BY s.created_at DESC LIMIT 1 FOR UPDATE OF s`,
+      const grant = await client.query<{ id: string }>(
+        `SELECT id FROM public.balmz_complimentary_access_grants
+          WHERE user_id = $1 AND revoked_at IS NULL AND starts_at <= now()
+            AND (expires_at IS NULL OR expires_at > now())
+          ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
         [userId],
       );
-      const subscription = subscriptionResult.rows[0];
-      if (!subscription) throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
-      configuredLimit = subscription.entitlements?.limits?.[metric];
+      if (grant.rowCount) {
+        configuredLimit = metric === "ai_messages" ? 500 : undefined;
+      } else {
+        if (!subscription) throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
+        configuredLimit = subscription.entitlements?.limits?.[metric];
+      }
     }
-
-    if (typeof configuredLimit !== "number" || !Number.isSafeInteger(configuredLimit) || configuredLimit < 0) {
-      throw new Error("USAGE_LIMIT_NOT_CONFIGURED");
-    }
-    const limit = configuredLimit;
-
     const now = new Date();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
