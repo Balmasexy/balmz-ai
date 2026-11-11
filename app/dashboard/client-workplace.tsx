@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/app/components/sign-out-button";
-import { announceForAccessibility, copyNativeText, getNetworkState, hapticNotice, hapticTap, hideNativeKeyboard, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast } from "@/lib/capacitor/native-helpers";
+import { announceForAccessibility, copyNativeText, getNetworkState, hapticNotice, hapticTap, hideNativeKeyboard, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast, getNativePreference, setNativePreference } from "@/lib/capacitor/native-helpers";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
@@ -138,6 +138,17 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void getNativePreference("balmz-ai-preferred-model").then((saved) => {
+      if (active && saved) setModel(saved);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (model) void setNativePreference("balmz-ai-preferred-model", model).catch(() => undefined);
+  }, [model]);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/ai/models", { cache: "no-store" })
