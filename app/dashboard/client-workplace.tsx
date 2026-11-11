@@ -310,7 +310,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
               </div>
             </article>)}
-              {busy ? <div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span><span className="animate-pulse">BALMZ AI is thinking…</span></div> : null}
+              {busy ? <div className="flex items-center gap-3 text-xs text-slate-500"><Image src="/balmz-logo.svg" alt="BALMZ AI" width={32} height={32} className="h-8 w-8 shrink-0 rounded-xl object-contain" /><span className="animate-pulse">BALMZ AI is thinking…</span></div> : null}
             </div>
             <div ref={bottomRef} />
           </div>}
