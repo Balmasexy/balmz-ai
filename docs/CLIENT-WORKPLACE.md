@@ -12,7 +12,7 @@ The authenticated `/dashboard` route is a responsive ChatGPT-style workspace wit
 
 ## Conversation storage and ownership
 
-The additive migration `db/migrations/0002_client_workspace_conversations.sql` creates `balmz_conversations` and `balmz_messages`. Every query is scoped to the Better Auth user ID. A composite foreign key ties every message to the conversation owner, and delete cascades are limited to that conversation. The browser cannot select another user's conversation by changing its ID.
+The additive migration `db/migrations/0002_client_workspace_conversations.sql` (schema version `0005`) creates `balmz_conversations` and `balmz_messages`. Every query is scoped to the Better Auth user ID. A composite foreign key ties every message to the conversation owner, and delete cascades are limited to that conversation. The browser cannot select another user's conversation by changing its ID.
 
 The app role `balmz_ai_app` receives only the SELECT, INSERT, UPDATE, and DELETE permissions needed for these two tables. Migration 0001 and existing account, subscription, payment, usage, webhook, and audit records are not modified.
 
@@ -32,7 +32,7 @@ The browser never receives the OpenAI key. Provider errors are reduced to safe m
 
 Set `OPENAI_API_KEY` only in the Render service's server-side environment. AI replies also require an active/trialing subscription with an `ai_messages` allowance in the server-side plan entitlements. Missing provider credentials, subscription, or usage allowance fail closed; the UI must not invent balances or free quotas.
 
-The production database currently has no subscription plans or subscriptions, so the interface can load, browse the account workspace, and persist chat drafts only after migration 0002 is applied, but actual model replies remain gated until a valid plan/allowance and provider configuration are present.
+The production database currently has no subscription plans or subscriptions, so the interface can load, browse the account workspace, and persist chat drafts only after migration 0005 is applied, but actual model replies remain gated until a valid plan/allowance and provider configuration are present.
 
 ## Current limits
 
