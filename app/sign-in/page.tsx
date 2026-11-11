@@ -81,7 +81,7 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-xl bg-orange-500 px-4 py-3 font-semibold text-[#17100a] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-orange-500 px-4 py-3 font-semibold text-[#17100a] transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
