@@ -196,7 +196,7 @@ export async function listR2AdminObjects(): Promise<{ objects: StoredObject[]; l
 }
 
 export async function deleteR2AdminObject(key: string): Promise<void> {
-  if (!key.startsWith("admin/") || key.includes("\\0")) throw new Error("INVALID_OBJECT_KEY");
+  if (!key.startsWith("admin/") || key.includes(String.fromCharCode(0))) throw new Error("INVALID_OBJECT_KEY");
   const response = await signedR2Request("DELETE", key);
   if (!response.ok) throw new Error(`R2_DELETE_FAILED_${response.status}`);
 }
