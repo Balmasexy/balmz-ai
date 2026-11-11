@@ -59,7 +59,7 @@ export function SettingsWorkspace({ name, email, planName, isAdmin }: Props) {
 
       <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-7 sm:px-8 sm:pt-9">
         <section className="mb-9 flex flex-col items-center text-center">
-          <div className="relative flex h-[112px] w-[112px] items-center justify-center rounded-full border border-white/10 bg-[var(--balmz-orange)] text-4xl font-medium text-[#1c1108] shadow-[0_0_44px_rgba(255,105,0,0.12)]">
+          <div className="relative flex h-[112px] w-[112px] items-center justify-center rounded-full border border-white/10 bg-[var(--balmz-orange)] text-4xl font-medium text-[#1c1108] shadow-[0_0_44px_rgba(249,115,22,0.12)]">
             {name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "B"}
           </div>
           <h1 className="mt-5 text-xl font-semibold text-white">{name}</h1>
