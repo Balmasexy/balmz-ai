@@ -276,6 +276,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <p className="text-xs leading-5 text-slate-200">{planCheck === "unavailable" ? "We could not verify your plan. AI requests are paused until your plan status can be checked." : "An active BALMZ AI plan is required before sending AI requests."}</p>
             <Link href="/dashboard/billing" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">View plans</Link>
           </div> : null}
+          {!modelsLoading && !modelOptions.length ? <div className="mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] px-4 py-3">
+            <div><p className="text-xs font-semibold text-slate-200">No chat model is connected</p><p className="mt-1 text-[10px] leading-5 text-slate-500">{modelsMessage || "A Super Admin must connect and test an AI provider before chat can start."}</p></div>
+            {isAdmin ? <Link href="/admin?section=ai-connections" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">Connect a provider</Link> : <span className="text-[10px] text-slate-500">Ask your administrator to configure a provider</span>}
+          </div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
               <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(249,115,22,0.18)]">W</div>
@@ -289,7 +293,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                 <span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
