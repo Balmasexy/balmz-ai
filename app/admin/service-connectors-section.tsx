@@ -15,6 +15,7 @@ type Connection = {
 };
 type EnvStatus = { serviceId: ServiceId; environment: Environment; configured: boolean; source: string | null };
 type Repository = { id: number; name: string; fullName: string; private: boolean; url: string; defaultBranch: string; updatedAt: string; description: string | null };
+type PaymentMode = { environment: Environment; enabled: boolean; verified_at: string | null; enabled_at: string | null; credential: { status: string; last_tested_at: string | null } | null };
 
 const serviceLogos: Record<ServiceId, string> = {
   paystack: "P", coingecko: "CG", chartgpt: "CH", github: "GH", render: "R", neon: "N", notion: "NO", "agentic-ai": "A", "notes-ai": "NA", custom: "API",
@@ -56,6 +57,8 @@ export function ServiceConnectorsSection() {
   const [agentQuery, setAgentQuery] = useState("");
   const [agentResults, setAgentResults] = useState<Array<{ name: string; description: string; url: string; category: string; mcpSupport: boolean | null; openSource: boolean | null }>>([]);
   const [agentBusy, setAgentBusy] = useState(false);
+  const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
+  const [paymentModeBusy, setPaymentModeBusy] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -67,6 +70,11 @@ export function ServiceConnectorsSection() {
       setCatalog(payload.catalog ?? []);
       setConnections(payload.connections ?? []);
       setEnvironmentStatuses(payload.environmentStatuses ?? []);
+      if (selectedId === "paystack") {
+        const modesResponse = await fetch("/api/admin/payments/environment", { cache: "no-store" });
+        const modesPayload = await modesResponse.json() as { modes?: PaymentMode[] };
+        if (modesResponse.ok) setPaymentModes(modesPayload.modes ?? []);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connectors are unavailable.");
     } finally {
@@ -166,6 +174,28 @@ export function ServiceConnectorsSection() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection test failed.");
     } finally { setBusyId(""); }
+  }
+
+  async function togglePaymentMode(mode: PaymentMode) {
+    if (paymentModeBusy) return;
+    const enabled = !mode.enabled;
+    if (enabled && mode.environment === "live" && !window.confirm("Enable REAL Paystack payments? Customers can make payments that move real money through your activated merchant account.")) return;
+    if (!enabled && mode.environment === "live" && !window.confirm("Disable Live payments? New Live checkouts will stop; existing paid subscriptions remain unchanged.")) return;
+    setPaymentModeBusy(mode.environment); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/payments/environment", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ environment: mode.environment, enabled }),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Payment environment could not be updated.");
+      setNotice(mode.environment.toUpperCase() + (enabled ? " payments enabled." : " payments disabled."));
+      const refreshed = await fetch("/api/admin/payments/environment", { cache: "no-store" });
+      const data = await refreshed.json() as { modes?: PaymentMode[] };
+      if (refreshed.ok) setPaymentModes(data.modes ?? []);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Payment environment update failed.");
+    } finally { setPaymentModeBusy(""); }
   }
 
   async function disconnect(connection: Connection) {
@@ -272,6 +302,22 @@ export function ServiceConnectorsSection() {
             <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
               <div className="border-b border-white/[0.07] px-5 py-4"><h4 className="text-sm font-semibold text-white">Saved connections</h4><p className="mt-1 text-xs text-slate-500">{environment.toUpperCase()} connections for {selected.name}</p></div>
               {loading ? <p className="p-6 text-xs text-slate-500">Loading…</p> : visibleConnections.length ? <div className="divide-y divide-white/[0.055]">{visibleConnections.map((connection) => <article key={connection.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-semibold text-white">{connection.displayName}</p><p className="mt-1 text-[10px] text-slate-500">Last tested: {date(connection.lastTestedAt)}</p></div><Status value={connection.status} /></div><div className="flex gap-2"><button type="button" disabled={Boolean(busyId)} onClick={() => void testSaved(connection)} className="min-h-9 rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{busyId === connection.id ? "Testing…" : "Test again"}</button><button type="button" disabled={Boolean(busyId)} onClick={() => void disconnect(connection)} className="min-h-9 rounded-lg border border-rose-400/15 px-3 text-[10px] font-semibold text-rose-300 disabled:opacity-40">Disconnect</button></div></article>)}</div> : <div className="p-7 text-center"><p className="text-xs font-medium text-slate-300">No saved {environment} connection</p><p className="mt-2 text-[10px] text-slate-500">Test an existing Render variable or add a connector key.</p></div>}
+              {selected.id === "paystack" ? <div className="border-t border-white/[0.06] p-4">
+                <h4 className="text-xs font-semibold text-white">Payment activation</h4>
+                <p className="mt-1 text-[10px] leading-5 text-slate-500">Connecting a key is not the same as enabling payments. Each mode must be verified and explicitly activated. Live charges require an active Paystack merchant account and a webhook signing secret.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {(["demo", "live"] as const).map((environment) => {
+                    const mode = paymentModes.find((item) => item.environment === environment);
+                    const connected = mode?.credential?.status === "connected";
+                    return <article key={environment} className="rounded-xl border border-white/[0.07] bg-black/20 p-3">
+                      <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold text-white">{environment === "live" ? "Live · real money" : "Demo · test only"}</p><Status value={mode?.enabled ? "enabled" : "disabled"} /></div>
+                      <p className="mt-2 text-[10px] text-slate-500">Credential: {connected ? "Connected and tested" : "Not verified"}</p>
+                      <p className="mt-1 text-[10px] text-slate-600">Last test: {date(mode?.credential?.last_tested_at ?? null)}</p>
+                      <button type="button" onClick={() => mode && void togglePaymentMode(mode)} disabled={!mode || !connected || Boolean(paymentModeBusy)} className="mt-3 min-h-9 w-full rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-200 hover:border-[var(--balmz-orange)]/40 disabled:cursor-not-allowed disabled:opacity-40">{paymentModeBusy === environment ? "Updating…" : mode?.enabled ? "Disable payments" : environment === "live" ? "Enable Live payments" : "Enable Demo payments"}</button>
+                    </article>;
+                  })}
+                </div>
+              </div> : null}
               {selected.id === "github" ? <div className="border-t border-white/[0.06] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold text-white">GitHub repositories</p><p className="mt-1 text-[10px] text-slate-500">Browse repositories accessible to the connected token.</p></div><button type="button" onClick={() => void loadGitHubRepositories()} disabled={reposLoading} className="min-h-9 rounded-lg bg-[var(--balmz-orange)] px-3 text-[10px] font-semibold text-[#17100a] disabled:opacity-40">{reposLoading ? "Loading…" : "Load repositories"}</button></div>{repos.length ? <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">{repos.map((repo) => <a key={repo.id} href={repo.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/[0.07] bg-black/20 p-3 hover:border-[var(--balmz-orange)]/30"><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-semibold text-slate-200">{repo.fullName}</span><span className="text-[9px] text-slate-500">{repo.private ? "Private" : "Public"}</span></div><p className="mt-1 text-[10px] text-slate-500">Branch: {repo.defaultBranch} · Updated {date(repo.updatedAt)}</p></a>)}</div> : null}</div> : null}
               {selected.id === "agentic-ai" ? <div className="border-t border-white/[0.06] p-4">
                 <h4 className="text-xs font-semibold text-white">Search agent directory</h4>
