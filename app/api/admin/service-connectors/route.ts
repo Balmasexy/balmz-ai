@@ -8,6 +8,7 @@ import {
   checkStoredServiceCredential,
   encryptServiceCredentials,
   getServiceSecretStatus,
+  serviceCredentialsFromEnvironment,
   publicServiceCatalog,
   SERVICE_CATALOG,
   testServiceConnection,
