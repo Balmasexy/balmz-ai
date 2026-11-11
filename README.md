@@ -47,6 +47,8 @@ BALMZ AI is an AI workplace built with Next.js and the OpenAI Apps SDK. The curr
 - `/sign-up`: email/password registration
 - `/sign-in`: email/password sign-in
 - `/dashboard`: authenticated account and subscription overview
+- `/create-pin`: mandatory six-digit PIN setup after registration or first legacy sign-in
+- `/forgot-password`: registered-email code → existing PIN → new password recovery
 - `/api/auth/*`: Better Auth endpoints
 - `/api/health/db`: safe database connectivity probe
 - `/api/subscription`: authenticated, server-derived subscription status
@@ -58,13 +60,26 @@ The dedicated Neon project is named **BALMZ AI** and uses the `balmz_ai` databas
 
 `db/migrations/0001_identity_and_subscription_foundation.sql`
 
-It creates the Better Auth core tables and BALMZ plan, subscription, payment-event, usage, audit, and migration-history tables. The matching applied migration is recorded as version `0001` in `balmz_schema_migrations`.
+It creates the Better Auth core tables and BALMZ plan, subscription, payment-event, usage, audit, and migration-history tables. The matching applied migrations are recorded in `balmz_schema_migrations`: `0001` for identity/subscriptions and `0002` for PIN login and account recovery.
 
 The app runtime role is `balmz_ai_app`, scoped to read/write database access on the `public` schema. Schema migrations should be run using a separate owner/migration credential, not the runtime role.
 
 ## Accounts and subscriptions
 
 The account foundation uses Better Auth with HTTP-only cookies and database-backed sessions. Public registration cannot assign administrative roles. Passwords are processed by Better Auth; application code must not store or log clear-text passwords.
+
+### PIN login and password recovery
+
+New registrations create their account with email and password, then must create a six-digit PIN before entering the dashboard. Existing accounts without a PIN may use their current password once to enroll; after a PIN exists, the server rejects email/password sign-in and users sign in with their registered email plus PIN. PINs are salted and hashed with scrypt, never stored in plain text. PIN attempts are rate-limited and repeated failures temporarily lock the PIN credential.
+
+Password recovery is a four-step flow: enter an email address, verify a one-time code sent only to a registered account with a PIN, confirm the existing six-digit PIN, then set a new password. Recovery responses do not reveal whether an email is registered. Recovery codes expire after 10 minutes, are stored only as keyed digests, and can be used once. A successful password reset revokes existing sessions and signs the user into the dashboard.
+
+Transactional email uses the Resend API. Configure these server-only Render environment variables before enabling code delivery:
+
+- `RESEND_API_KEY`: Resend API key for the verified sending domain.
+- `AUTH_EMAIL_FROM`: verified sender, e.g. `BALMZ AI <security@your-verified-domain.example>`.
+
+Never use a `NEXT_PUBLIC_` prefix for either value. The recovery endpoint deliberately returns the same response for registered and unregistered addresses. Without the sender credentials, the email is not sent and recovery cannot be completed.
 
 Subscription status and entitlements are read from PostgreSQL on the server. Usage is reserved in database transactions with an idempotency key and a monthly UTC counter. Missing limits or missing active subscriptions fail closed.
 
