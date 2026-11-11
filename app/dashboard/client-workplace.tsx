@@ -64,7 +64,14 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(conversationStorageKey);
+      const scoped = localStorage.getItem(conversationStorageKey);
+      const legacy = scoped ? null : localStorage.getItem(STORAGE_KEY);
+      const raw = scoped ?? legacy;
+      if (!scoped && legacy) {
+        // Migrate existing browser chat history into the first signed-in account key.
+        localStorage.setItem(conversationStorageKey, legacy);
+        localStorage.removeItem(STORAGE_KEY);
+      }
       const saved = raw ? JSON.parse(raw) as Conversation[] : [];
       const validSaved = Array.isArray(saved) ? saved : [];
       const url = new URL(window.location.href);
