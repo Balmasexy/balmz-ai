@@ -95,7 +95,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([]);
   const [imageBusy, setImageBusy] = useState(false);
   const [isDraggingImages, setIsDraggingImages] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -217,7 +219,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setNotice(cause instanceof Error ? cause.message : "An image could not be uploaded.");
     } finally {
       setImageBusy(false);
-      if (imageInputRef.current) imageInputRef.current.value = "";
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   }
 
@@ -303,8 +306,35 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   const hasMessages = Boolean(active?.messages.length);
 
+  const attachmentPicker = (
+    <div className="relative flex items-center gap-2">
+      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos and files" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
+        <span aria-hidden="true">+</span>
+      </button>
+      {uploadMenuOpen ? (
+        <div role="menu" aria-label="Add to message" className="absolute bottom-12 left-0 z-50 w-56 rounded-2xl border border-white/10 bg-[#151f2e] p-2 shadow-2xl shadow-black/50">
+          <button type="button" role="menuitem" onClick={() => { setUploadMenuOpen(false); galleryInputRef.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs text-slate-200 transition hover:bg-white/[0.07]">
+            <span className="text-lg text-[var(--balmz-orange)]">▧</span><span><span className="block font-semibold">Photos & files</span><span className="mt-0.5 block text-[10px] text-slate-500">Choose from your device</span></span>
+          </button>
+          <button type="button" role="menuitem" onClick={() => { setUploadMenuOpen(false); cameraInputRef.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs text-slate-200 transition hover:bg-white/[0.07]">
+            <span className="text-lg text-[var(--balmz-orange)]">◎</span><span><span className="block font-semibold">Take photo</span><span className="mt-0.5 block text-[10px] text-slate-500">Open your camera</span></span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const uploadInputs = (
+    <>
+      <input ref={galleryInputRef} type="file" accept="image/*" multiple aria-label="Choose photos and files" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" aria-label="Take a photo with your camera" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
+    </>
+  );
+
+
   return (
     <main className="flex h-[100dvh] min-h-[560px] overflow-hidden bg-[#080c14] text-slate-100">
+      {uploadInputs}
       {mobileSidebar ? <button aria-label="Close navigation" onClick={() => setMobileSidebar(false)} className="fixed inset-0 z-30 bg-black/60 lg:hidden" /> : null}
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[286px] shrink-0 flex-col border-r border-white/[0.08] bg-[#0b111c] transition-transform duration-200 lg:static lg:translate-x-0 ${mobileSidebar ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-[68px] items-center justify-between border-b border-white/[0.07] px-4">
@@ -382,11 +412,13 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div className="grid gap-2 sm:grid-cols-2">
               {starterPrompts.map((item) => <button key={item.title} onClick={() => { setPrompt(item.prompt); textareaRef.current?.focus(); }} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-left transition hover:border-[var(--balmz-orange)]/35 hover:bg-white/[0.045]"><span className="block text-sm font-medium text-slate-200">{item.title}</span><span className="mt-1 block text-xs text-slate-500">{item.detail}</span></button>)}
             </div>
-            <div className="mt-6 rounded-2xl border border-white/[0.08] bg-[#0d1420] p-3 shadow-2xl shadow-black/20">
+            <div onDragOver={(event) => { event.preventDefault(); setIsDraggingImages(true); }} onDragLeave={() => setIsDraggingImages(false)} onDrop={(event) => { event.preventDefault(); setIsDraggingImages(false); if (event.dataTransfer.files.length) void handleImageSelection(event.dataTransfer.files); }} className={`mt-6 rounded-2xl border bg-[#0d1420] p-3 shadow-2xl shadow-black/20 transition ${isDraggingImages ? "border-[var(--balmz-orange)] bg-[var(--balmz-orange)]/[0.05]" : "border-white/[0.08]"}`}>
+              {attachmentPreview}
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
-              <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
-                <span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                <div className="flex items-center gap-2">{attachmentPicker}<span className="text-[10px] text-slate-600">Drop images here · Up to 4 photos</span></div>
+                <div className="flex items-center gap-3"><span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
+                <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
@@ -399,6 +431,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               {message.role === "assistant" ? <Image src="/balmz-logo.svg" alt="BALMZ AI" width={32} height={32} className="h-8 w-8 shrink-0 rounded-xl object-contain" /> : null}
               <div className={message.role === "user" ? "max-w-[88%] rounded-3xl bg-[#182232] px-5 py-3.5 text-sm leading-7 text-slate-100" : "min-w-0 flex-1 pt-1 text-sm leading-7 text-slate-200"}>
                 <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                {message.images?.length ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{message.images.map((image) => <img key={image.id} src={image.previewUrl} alt={image.name} className="max-h-52 w-full rounded-xl border border-white/10 object-cover" />)}</div> : null}
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
               </div>
             </article>)}
@@ -410,11 +443,13 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         </div>
 
         {hasMessages ? <div className="shrink-0 px-4 pb-4 sm:px-8 sm:pb-6">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-white/[0.09] bg-[#0d1420] p-3 shadow-2xl shadow-black/20 focus-within:border-[var(--balmz-orange)]/35">
+          <div onDragOver={(event) => { event.preventDefault(); setIsDraggingImages(true); }} onDragLeave={() => setIsDraggingImages(false)} onDrop={(event) => { event.preventDefault(); setIsDraggingImages(false); if (event.dataTransfer.files.length) void handleImageSelection(event.dataTransfer.files); }} className={`mx-auto max-w-3xl rounded-2xl border bg-[#0d1420] p-3 shadow-2xl shadow-black/20 transition focus-within:border-[var(--balmz-orange)]/35 ${isDraggingImages ? "border-[var(--balmz-orange)] bg-[var(--balmz-orange)]/[0.05]" : "border-white/[0.09]"}`}>
+            {attachmentPreview}
             <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={2} placeholder="Message BALMZ AI…" className="max-h-40 min-h-[52px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
-            <div className="flex items-center justify-between border-t border-white/[0.06] pt-2">
-              <span className="text-[10px] text-slate-600">Shift + Enter for a new line</span>
-              <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-2">
+              <div className="flex items-center gap-2">{attachmentPicker}<span className="hidden text-[10px] text-slate-600 sm:inline">Add a photo or drop it here</span></div>
+              <div className="flex items-center gap-3"><span className="hidden text-[10px] text-slate-600 sm:inline">Shift + Enter for a new line</span>
+              <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
             </div>
           </div>
         </div> : null}
