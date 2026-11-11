@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   useWidgetProps,
@@ -19,25 +18,25 @@ export default function Home() {
   const displayMode = useDisplayMode();
   const requestDisplayMode = useRequestDisplayMode();
   const isChatGptApp = useIsChatGptApp();
-
   const name = toolOutput?.result?.structuredContent?.name || toolOutput?.name;
 
   return (
-    <div
-      className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center p-8 pb-20 gap-16 sm:p-20"
+    <main
+      className="min-h-screen bg-[#080c14] text-white"
       style={{
         maxHeight,
         height: displayMode === "fullscreen" ? maxHeight : undefined,
       }}
     >
-      {displayMode !== "fullscreen" && (
+      {displayMode !== "fullscreen" && isChatGptApp ? (
         <button
+          type="button"
           aria-label="Enter fullscreen"
-          className="fixed top-4 right-4 z-50 rounded-full bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-lg ring-1 ring-slate-900/10 dark:ring-white/10 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
           onClick={() => requestDisplayMode("fullscreen")}
+          className="fixed right-4 top-4 z-50 rounded-full border border-white/10 bg-white/10 p-3 text-white shadow-lg transition hover:bg-white/20"
         >
           <svg
-            className="w-5 h-5"
+            className="h-5 w-5"
             fill="none"
             stroke="currentColor"
             strokeWidth={1.5}
@@ -51,79 +50,56 @@ export default function Home() {
             />
           </svg>
         </button>
-      )}
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        {!isChatGptApp && (
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 w-full">
-            <div className="flex items-center gap-3">
-              <svg
-                className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-blue-900 dark:text-blue-100 font-medium">
-                  This app relies on data from a ChatGPT session.
-                </p>
-                <p className="text-sm text-blue-900 dark:text-blue-100 font-medium">
-                  No{" "}
-                  <a
-                    href="https://developers.openai.com/apps-sdk/reference"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:no-underline font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded"
-                  >
-                    window.openai
-                  </a>{" "}
-                  property detected
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Welcome to the ChatGPT Apps SDK Next.js Starter
-          </li>
-          <li className="mb-2 tracking-[-.01em]">
-            Name returned from tool call: {name ?? "..."}
-          </li>
-          <li className="mb-2 tracking-[-.01em]">MCP server path: /mcp</li>
-        </ol>
+      ) : null}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <Link
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            prefetch={false}
-            href="/custom-page"
-          >
-            Visit another page
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 sm:px-8">
+        <header className="flex items-center justify-between border-b border-white/10 py-6">
+          <Link href="/" className="text-sm font-bold tracking-[0.22em] text-orange-400">
+            BALMZ AI
           </Link>
-          <a
-            href="https://vercel.com/templates/ai/chatgpt-app-with-next-js"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            Deploy on Vercel
-          </a>
-        </div>
-      </main>
-    </div>
+          <nav className="flex items-center gap-3 text-sm">
+            <Link href="/sign-in" className="rounded-xl px-3 py-2 text-slate-300 transition hover:text-white">
+              Sign in
+            </Link>
+            <Link href="/sign-up" className="rounded-xl bg-orange-500 px-4 py-2 font-semibold text-[#17100a] transition hover:bg-orange-400">
+              Create account
+            </Link>
+          </nav>
+        </header>
+
+        <section className="flex flex-1 flex-col justify-center py-16 sm:py-24">
+          <div className="max-w-3xl">
+            <p className="inline-flex rounded-full border border-orange-400/25 bg-orange-400/10 px-3 py-1 text-xs font-semibold tracking-[0.15em] text-orange-300">
+              YOUR AI WORKPLACE
+            </p>
+            <h1 className="mt-7 text-5xl font-semibold leading-[1.08] tracking-tight sm:text-7xl">
+              Think clearly.
+              <span className="block text-orange-400">Build boldly.</span>
+            </h1>
+            <p className="mt-6 max-w-2xl text-base leading-8 text-slate-400 sm:text-lg">
+              Bring your research, ideas, and everyday work into one secure AI workspace.
+              Your account and subscription controls stay connected to your own BALMZ AI database.
+            </p>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link href="/sign-up" className="rounded-xl bg-orange-500 px-6 py-3 font-semibold text-[#17100a] transition hover:bg-orange-400">
+                Start your workspace
+              </Link>
+              <Link href="/sign-in" className="rounded-xl border border-white/15 px-6 py-3 font-semibold text-white transition hover:bg-white/10">
+                Sign in
+              </Link>
+            </div>
+            {isChatGptApp && name ? (
+              <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
+                Connected Apps SDK session: <span className="font-semibold text-white">{name}</span>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <footer className="border-t border-white/10 py-5 text-xs text-slate-500">
+          BALMZ AI · Secure accounts · Server-managed subscriptions
+        </footer>
+      </div>
+    </main>
   );
 }
