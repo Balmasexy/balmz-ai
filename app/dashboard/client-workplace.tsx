@@ -198,9 +198,51 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     } : item).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   }
 
+  async function handleImageSelection(files: FileList | File[]) {
+    const chosen = Array.from(files);
+    if (!chosen.length || imageBusy) return;
+    const available = Math.max(0, 4 - selectedImages.length);
+    if (!available) {
+      setNotice("You can attach up to four images to one message.");
+      return;
+    }
+    if (chosen.length > available) setNotice("Only four images can be attached to one message. Extra files were skipped.");
+    setImageBusy(true);
+    try {
+      const prepared: ImageAttachment[] = [];
+      for (const file of chosen.slice(0, available)) prepared.push(await prepareImageFile(file));
+      setSelectedImages((current) => [...current, ...prepared].slice(0, 4));
+      setNotice("");
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "An image could not be uploaded.");
+    } finally {
+      setImageBusy(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  }
+
+  function removeSelectedImage(id: string) {
+    setSelectedImages((current) => current.filter((image) => image.id !== id));
+  }
+
+  const attachmentPreview = selectedImages.length ? (
+    <div className="flex flex-wrap gap-2 px-2 pb-3" aria-label="Attached images">
+      {selectedImages.map((image) => (
+        <div key={image.id} className="relative h-[76px] w-[76px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+          <img src={image.previewUrl} alt={image.name} className="h-full w-full object-cover" />
+          <button type="button" onClick={() => removeSelectedImage(image.id)} aria-label={"Remove " + image.name} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-white hover:bg-black">
+            <Icon name="close" />
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   async function sendMessage(value = prompt) {
     const text = value.trim();
-    if (!text || busy) return;
+    const attachments = selectedImages;
+    if ((!text && !attachments.length) || busy) return;
+    const messageText = text || "Please analyze the attached image(s).";
     if (planCheck !== "active") {
       setNotice(planCheck === "unavailable"
         ? "Your BALMZ AI plan could not be verified. No AI request was sent. Refresh the workspace and try again."
@@ -217,7 +259,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setConversations((current) => [conversation!, ...current]);
       setActiveId(conversation.id);
     }
-    const userMessage: Message = { id: crypto.randomUUID(), role: "user", content: text, createdAt: new Date().toISOString() };
+    const userMessage: Message = { id: crypto.randomUUID(), role: "user", content: messageText, createdAt: new Date().toISOString(), ...(attachments.length ? { images: attachments } : {}) };
     const next = [...conversation.messages, userMessage];
     updateMessages(conversation.id, next);
     setPrompt("");
@@ -227,7 +269,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next.map(({ role, content }) => ({ role, content })), model }),
+        body: JSON.stringify({ messages: next.map(({ role, content, images }) => ({ role, content, ...(images?.length ? { images: images.map(({ mimeType, dataBase64 }) => ({ mimeType, dataBase64 })) } : {}) })), model }),
       });
       const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
       if (!response.ok || !payload.reply) {
@@ -240,6 +282,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         return;
       }
       updateMessages(conversation.id, [...next, { id: crypto.randomUUID(), role: "assistant", content: payload.reply, createdAt: new Date().toISOString() }]);
+      setSelectedImages([]);
     } catch {
       setNotice("Could not reach BALMZ AI. Check your connection and try again.");
     } finally {
