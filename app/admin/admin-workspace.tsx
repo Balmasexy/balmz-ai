@@ -374,8 +374,8 @@ function PaymentsSection({ data }: { data: AdminOverview }) {
 
 function UsageSection({ data }: { data: AdminOverview }) {
   return (
-    <Panel title="Usage counters" subtitle="Actual metric counters and configured limits">
-      {data.usage.length ? <TableWrap><Table><TableHead labels={["Account", "Metric", "Units used", "Limit", "Period ends", "Updated", "Utilization"]} /><tbody>
+    <Panel title="Usage counters" subtitle="Free plan access does not expire; monthly usage allowances reset at the start of each UTC month.">
+      {data.usage.length ? <TableWrap><Table><TableHead labels={["Account", "Metric", "Units used", "Limit", "Usage resets", "Updated", "Utilization"]} /><tbody>
         {data.usage.map((item, index) => {
           const used = Number(item.units_used);
           const limit = item.units_limit == null ? null : Number(item.units_limit);
