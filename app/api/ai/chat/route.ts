@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
-import { findAIProviderConnection, sendAIProviderMessage, type AIProviderConnection } from "@/lib/ai/providers";
+import { findAIProviderConnection, sendAIProviderMessage, type AIProviderConnection, type AIMessage } from "@/lib/ai/providers";
+import { getActiveComplimentaryAccess } from "@/lib/family-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,22 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("ACTIVE_PLAN_REQUIRED", 402, "An active BALMZ AI plan is required before sending AI requests.");
   }
 
+  let providerMessages: AIMessage[] = messages;
+  try {
+    const familyAccess = await getActiveComplimentaryAccess(session.user.id);
+    if (familyAccess) {
+      providerMessages = [
+        {
+          role: "system",
+          content: "BALMZ AI shared family workspace instruction. Prompt tag: " + familyAccess.promptTag + ". Follow this shared instruction in addition to the user's latest request, subject to all safety and privacy rules:\n\n" + familyAccess.sharedPrompt,
+        },
+        ...messages,
+      ];
+    }
+  } catch {
+    return safeError("FAMILY_ACCESS_UNAVAILABLE", 503, "Your shared workspace instructions could not be verified. No AI request was sent.");
+  }
+
   try {
     await consumeUsage({
       userId: session.user.id,
@@ -84,7 +101,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
       const connection = await findAIProviderConnection(connectionId);
       if (!connection) return safeError("AI_MODEL_UNAVAILABLE", 503, "This AI connection is no longer available. Refresh the model list and select another provider.");
-      const reply = await sendAIProviderMessage(connection, messages);
+      const reply = await sendAIProviderMessage(connection, providerMessages);
       return NextResponse.json({
         reply,
         model: connection.model_id,
@@ -122,7 +139,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
       body: JSON.stringify({
         model,
-        messages,
+        messages: providerMessages,
         max_tokens: 1800,
       }),
       signal: AbortSignal.timeout(45_000),
