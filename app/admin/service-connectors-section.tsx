@@ -70,11 +70,9 @@ export function ServiceConnectorsSection() {
       setCatalog(payload.catalog ?? []);
       setConnections(payload.connections ?? []);
       setEnvironmentStatuses(payload.environmentStatuses ?? []);
-      if (selectedId === "paystack") {
-        const modesResponse = await fetch("/api/admin/payments/environment", { cache: "no-store" });
-        const modesPayload = await modesResponse.json() as { modes?: PaymentMode[] };
-        if (modesResponse.ok) setPaymentModes(modesPayload.modes ?? []);
-      }
+      const modesResponse = await fetch("/api/admin/payments/environment", { cache: "no-store" });
+      const modesPayload = await modesResponse.json() as { modes?: PaymentMode[] };
+      if (modesResponse.ok) setPaymentModes(modesPayload.modes ?? []);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connectors are unavailable.");
     } finally {
