@@ -11,7 +11,7 @@ const configuredBaseUrl =
 
 function normalizeBaseUrl(value: string): string {
   const withProtocol = value.startsWith("http") ? value : `https://${value}`;
-  return withProtocol.replace(/\\/$/, "");
+  return withProtocol.endsWith("/") ? withProtocol.slice(0, -1) : withProtocol;
 }
 
 export const baseURL =
