@@ -43,6 +43,7 @@ function Icon({ name }: { name: "new" | "search" | "chat" | "code" | "book" | "c
 }
 
 export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { userName: string; userEmail: string; isAdmin: boolean; planName: string | null }) {
+  const conversationStorageKey = `${STORAGE_KEY}:${encodeURIComponent(userEmail.trim().toLowerCase())}`;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -63,7 +64,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(conversationStorageKey);
       const saved = raw ? JSON.parse(raw) as Conversation[] : [];
       const validSaved = Array.isArray(saved) ? saved : [];
       const url = new URL(window.location.href);
@@ -98,7 +99,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   }, []);
 
   useEffect(() => {
-    if (conversations.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    if (conversations.length) localStorage.setItem(conversationStorageKey, JSON.stringify(conversations));
   }, [conversations]);
 
   useEffect(() => {
