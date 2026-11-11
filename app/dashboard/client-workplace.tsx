@@ -5,11 +5,47 @@ import Link from "next/link";
 import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
 
-type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
+type ImageAttachment = {
+  id: string;
+  name: string;
+  mimeType: "image/jpeg";
+  dataBase64: string;
+  previewUrl: string;
+};
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[] };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
 
 const STORAGE_KEY = "balmz-ai-client-workplace-v1";
+async function prepareImageFile(file: File): Promise<ImageAttachment> {
+  if (!file.type.startsWith("image/")) throw new Error(file.name + " is not an image.");
+  if (file.size > 15_000_000) throw new Error(file.name + " is too large. Choose an image under 15 MB.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) { bitmap.close(); throw new Error("This browser could not prepare the image."); }
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/jpeg", 0.82);
+  });
+  if (blob.size > 4_000_000) throw new Error(file.name + " is still too large after compression. Choose a smaller image.");
+  const previewUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Image could not be read."));
+    reader.onerror = () => reject(new Error("Image could not be read."));
+    reader.readAsDataURL(blob);
+  });
+  const dataBase64 = previewUrl.split(",")[1];
+  if (!dataBase64) throw new Error("Image encoding failed.");
+  return { id: crypto.randomUUID(), name: file.name.slice(0, 160), mimeType: "image/jpeg", dataBase64, previewUrl };
+}
+
 const starterPrompts = [
   { title: "Write something", detail: "Draft an email, proposal or post", prompt: "Help me draft a clear, professional email about " },
   { title: "Learn something", detail: "Explain a topic step by step", prompt: "Explain this topic step by step, with practical examples: " },
@@ -56,6 +92,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [modelsMessage, setModelsMessage] = useState("");
   const [planCheck, setPlanCheck] = useState<"checking" | "active" | "inactive" | "unavailable">("checking");
   const [currentPlanName, setCurrentPlanName] = useState(planName);
+  const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([]);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -80,7 +120,15 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   }, []);
 
   useEffect(() => {
-    if (conversations.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    if (conversations.length) {
+      const textOnly = conversations.map((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.map((message) => ({
+          id: message.id, role: message.role, content: message.content, createdAt: message.createdAt,
+        })),
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(textOnly));
+    }
   }, [conversations]);
 
   useEffect(() => {
@@ -135,6 +183,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     setConversations((current) => [item, ...current]);
     setActiveId(item.id);
     setPrompt("");
+    setSelectedImages([]);
     setNotice("");
     setMobileSidebar(false);
     window.setTimeout(() => textareaRef.current?.focus(), 50);
