@@ -35,17 +35,20 @@ jobs:
           pnpm install --no-frozen-lockfile
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Commit regenerated lockfiles to the feature branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/balmz-ai-workplace-neon-paystack'
+      - name: Commit regenerated lockfiles to the current branch
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
         run: |
-          if ! git diff --quiet -- pnpm-lock.yaml package-lock.json; then
+          git add pnpm-lock.yaml package-lock.json
+          if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pnpm-lock.yaml package-lock.json
             git commit -m "chore: synchronize dependency lockfiles"
-            git push
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              git push origin "HEAD:$GITHUB_HEAD_REF"
+            else
+              git push
+            fi
           fi
-
       - name: Type-check
         run: pnpm exec tsc --noEmit
 
