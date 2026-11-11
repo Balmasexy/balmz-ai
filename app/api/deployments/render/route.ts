@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
+import { getRenderApiToken } from "@/lib/render-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,13 +34,12 @@ function unavailable() {
   return NextResponse.json({
     configured: false,
     services: [],
-    message: "Render deployment access is not configured. Add RENDER_API_KEY as a secret in the BALMZ AI Render service environment. Never paste the key into the browser or chat.",
+    message: "Connect and test Render in Super Admin → Service connectors, or configure RENDER_API_KEY as a server-side secret in the BALMZ AI Render service environment. Never paste the key into the browser or chat.",
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function renderRequest(path: string, init?: RequestInit) {
-  const key = process.env.RENDER_API_KEY;
-  if (!key) throw new Error("RENDER_NOT_CONFIGURED");
+  const key = await getRenderApiToken();
   const response = await fetch(`https://api.render.com/v1${path}`, {
     ...init,
     headers: {
@@ -62,8 +62,6 @@ async function renderRequest(path: string, init?: RequestInit) {
 export async function GET() {
   const auth = await authorized();
   if (auth.response) return auth.response;
-  if (!process.env.RENDER_API_KEY) return unavailable();
-
   try {
     const raw = await renderRequest("/services?limit=50") as Array<{ service?: RenderService } | RenderService>;
     const services = raw.map((entry) => "service" in entry && entry.service ? entry.service : entry as RenderService)
@@ -87,6 +85,7 @@ export async function GET() {
     return NextResponse.json({ configured: true, services: withDeploys }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const code = error instanceof Error ? error.message : "RENDER_UNAVAILABLE";
+    if (code === "RENDER_NOT_CONFIGURED") return unavailable();
     const message = code === "RENDER_AUTH_FAILED" ? "Render rejected the configured API key. Replace it in Render environment settings."
       : code === "RENDER_RATE_LIMITED" ? "Render API rate limit reached. Wait briefly, then refresh."
       : "Could not retrieve Render services. Check the server configuration and try again.";
@@ -123,6 +122,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, service: { id: selected.id, name: selected.name }, deploy }, { status: 202, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const code = error instanceof Error ? error.message : "DEPLOY_FAILED";
+    if (code === "RENDER_NOT_CONFIGURED") return unavailable();
     const status = code === "RENDER_AUTH_FAILED" ? 502 : code === "RENDER_RATE_LIMITED" ? 429 : 502;
     return NextResponse.json({ error: code, message: code === "RENDER_AUTH_FAILED" ? "Render rejected the configured API key."
       : code === "RENDER_RATE_LIMITED" ? "Render API rate limit reached. Wait before trying again."
