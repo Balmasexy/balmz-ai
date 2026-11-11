@@ -550,10 +550,27 @@ function SettingsSection() {
 }
 
 export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; adminEmail: string }) {
+  const router = useRouter();
   const [active, setActive] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [query, setQuery] = useState("");
   const current = titles[active];
+  const searchableSections: Section[] = ["accounts", "plans", "subscriptions", "payments", "usage", "webhooks", "audit"];
+  const filteredData = useMemo<AdminOverview>(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return data;
+    const matches = <T,>(rows: T[]) => rows.filter((row) => JSON.stringify(row).toLowerCase().includes(term));
+    return {
+      ...data,
+      users: matches(data.users),
+      plans: matches(data.plans),
+      subscriptions: matches(data.subscriptions),
+      payments: matches(data.payments),
+      usage: matches(data.usage),
+      webhooks: matches(data.webhooks),
+      audit: matches(data.audit),
+    };
+  }, [data, query]);
 
   function navigate(section: Section) {
     setActive(section);
@@ -627,17 +644,17 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
                 <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{current.title}</h1>
                 <p className="mt-2 text-sm leading-6 text-slate-400">{current.description}</p>
               </div>
-              {active !== "terminal" ? <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0d1420] px-3 py-2.5 sm:w-auto sm:min-w-[250px]"><span className="text-slate-500">⌕</span><input aria-label="Search current records" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={active === "accounts" ? "Search name, email or role…" : "Search user accounts…"} className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-slate-600" /></div> : <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2 text-[10px] font-semibold text-emerald-300">SAFE CONSOLE · READ ONLY</div>}
+              {searchableSections.includes(active) ? <div className="flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0d1420] px-3 py-2.5 sm:w-auto sm:min-w-[250px]"><span className="text-slate-500">⌕</span><input aria-label="Search current records" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search in this section…" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-slate-600" /><button type="button" onClick={() => setQuery("")} className="text-[10px] text-slate-500 hover:text-white">Clear</button></div> : active === "terminal" ? <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2 text-[10px] font-semibold text-emerald-300">SAFE CONSOLE · READ ONLY</div> : <button type="button" onClick={() => router.refresh()} className="rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-xs font-medium text-slate-300 transition hover:border-orange-400/20 hover:text-orange-200">↻ Refresh live data</button>}
             </div>
 
             {active === "overview" ? <OverviewSection data={data} onNavigate={navigate} /> : null}
-            {active === "accounts" ? <AccountsSection data={data} query={query} /> : null}
-            {active === "plans" ? <PlansSection data={data} /> : null}
-            {active === "subscriptions" ? <SubscriptionsSection data={data} /> : null}
-            {active === "payments" ? <PaymentsSection data={data} /> : null}
-            {active === "usage" ? <UsageSection data={data} /> : null}
-            {active === "webhooks" ? <WebhooksSection data={data} /> : null}
-            {active === "audit" ? <AuditSection data={data} /> : null}
+            {active === "accounts" ? <AccountsSection data={filteredData} /> : null}
+            {active === "plans" ? <PlansSection data={filteredData} /> : null}
+            {active === "subscriptions" ? <SubscriptionsSection data={filteredData} /> : null}
+            {active === "payments" ? <PaymentsSection data={filteredData} /> : null}
+            {active === "usage" ? <UsageSection data={filteredData} /> : null}
+            {active === "webhooks" ? <WebhooksSection data={filteredData} /> : null}
+            {active === "audit" ? <AuditSection data={filteredData} /> : null}
             {active === "terminal" ? <TerminalSection data={data} email={adminEmail} /> : null}
             {active === "settings" ? <SettingsSection /> : null}
 
