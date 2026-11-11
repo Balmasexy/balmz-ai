@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
@@ -216,7 +217,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[286px] shrink-0 flex-col border-r border-white/[0.08] bg-[#0b111c] transition-transform duration-200 lg:static lg:translate-x-0 ${mobileSidebar ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-[68px] items-center justify-between border-b border-white/[0.07] px-4">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-sm font-black text-[#17100a]">W</span>
+            <Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={36} height={36} priority className="h-9 w-9 rounded-xl object-contain" />
             <span><span className="block text-sm font-bold tracking-[0.16em] text-white">BALMZ AI</span><span className="block text-[10px] text-slate-500">Your AI workplace</span></span>
           </Link>
           <button onClick={() => setMobileSidebar(false)} className="rounded-lg p-2 text-slate-400 hover:bg-white/5 lg:hidden" aria-label="Close sidebar"><Icon name="close" /></button>
@@ -303,7 +304,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             </div>
           </div> : <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-8">
             <div className="space-y-8">{active?.messages.map((message) => <article key={message.id} className={message.role === "user" ? "flex justify-end" : "flex gap-3"}>
-              {message.role === "assistant" ? <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span> : null}
+              {message.role === "assistant" ? <Image src="/balmz-logo.svg" alt="BALMZ AI" width={32} height={32} className="h-8 w-8 shrink-0 rounded-xl object-contain" /> : null}
               <div className={message.role === "user" ? "max-w-[88%] rounded-3xl bg-[#182232] px-5 py-3.5 text-sm leading-7 text-slate-100" : "min-w-0 flex-1 pt-1 text-sm leading-7 text-slate-200"}>
                 <div className="whitespace-pre-wrap break-words">{message.content}</div>
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
