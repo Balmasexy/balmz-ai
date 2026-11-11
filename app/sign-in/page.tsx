@@ -16,16 +16,17 @@ export default function SignInPage() {
     setError("");
     setBusy(true);
     try {
+      const startNewChat = new URLSearchParams(window.location.search).get("newChat") === "1";
       const result = await authClient.signIn.email({
         email: email.trim().toLowerCase(),
         password,
-        callbackURL: "/dashboard",
+        callbackURL: startNewChat ? "/dashboard?new=1" : "/dashboard",
       });
       if (result.error) {
         setError(result.error.message || "Unable to sign in. Check your details and try again.");
         return;
       }
-      window.location.assign("/dashboard");
+      window.location.assign(startNewChat ? "/dashboard?new=1" : "/dashboard");
     } catch {
       setError("Sign-in is temporarily unavailable. Please try again.");
     } finally {
