@@ -254,6 +254,11 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     }
   }
 
+  useEffect(() => {
+    if (networkConnected && pendingMessagesRef.current.length && !processingQueueRef.current) {
+      void processPendingMessages();
+    }
+  }, [networkConnected]);
   async function sendMessage(value = prompt) {
     const text = value.trim();
     if (!text) return;
