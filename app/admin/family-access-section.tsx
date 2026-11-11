@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { confirmNativeAction } from "@/lib/capacitor/native-helpers";
 
 type FamilyUser = {
   id: string; name: string; email: string; emailVerified: boolean; createdAt: string;
@@ -50,6 +51,11 @@ export function FamilyAccessSection() {
 
   async function grantAccess() {
     if (!selected.length || saving) return;
+    const confirmed = await confirmNativeAction(
+      "Grant family access",
+      "Grant " + duration.replaceAll("_", " ") + " of complimentary access to " + selected.length + " selected account(s) using prompt tag " + promptTag + "?",
+    );
+    if (!confirmed) return;
     setSaving(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/admin/family-access", {
@@ -66,6 +72,8 @@ export function FamilyAccessSection() {
 
   async function revoke(grantId: string) {
     if (saving) return;
+    const confirmed = await confirmNativeAction("Revoke complimentary access", "This user will return to their normal subscription allowance. Continue?");
+    if (!confirmed) return;
     setSaving(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/admin/family-access", {
