@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 type StoredObject = { key: string; size: number; lastModified: string | null };
 type StoragePayload = {
@@ -27,7 +28,7 @@ function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" });
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
       <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6">
@@ -71,7 +72,7 @@ export function StorageSection() {
     (b.lastModified ?? "").localeCompare(a.lastModified ?? ""),
   ), [payload?.objects]);
 
-  async function uploadFile(event: React.FormEvent<HTMLFormElement>) {
+  async function uploadFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file || uploading) return;
     setUploading(true);
