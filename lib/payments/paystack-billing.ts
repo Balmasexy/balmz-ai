@@ -404,6 +404,12 @@ export async function verifyAndActivatePaystackCheckout(reference: string, expec
           AND plan_id = (SELECT id FROM public.balmz_subscription_plans WHERE code = 'free')`,
       [attempt.user_id],
     );
+    await client.query(
+      `UPDATE public.balmz_complimentary_access_grants
+          SET revoked_at = now(), updated_at = now()
+        WHERE user_id = $1 AND revoked_at IS NULL`,
+      [attempt.user_id],
+    );
 
     const periodStart = new Date();
     let periodEnd: Date | null = null;
