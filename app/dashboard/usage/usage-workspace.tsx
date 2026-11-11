@@ -40,9 +40,9 @@ export function UsageWorkspace() {
       <div className="mx-auto max-w-4xl space-y-5 px-4 py-7 sm:px-8">
         <section className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-5 sm:p-6">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--balmz-orange)]">Plan status</p>
-          <h1 className="mt-3 text-2xl font-semibold text-white">{payload?.subscription?.plan_name || "No active BALMZ AI plan"}</h1>
+          <h1 className="mt-3 text-2xl font-semibold text-white">{loading ? "Loading plan status…" : payload?.subscription?.plan_name || "No active BALMZ AI plan"}</h1>
           <p className="mt-2 text-xs leading-6 text-slate-400">{payload?.active ? "Your active subscription and plan limits are checked before every AI request." : "An active BALMZ AI plan is required before sending AI requests."}</p>
-          {!payload?.active ? <Link href="/dashboard/billing" className="mt-4 inline-flex rounded-xl bg-[var(--balmz-orange)] px-4 py-2.5 text-xs font-semibold text-[#17100a]">View available plans</Link> : null}
+          {!loading && !payload?.active ? <Link href="/dashboard/billing" className="mt-4 inline-flex rounded-xl bg-[var(--balmz-orange)] px-4 py-2.5 text-xs font-semibold text-[#17100a]">View available plans</Link> : null}
         </section>
         {loading ? <p className="rounded-xl border border-white/[0.08] p-5 text-xs text-slate-500">Loading your actual usage records…</p> : null}
         {error ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-4 text-xs text-rose-200">{error}</div> : null}
@@ -54,7 +54,7 @@ export function UsageWorkspace() {
             <p className="mt-2 text-[10px] text-slate-500">{item.limit === null ? "This metric has no numeric limit configured." : `${Math.round(ratio)}% of the current monthly allowance used`}</p>
           </article>;
         })}</section> : null}
-        {!loading && !error && payload?.active && !rows.length ? <div className="rounded-2xl border border-white/[0.08] p-8 text-center"><p className="text-sm font-medium text-white">No usage events recorded yet</p><p className="mt-2 text-xs text-slate-500">The usage ledger is empty for the current period. No usage is estimated or fabricated.</p></div> : null}
+        {!loading && !error && payload?.active && !rows.length ? <div className="rounded-2xl border border-white/[0.08] p-8 text-center"><p className="text-sm font-medium text-white">No usage metrics are configured yet</p><p className="mt-2 text-xs text-slate-500">This plan has no numeric usage limits or current-period usage counters to display.</p></div> : null}
         <p className="text-center text-[10px] leading-5 text-slate-600">Usage values come from the BALMZ AI Neon usage ledger. Limits are read from your active plan entitlements.</p>
       </div>
     </main>
