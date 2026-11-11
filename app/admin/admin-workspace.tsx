@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import type { AdminOverview, CountValue } from "@/lib/admin";
 
@@ -116,8 +118,8 @@ function Panel({
 }: {
   title: string;
   subtitle?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
@@ -144,11 +146,11 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-function TableWrap({ children }: { children: React.ReactNode }) {
+function TableWrap({ children }: { children: ReactNode }) {
   return <div className="overflow-x-auto">{children}</div>;
 }
 
-function Table({ children }: { children: React.ReactNode }) {
+function Table({ children }: { children: ReactNode }) {
   return <table className="w-full min-w-[680px] border-collapse text-left text-sm">{children}</table>;
 }
 
@@ -160,11 +162,11 @@ function TableHead({ labels }: { labels: string[] }) {
   );
 }
 
-function TableRow({ children }: { children: React.ReactNode }) {
+function TableRow({ children }: { children: ReactNode }) {
   return <tr className="border-t border-white/[0.055] transition hover:bg-white/[0.025]">{children}</tr>;
 }
 
-function Cell({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Cell({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <td className={`whitespace-nowrap px-5 py-3.5 text-slate-300 ${className}`}>{children}</td>;
 }
 
