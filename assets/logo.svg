@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">BALMZ AI shield logo</title>
+  <desc id="desc">A bold orange shield containing a white geometric W mark.</desc>
+  <defs>
+    <linearGradient id="shield" x1="64" y1="48" x2="440" y2="468" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB15A"/>
+      <stop offset=".48" stop-color="#FF7A18"/>
+      <stop offset="1" stop-color="#D94D00"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="90" y1="70" x2="420" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#172338"/>
+      <stop offset="1" stop-color="#080D15"/>
+    </linearGradient>
+    <filter id="shadow" x="12" y="8" width="488" height="500" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000000" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#080D15"/>
+  <g filter="url(#shadow)">
+    <path d="M256 40 428 104v142c0 109-67 187-172 226C151 433 84 355 84 246V104L256 40Z" fill="url(#shield)"/>
+    <path d="M256 72 397 125v120c0 88-52 153-141 189-89-36-141-101-141-189V125L256 72Z" fill="url(#inner)" stroke="#FFC184" stroke-opacity=".5" stroke-width="5"/>
+    <path d="m145 165 48 174 63-105 63 105 48-174h-51l-23 90-37-66-37 66-23-90h-51Z" fill="#FFF7EF"/>
+    <path d="m172 142 27 10 10 29-24-8-13-31Zm168 0-27 10-10 29 24-8 13-31Z" fill="#FF9B43" opacity=".9"/>
+  </g>
+  <path d="M185 378h142" stroke="#FF7A18" stroke-width="10" stroke-linecap="round" opacity=".85"/>
+</svg>
