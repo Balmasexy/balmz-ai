@@ -30,6 +30,9 @@ export async function getCurrentSubscription(
      FROM public.balmz_subscriptions s
      JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
      WHERE s.user_id = $1
+       AND s.status IN ('active', 'trialing')
+       AND p.is_enabled = true
+       AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
      ORDER BY
        CASE s.status
          WHEN 'active' THEN 0
