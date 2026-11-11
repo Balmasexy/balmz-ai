@@ -171,9 +171,56 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     } : item).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   }
 
+  async function processPendingMessages() {
+    if (processingQueueRef.current) return;
+    processingQueueRef.current = true;
+    setBusy(true);
+    try {
+      while (pendingMessagesRef.current.length) {
+        const task = pendingMessagesRef.current.shift();
+        if (!task) continue;
+        const savedMessages = conversationMessagesRef.current.get(task.conversationId) ?? [];
+        const taskIndex = savedMessages.findIndex((message) => message.id === task.messageId);
+        if (taskIndex < 0) continue;
+        const requestMessages = savedMessages.slice(0, taskIndex + 1).slice(-20)
+          .map(({ role, content }) => ({ role, content }));
+        try {
+          const response = await fetch("/api/ai/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: requestMessages, model }),
+          });
+          const payload = await response.json().catch(() => ({})) as { message?: string; reply?: string };
+          if (!response.ok || !payload.reply) {
+            setNotice(payload.message || "The assistant could not complete this request. Please try again.");
+            continue;
+          }
+          const latest = conversationMessagesRef.current.get(task.conversationId) ?? [];
+          const userIndex = latest.findIndex((message) => message.id === task.messageId);
+          if (userIndex < 0) continue;
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(), role: "assistant", content: payload.reply,
+            createdAt: new Date().toISOString(),
+          };
+          const nextMessages = [...latest];
+          nextMessages.splice(userIndex + 1, 0, assistantMessage);
+          updateMessages(task.conversationId, nextMessages);
+          setNotice("");
+        } catch {
+          setNotice("Could not reach BALMZ AI. Check your connection and try again.");
+        }
+      }
+    } finally {
+      processingQueueRef.current = false;
+      setBusy(false);
+      setMobileSidebar(false);
+      if (pendingMessagesRef.current.length) void processPendingMessages();
+    }
+  }
+
   async function sendMessage(value = prompt) {
     const text = value.trim();
-    if (!text || busy) return;
+    if (!text) return;
     if (planCheck !== "active") {
       setNotice(planCheck === "unavailable"
         ? "Your BALMZ AI plan could not be verified. No AI request was sent. Refresh the workspace and try again."
@@ -183,38 +230,21 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     let conversation = active;
     if (!conversation) {
       conversation = makeConversation();
+      conversationMessagesRef.current.set(conversation.id, []);
       setConversations((current) => [conversation!, ...current]);
       setActiveId(conversation.id);
     }
-    const userMessage: Message = { id: crypto.randomUUID(), role: "user", content: text, createdAt: new Date().toISOString() };
-    const next = [...conversation.messages, userMessage];
-    updateMessages(conversation.id, next);
+    const existing = conversationMessagesRef.current.get(conversation.id) ?? conversation.messages;
+    const userMessage: Message = {
+      id: crypto.randomUUID(), role: "user", content: text,
+      createdAt: new Date().toISOString(),
+    };
+    updateMessages(conversation.id, [...existing, userMessage]);
+    pendingMessagesRef.current.push({ conversationId: conversation.id, messageId: userMessage.id });
     setPrompt("");
     setNotice("");
-    setBusy(true);
-    try {
-      const response = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next.map(({ role, content }) => ({ role, content })), model }),
-      });
-      const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
-      if (!response.ok || !payload.reply) {
-        const message = payload.message || (response.status === 402
-          ? "AI chat requires an active subscription with an ai_messages allowance."
-          : response.status === 503
-            ? "AI chat is not configured yet. The workspace is ready, but the server-side provider key or plan allowance is missing."
-            : "The assistant could not complete this request. Please try again.");
-        setNotice(message);
-        return;
-      }
-      updateMessages(conversation.id, [...next, { id: crypto.randomUUID(), role: "assistant", content: payload.reply, createdAt: new Date().toISOString() }]);
-    } catch {
-      setNotice("Could not reach BALMZ AI. Check your connection and try again.");
-    } finally {
-      setBusy(false);
-      setMobileSidebar(false);
-    }
+    setMobileSidebar(false);
+    void processPendingMessages();
   }
 
   async function copyMessage(message: Message) {
@@ -307,8 +337,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div className="mt-6 rounded-2xl border border-white/[0.08] bg-[#0d1420] p-3 shadow-2xl shadow-black/20">
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
-                <span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+                <span className="text-[10px] text-slate-600">{busy ? "Another message will be queued · " : ""}Enter to send · Shift + Enter for a new line</span>
+                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
@@ -324,7 +354,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
               </div>
             </article>)}
-              {busy ? <div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span><span className="animate-pulse">BALMZ AI is thinking…</span></div> : null}
+              {busy ? <div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span><span className="animate-pulse">{pendingMessagesRef.current.length ? "BALMZ AI is responding · " + pendingMessagesRef.current.length + " queued…" : "BALMZ AI is thinking…"}</span></div> : null}
             </div>
             <div ref={bottomRef} />
           </div>}
