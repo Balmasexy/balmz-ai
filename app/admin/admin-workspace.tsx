@@ -409,106 +409,94 @@ function AuditSection({ data }: { data: AdminOverview }) {
 
 type TerminalLine = { id: number; text: string; kind: "input" | "output" | "error" | "system" };
 
-function TerminalSection({ data, email }: { data: AdminOverview; email: string }) {
+type TerminalLine = { id: number; text: string; kind: "input" | "output" | "error" | "system" };
+
+function TerminalSection({ email }: { email: string }) {
   const [command, setCommand] = useState("");
+  const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([
-    { id: 1, kind: "system", text: "BALMZ AI CONTROL CONSOLE · restricted read-only mode" },
-    { id: 2, kind: "system", text: "Type help to view available commands. This console does not execute operating-system shell commands." },
+    { id: 1, kind: "system", text: "BALMZ AI CONTROL CONSOLE · server-verified · read-only" },
+    { id: 2, kind: "system", text: "Type help to list approved commands. Every command is checked against your active Super Admin session." },
   ]);
 
-  function runCommand(event: FormEvent<HTMLFormElement>) {
+  async function runCommand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const input = command.trim();
-    if (!input) return;
-    const nextId = Date.now();
-    const base: TerminalLine[] = [...lines, { id: nextId, kind: "input", text: `admin@balmz-ai:~$ ${input}` }];
-    const [name, ...args] = input.toLowerCase().split(/\s+/);
-    const hasArgs = args.length > 0;
-    let response = "";
-    let kind: TerminalLine["kind"] = "output";
+    if (!input || busy) return;
 
-    switch (name) {
-      case "help":
-        response = "Available: help, clear, whoami, pwd, ls, overview, users, plans, subscriptions, payments, usage, webhooks, audit, security, status. Commands are read-only and operate on dashboard data only.";
-        break;
-      case "clear":
-        setLines([{ id: nextId + 1, kind: "system", text: "Console cleared. Type help to view commands." }]);
-        setCommand("");
-        return;
-      case "whoami":
-        response = `${email} · role=admin · access=Super Admin`;
-        break;
-      case "pwd":
-        response = "/balmz-ai/admin";
-        break;
-      case "ls":
-        response = "overview  accounts  plans  subscriptions  payments  usage  webhooks  audit  terminal  settings";
-        break;
-      case "overview":
-      case "status":
-        response = `accounts=${count(data.totals.users)} admins=${count(data.totals.admins)} active_subscriptions=${count(data.totals.active_subscriptions)} payment_records=${count(data.totals.payment_records)} usage_events=${count(data.totals.usage_events)} open_webhooks=${count(data.totals.pending_webhooks)}`;
-        break;
-      case "users":
-        response = `Registered accounts: ${count(data.totals.users)} · verified: ${count(data.totals.verified_users)} · admin roles: ${count(data.totals.admins)}. Use the User accounts section for the latest records.`;
-        break;
-      case "plans":
-        response = data.plans.length ? data.plans.map((plan) => `${plan.code}: ${plan.display_name} · ${plan.is_enabled ? "enabled" : "disabled"}`).join(" | ") : "No subscription plans are configured in Neon.";
-        break;
-      case "subscriptions":
-        response = `Stored subscription rows in current view: ${data.subscriptions.length}; active/trialing total: ${count(data.totals.active_subscriptions)}.`;
-        break;
-      case "payments":
-        response = `Stored payment records: ${count(data.totals.payment_records)} · successful: ${count(data.totals.successful_payments)} · pending: ${count(data.totals.pending_payments)}. Payment operations are disabled.`;
-        break;
-      case "usage":
-        response = `Usage counter rows loaded: ${data.usage.length} · total usage events: ${count(data.totals.usage_events)}.`;
-        break;
-      case "webhooks":
-        response = `Webhook events loaded: ${data.webhooks.length} · received/failed attention count: ${count(data.totals.pending_webhooks)}.`;
-        break;
-      case "audit":
-        response = data.audit.length ? data.audit.slice(0, 5).map((event) => `${event.action} @ ${date(event.created_at)}`).join(" | ") : "No audit events are recorded.";
-        break;
-      case "security":
-        response = "Admin route: session-protected · role check: live Neon lookup · data access: read-only · host shell: blocked · payment actions: disabled · database secrets: never exposed.";
-        break;
-      default:
-        response = hasArgs ? `Unknown or unsupported command: ${name}. Arguments and arbitrary shell execution are not permitted. Type help.` : `Command not found: ${name}. Type help.`;
-        kind = "error";
+    const now = Date.now();
+    setLines((current) => [...current, { id: now, kind: "input", text: `admin@balmz-ai:~$ ${input}` }].slice(-80));
+    setCommand("");
+
+    if (input.toLowerCase() === "clear") {
+      setLines([{ id: now + 1, kind: "system", text: "Console cleared. Type help to view commands." }]);
+      return;
     }
 
-    setLines([...base, { id: nextId + 1, kind, text: response }].slice(-80));
-    setCommand("");
+    setBusy(true);
+    try {
+      const response = await fetch("/api/admin/terminal", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: input }),
+      });
+      const result = await response.json().catch(() => ({}));
+      const kind: TerminalLine["kind"] = response.ok ? "output" : "error";
+      setLines((current) => [
+        ...current,
+        {
+          id: now + 1,
+          kind,
+          text: typeof result.output === "string"
+            ? result.output
+            : response.status === 403
+              ? "Administrator session expired. Sign in again."
+              : "The command could not be completed.",
+        },
+      ].slice(-80));
+    } catch {
+      setLines((current) => [...current, {
+        id: now + 1,
+        kind: "error",
+        text: "The admin diagnostics service is unavailable. Try again.",
+      }].slice(-80));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
       <section className="overflow-hidden rounded-2xl border border-emerald-400/15 bg-[#070d12] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0d171b] px-5 py-4">
-          <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-rose-400" /><span className="h-2.5 w-2.5 rounded-full bg-amber-300" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /><span className="ml-2 font-mono text-xs text-slate-400">balmz-admin — safe console</span></div>
-          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Read only</span>
+          <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-rose-400" /><span className="h-2.5 w-2.5 rounded-full bg-amber-300" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /><span className="ml-2 font-mono text-xs text-slate-400">balmz-admin — secure console</span></div>
+          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Server verified · Read only</span>
         </div>
-        <div className="min-h-[390px] space-y-3 overflow-y-auto px-5 py-5 font-mono text-xs leading-6 sm:px-6" aria-live="polite">
-          {lines.map((line) => <p key={line.id} className={line.kind === "input" ? "break-all text-emerald-300" : line.kind === "error" ? "break-words text-rose-300" : line.kind === "system" ? "break-words text-slate-500" : "break-words text-slate-200"}>{line.text}</p>)}
+        <div className="min-h-[390px] max-h-[62vh] space-y-3 overflow-y-auto overscroll-contain px-5 py-5 font-mono text-xs leading-6 sm:px-6" aria-live="polite">
+          {lines.map((line) => <p key={line.id} className={line.kind === "input" ? "break-all text-emerald-300" : line.kind === "error" ? "whitespace-pre-wrap break-words text-rose-300" : line.kind === "system" ? "whitespace-pre-wrap break-words text-slate-500" : "whitespace-pre-wrap break-words text-slate-200"}>{line.text}</p>)}
+          {busy ? <p className="animate-pulse text-emerald-300">Querying authorized BALMZ AI data…</p> : null}
         </div>
-        <form onSubmit={runCommand} className="flex items-center gap-3 border-t border-white/[0.07] bg-black/20 px-5 py-4 sm:px-6">
+        <form onSubmit={runCommand} className="flex items-center gap-3 border-t border-white/[0.07] bg-black/20 px-4 py-4 sm:px-6">
           <span className="font-mono text-sm text-emerald-300">›</span>
-          <input aria-label="Admin terminal command" autoComplete="off" spellCheck={false} value={command} onChange={(event) => setCommand(event.target.value)} className="min-w-0 flex-1 bg-transparent font-mono text-sm text-white outline-none placeholder:text-slate-600" placeholder="Type help and press Enter…" />
-          <button type="submit" className="rounded-lg border border-emerald-400/20 bg-emerald-400/[0.08] px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/[0.14]">Run</button>
+          <input aria-label="Admin terminal command" autoComplete="off" spellCheck={false} value={command} onChange={(event) => setCommand(event.target.value)} className="min-w-0 flex-1 bg-transparent font-mono text-sm text-white outline-none placeholder:text-slate-600" placeholder="Type a command and press Enter…" />
+          <button type="submit" disabled={busy || !command.trim()} className="min-h-10 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.08] px-4 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/[0.14] disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Running…" : "Run"}</button>
         </form>
       </section>
       <div className="space-y-5">
-        <Panel title="Command reference" subtitle="Available built-ins">
+        <Panel title="Command reference" subtitle="Server-allow-listed commands">
           <div className="grid grid-cols-2 gap-2 p-4">
-            {["help", "whoami", "overview", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security", "clear"].map((item) => <button key={item} type="button" onClick={() => setCommand(item)} className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-left font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/20 hover:text-emerald-300">{item}</button>)}
+            {["help", "whoami", "overview", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security", "clear"].map((item) => <button key={item} type="button" onClick={() => setCommand(item)} className="min-h-10 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-left font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/20 hover:text-emerald-300">{item}</button>)}
           </div>
         </Panel>
-        <Panel title="Isolation policy" subtitle="Console boundaries">
+        <Panel title="Identity & isolation" subtitle="Current console owner">
           <div className="space-y-3 p-5 text-xs leading-5 text-slate-400">
-            <p><span className="text-emerald-300">✓</span> Reads approved dashboard aggregates</p>
-            <p><span className="text-emerald-300">✓</span> Displays current admin identity</p>
+            <div><p className="text-[10px] uppercase tracking-wider text-slate-600">Authenticated administrator</p><p className="mt-1 break-all font-medium text-slate-200">{email}</p></div>
+            <p><span className="text-emerald-300">✓</span> Admin session verified on the server</p>
+            <p><span className="text-emerald-300">✓</span> Commands query live database-backed data</p>
             <p><span className="text-rose-300">×</span> No host shell or arbitrary commands</p>
-            <p><span className="text-rose-300">×</span> No SQL editor or credential access</p>
+            <p><span className="text-rose-300">×</span> No SQL editor, files or secrets access</p>
             <p><span className="text-rose-300">×</span> No account or payment mutations</p>
           </div>
         </Panel>
@@ -655,7 +643,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             {active === "usage" ? <UsageSection data={filteredData} /> : null}
             {active === "webhooks" ? <WebhooksSection data={filteredData} /> : null}
             {active === "audit" ? <AuditSection data={filteredData} /> : null}
-            {active === "terminal" ? <TerminalSection data={data} email={adminEmail} /> : null}
+            {active === "terminal" ? <TerminalSection email={adminEmail} /> : null}
             {active === "settings" ? <SettingsSection /> : null}
 
             <footer className="mt-9 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-5 text-[10px] text-slate-600">
