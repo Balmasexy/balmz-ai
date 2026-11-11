@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/app/components/sign-out-button";
@@ -563,6 +563,18 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
   const router = useRouter();
   const [active, setActive] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("section");
+    const allowed: Section[] = [
+      "overview", "accounts", "plans", "subscriptions", "payments", "usage",
+      "webhooks", "audit", "terminal", "storage", "ai-connections",
+      "service-connectors", "api-keys", "settings",
+    ];
+    if (requested && allowed.includes(requested as Section)) {
+      setActive(requested as Section);
+    }
+  }, []);
   const [query, setQuery] = useState("");
   const current = titles[active];
   const searchableSections: Section[] = ["accounts", "plans", "subscriptions", "payments", "usage", "webhooks", "audit"];
