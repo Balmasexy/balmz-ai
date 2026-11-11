@@ -11,6 +11,7 @@ export type ServiceId =
   | "github"
   | "render"
   | "neon"
+  | "notion"
   | "agentic-ai"
   | "notes-ai"
   | "custom";
@@ -88,6 +89,18 @@ export const SERVICE_CATALOG: Array<{
     keyHelp: "Create a Neon API key in account settings. Keep the project database URL separate from this management token.",
     envAliases: { live: ["NEON_API_KEY"] },
     capabilities: ["Verify API key", "List projects", "Project operations"],
+  },
+  {
+    id: "notion",
+    name: "Notion workspace",
+    category: "Knowledge tools",
+    description: "Connect a Notion internal integration to securely search and access pages and databases granted to that integration. Notion AI features require the corresponding Notion account entitlement.",
+    keyRequired: true,
+    demoLive: false,
+    url: "https://www.notion.so/profile/integrations",
+    keyHelp: "Create an internal integration in Notion Settings → Connections / Integrations and grant it only the page/database access BALMZ AI needs.",
+    envAliases: { live: ["NOTION_API_KEY", "NOTION_TOKEN"] },
+    capabilities: ["Verify workspace token", "Search granted pages", "Knowledge workspace access"],
   },
   {
     id: "agentic-ai",
@@ -224,6 +237,20 @@ async function testNeon(credentials: ServiceCredentials) {
   return { account: "Neon API" };
 }
 
+async function testNotion(credentials: ServiceCredentials) {
+  const token = credentials.token?.trim();
+  if (!token) throw new Error("NOTION_API_KEY_REQUIRED");
+  const response = await checkedFetch("https://api.notion.com/v1/users/me", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": "2022-06-28",
+      Accept: "application/json",
+    },
+  });
+  const identity = await response.json() as { name?: string; type?: string };
+  return { account: identity.name ?? "Notion integration", type: identity.type ?? "integration" };
+}
+
 async function testAgenticDirectory() {
   const response = await checkedFetch("https://agentic.ai/api/v1/search?q=coding+agent", {
     headers: { Accept: "application/json" },
@@ -265,6 +292,7 @@ export async function testServiceConnection(
     case "paystack": return testPaystack(credentials, environment);
     case "render": return testRender(credentials);
     case "neon": return testNeon(credentials);
+    case "notion": return testNotion(credentials);
     case "agentic-ai": return testAgenticDirectory();
     case "notes-ai":
     case "custom": return testOpenAICompatible(credentials);
