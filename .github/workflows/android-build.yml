@@ -63,7 +63,8 @@ jobs:
         run: yes | "$ANDROID_SDKMANAGER" --licenses >/dev/null
 
       - name: Install Android API 36 and build tools
-        run: "$ANDROID_SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          "$ANDROID_SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install BALMZ AI dependencies
         run: npm ci
