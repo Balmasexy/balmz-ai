@@ -42,17 +42,21 @@ export function getAuth(): ReturnType<typeof createAuth> {
   const authBaseUrl = getAuthBaseUrl();
   const isProduction = process.env.NODE_ENV === "production";
 
-  const instance = createAuth();
+  const instance = createAuth({ secret, authBaseUrl, isProduction });
   authInstance = instance;
   return instance;
 }
 
-function createAuth() {
+function createAuth(config: {
+  secret: string;
+  authBaseUrl: string;
+  isProduction: boolean;
+}) {
   return betterAuth({
     appName: "BALMZ AI",
-    baseURL: authBaseUrl,
-    secret,
-    trustedOrigins: getTrustedOrigins(authBaseUrl),
+    baseURL: config.authBaseUrl,
+    secret: config.secret,
+    trustedOrigins: getTrustedOrigins(config.authBaseUrl),
     database: getDbPool(),
     emailAndPassword: {
       enabled: true,
@@ -80,7 +84,7 @@ function createAuth() {
     advanced: {
       defaultCookieAttributes: {
         httpOnly: true,
-        secure: isProduction,
+        secure: config.isProduction,
         sameSite: "lax",
         path: "/",
       },
