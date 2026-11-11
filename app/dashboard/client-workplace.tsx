@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/app/components/sign-out-button";
-import { announceForAccessibility, copyNativeText, getNetworkState, hapticNotice, hapticTap, hideNativeKeyboard, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast, getNativePreference, setNativePreference } from "@/lib/capacitor/native-helpers";
+import { announceForAccessibility, copyNativeText, readNativeText, getNetworkState, hapticNotice, hapticTap, hideNativeKeyboard, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast, getNativePreference, setNativePreference } from "@/lib/capacitor/native-helpers";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
@@ -301,6 +301,13 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     void processPendingMessages();
   }
 
+  async function pasteFromClipboard() {
+    try {
+      const value = await readNativeText();
+      if (value) setPrompt((current) => current ? current + "\n" + value : value);
+      void hapticTap();
+    } catch { setNotice("Clipboard read permission is unavailable on this device."); }
+  }
   function conversationText(conversation: Conversation) {
     return conversation.messages.map((item) => (item.role === "user" ? "You" : "BALMZ AI") + ":\n" + item.content).join("\n\n");
   }
@@ -413,6 +420,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div className="mt-6 rounded-2xl border border-white/[0.08] bg-[#0d1420] p-3 shadow-2xl shadow-black/20">
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
+                <button type="button" onClick={() => void pasteFromClipboard()} className="text-[10px] text-slate-500 hover:text-slate-200">Paste</button>
                 <span className="text-[10px] text-slate-600">{busy ? "Another message will be queued · " : ""}Enter to send · Shift + Enter for a new line</span>
                 <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active" || !networkConnected} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> {busy ? "Queue" : "Send"}</button>
               </div>
@@ -441,6 +449,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           <div className="mx-auto max-w-3xl rounded-2xl border border-white/[0.09] bg-[#0d1420] p-3 shadow-2xl shadow-black/20 focus-within:border-[var(--balmz-orange)]/35">
             <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={2} placeholder="Message BALMZ AI…" className="max-h-40 min-h-[52px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
             <div className="flex items-center justify-between border-t border-white/[0.06] pt-2">
+              <button type="button" onClick={() => void pasteFromClipboard()} className="text-[10px] text-slate-500 hover:text-slate-200">Paste</button>
               <span className="text-[10px] text-slate-600">Shift + Enter for a new line</span>
               <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
             </div>
