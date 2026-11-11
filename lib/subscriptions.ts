@@ -214,7 +214,9 @@ export async function consumeUsage(input: {
     if (!counter || counter.units_limit === null) throw new Error("USAGE_COUNTER_UNAVAILABLE");
 
     const used = Number(counter.units_used);
-    const currentLimit = Number(counter.units_limit);
+    // The current entitlement is authoritative, so a downgrade or expired
+    // family/trial grant cannot keep its previous higher counter limit.
+    const currentLimit = limit;
     if (used + units > currentLimit) throw new Error("USAGE_LIMIT_EXCEEDED");
 
     await client.query(
