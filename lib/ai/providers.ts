@@ -251,6 +251,9 @@ export async function listAIProviderModels(
       : typeof row.name === "string" ? row.name : "";
     const id = (provider === "google" ? rawId.replace(/^models\//, "") : rawId).trim();
     if (!id || id.length > 180 || /[\r\n]/.test(id)) return [];
+    // The chat adapter supports text generation, not embeddings, audio,
+    // moderation, image generation, transcription or reranking endpoints.
+    if (/(^|[-/.])(embedding|embeddings|embed|moderation|whisper|transcribe|transcription|tts|speech|dall-e|image|rerank|audio|realtime)([-/.]|$)/i.test(id)) return [];
     const label = typeof row.display_name === "string" && row.display_name.trim()
       ? row.display_name.trim().slice(0, 180)
       : typeof row.name === "string" && provider !== "google" && row.name.trim()
