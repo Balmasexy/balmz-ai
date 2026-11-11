@@ -28,7 +28,7 @@ function SettingGroup({ items }: { items: SettingRow[] }) {
         </>;
         return item.href
           ? <Link key={item.id} href={item.href} className={rowStyle + (index ? " border-t border-white/[0.11]" : "")}>{content}</Link>
-          : <div key={item.id} className={rowStyle + (index ? " border-t border-white/[0.11]" : "")}>{content}</div>;
+          : <div key={item.id} className={rowStyle + " cursor-default hover:bg-transparent" + (index ? " border-t border-white/[0.11]" : "")}>{content}</div>;
       })}
     </div>
   );
