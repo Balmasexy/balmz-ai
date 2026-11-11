@@ -261,6 +261,7 @@ export function DeploymentWorkplace() {
       <header className="sticky top-0 z-30 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#080c14]/95 px-4 backdrop-blur-xl sm:px-8">
         <div><p className="text-sm font-semibold text-white">Deployment workplace</p><p className="mt-0.5 text-[10px] text-slate-500">Render-style project controls · protected Super Admin workspace</p></div>
         <div className="flex items-center gap-2">
+          {payload?.configured ? <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2 text-[10px] font-semibold text-emerald-200 sm:inline-flex">Render API connected</span> : <span className="hidden rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-[10px] font-semibold text-amber-200 sm:inline-flex">{loading ? "Checking Render…" : "Render key not verified"}</span>}
           <button onClick={() => void refresh()} disabled={loading} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:border-[var(--balmz-orange)]/50 disabled:opacity-50">{loading ? "Refreshing…" : "Refresh"}</button>
           <a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="hidden rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white sm:inline-flex">Open Render ↗</a>
         </div>
@@ -407,6 +408,10 @@ export function DeploymentWorkplace() {
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Service compute billing</p><p className="mt-2 text-[11px] leading-5 text-slate-400">Render charges compute per service. Paid compute is prorated by active time; the current BALMZ AI service is on the Free compute tier.</p></div>
                         <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Workspace billing</p><p className="mt-2 text-[11px] leading-5 text-slate-400">Workspace subscription, outbound bandwidth, build pipeline usage and invoices are managed in Render Billing. Those account-level amounts are not returned by this service API response.</p></div>
+                      </div>
+                      <div className="mt-3 rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4">
+                        <p className="text-xs font-semibold text-amber-100">Free service limits</p>
+                        <p className="mt-2 text-[11px] leading-5 text-slate-400">Render Free web services spin down after 15 minutes without inbound traffic; the first request after sleep can take about a minute to wake the service. Free filesystems are ephemeral, so uploaded files must live in Neon, object storage or another persistent store. Free instance hours are shared across the workspace.</p>
                       </div>
                     </div>
                   </Panel>
