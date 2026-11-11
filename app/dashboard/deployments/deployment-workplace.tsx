@@ -403,7 +403,7 @@ export function DeploymentWorkplace() {
                     <div className="p-5 sm:p-6">
                       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.055] p-4">
                         <div><p className="text-[10px] uppercase tracking-wider text-emerald-300">Current service compute plan</p><p className="mt-1 text-xl font-semibold text-white">{(selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Not reported").toUpperCase()}</p><p className="mt-1 text-[10px] text-slate-500">Service: {selectedService.name} · {selectedService.type.replaceAll("_", " ")}</p></div>
-                        <span className="rounded-full border border-emerald-400/20 px-3 py-1.5 text-[10px] font-semibold text-emerald-200">{(selectedService.plan ?? selectedService.serviceDetails?.plan ?? "").toLowerCase() === "free" ? "₦0 / $0 compute tier" : "Paid compute tier"}</span>
+                        <span className="rounded-full border border-emerald-400/20 px-3 py-1.5 text-[10px] font-semibold text-emerald-200">{(selectedService.plan ?? selectedService.serviceDetails?.plan ?? "").toLowerCase() === "free" ? "Free · $0 compute" : "Paid compute tier"}</span>
                       </div>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Service compute billing</p><p className="mt-2 text-[11px] leading-5 text-slate-400">Render charges compute per service. Paid compute is prorated by active time; the current BALMZ AI service is on the Free compute tier.</p></div>
