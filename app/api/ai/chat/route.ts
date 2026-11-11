@@ -3,12 +3,12 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
-import { findAIProviderConnection, sendAIProviderMessage, type AIProviderConnection } from "@/lib/ai/providers";
+import { findAIProviderConnection, sendAIProviderMessage, toOpenAIChatMessages, type AIImageAttachment, type AIProviderConnection } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+type ChatMessage = { role: "user" | "assistant"; content: string; images?: AIImageAttachment[] };
 
 function safeError(code: string, status: number, message: string) {
   return NextResponse.json({ error: code, message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -21,7 +21,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   let body: unknown;
   try {
     const length = Number(request.headers.get("content-length") || "0");
-    if (length > 96_000) return safeError("REQUEST_TOO_LARGE", 413, "This conversation is too large. Start a new chat.");
+    if (length > 12_000_000) return safeError("REQUEST_TOO_LARGE", 413, "This message is too large. Try fewer or smaller images.");
     body = await request.json();
   } catch {
     return safeError("INVALID_JSON", 400, "The request body must be valid JSON.");
@@ -33,14 +33,38 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const messages: ChatMessage[] = [];
+  let totalImageBytes = 0;
   for (const item of candidate) {
     if (!item || typeof item !== "object") return safeError("INVALID_MESSAGE", 400, "A message is invalid.");
     const role = (item as { role?: unknown }).role;
     const content = (item as { content?: unknown }).content;
-    if ((role !== "user" && role !== "assistant") || typeof content !== "string" || !content.trim() || content.length > 12_000) {
-      return safeError("INVALID_MESSAGE", 400, "Messages must contain valid user or assistant text.");
+    const rawImages = (item as { images?: unknown }).images;
+    if (role !== "user" && role !== "assistant") {
+      return safeError("INVALID_MESSAGE", 400, "Messages must use a valid user or assistant role.");
     }
-    messages.push({ role, content: content.trim() });
+    if (typeof content !== "string" || content.length > 12_000) {
+      return safeError("INVALID_MESSAGE", 400, "Message text must be under 12,000 characters.");
+    }
+    if (rawImages !== undefined && (!Array.isArray(rawImages) || rawImages.length > 4 || role !== "user")) {
+      return safeError("INVALID_IMAGES", 400, "Attach up to four images to a user message.");
+    }
+    const images: AIImageAttachment[] = [];
+    for (const raw of (rawImages ?? []) as unknown[]) {
+      if (!raw || typeof raw !== "object") return safeError("INVALID_IMAGE", 400, "An image attachment is invalid.");
+      const mimeType = (raw as { mimeType?: unknown }).mimeType;
+      const dataBase64 = (raw as { dataBase64?: unknown }).dataBase64;
+      if (typeof mimeType !== "string" || !["image/jpeg", "image/png", "image/webp"].includes(mimeType) ||
+          typeof dataBase64 !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(dataBase64)) {
+        return safeError("INVALID_IMAGE", 400, "Only JPEG, PNG and WebP image uploads are supported.");
+      }
+      const imageBytes = Buffer.from(dataBase64, "base64").byteLength;
+      if (!imageBytes || imageBytes > 4_000_000) return safeError("IMAGE_TOO_LARGE", 413, "Each image must be smaller than 4 MB after compression.");
+      totalImageBytes += imageBytes;
+      if (totalImageBytes > 8_000_000) return safeError("IMAGES_TOO_LARGE", 413, "Please keep all attached images under 8 MB total.");
+      images.push({ mimeType: mimeType as AIImageAttachment["mimeType"], dataBase64 });
+    }
+    if (!content.trim() && !images.length) return safeError("INVALID_MESSAGE", 400, "Add a message or attach an image.");
+    messages.push({ role, content: content.trim(), ...(images.length ? { images } : {}) });
   }
   if (messages[messages.length - 1]?.role !== "user") {
     return safeError("INVALID_TURN", 400, "The latest message must be from the user.");
@@ -122,7 +146,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
       body: JSON.stringify({
         model,
-        messages,
+        messages: toOpenAIChatMessages(messages),
         max_tokens: 1800,
       }),
       signal: AbortSignal.timeout(45_000),

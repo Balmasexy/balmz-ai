@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 import type { AdminOverview, CountValue } from "@/lib/admin";
 import { StorageSection } from "./storage-section";
 import { AIConnectionsSection } from "./ai-connections-section";
@@ -633,6 +635,9 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
           </nav>
           <div className="mt-6 border-t border-white/[0.07] pt-4">
             <a href="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>↗</span> User workspace</a>
+            <a href="/dashboard/charts" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>▥</span> ChartGPT workspace</a>
+            <a href="/admin?section=ai-connections" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>✳</span> AI provider connections</a>
+            <a href="/dashboard/plugins" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs text-slate-400 transition hover:bg-white/[0.04] hover:text-white"><span>⌘</span> Plugin directory</a>
             <div className="mt-3 rounded-xl bg-white/[0.025] px-3 py-3"><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-400" /><p className="text-[10px] text-slate-400">Protected admin session</p></div><p className="mt-1.5 text-[9px] text-slate-600">BALMZ AI · Production</p></div>
           </div>
         </aside>
@@ -642,7 +647,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             <div className="flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6 xl:px-9">
               <div className="flex min-w-0 items-center gap-3">
                 <button type="button" onClick={() => setMobileNavOpen((value) => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-lg text-slate-200 lg:hidden" aria-label="Toggle navigation">☰</button>
-                <div className="lg:hidden"><p className="text-xs font-bold tracking-[0.16em] text-[var(--balmz-orange)]">BALMZ AI</p><p className="text-[9px] text-slate-500">ADMIN WORKPLACE</p></div>
+                <div className="flex items-center gap-2 lg:hidden"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={32} height={32} priority className="h-8 w-8 rounded-lg object-contain" /><div><p className="text-xs font-bold tracking-[0.16em] text-white">BALMZ AI</p><p className="text-[9px] text-slate-500">ADMIN WORKPLACE</p></div></div>
                 <div className="hidden lg:block"><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-slate-500">Super Admin / <span className="text-[var(--balmz-orange)]">{current.title}</span></p><p className="mt-1 text-xs text-slate-400">{current.eyebrow}</p></div>
               </div>
               <div className="flex items-center gap-2 sm:gap-3">
@@ -713,6 +718,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
               </button>
             </div>
           </nav>
+      <QuickChatHelper isAdmin />
     </main>
   );
 }

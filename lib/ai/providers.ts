@@ -15,7 +15,29 @@ export const AI_PROVIDERS = {
 } as const;
 
 export type AIProviderId = keyof typeof AI_PROVIDERS;
-export type AIMessage = { role: "user" | "assistant"; content: string };
+export type AIImageAttachment = {
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  dataBase64: string;
+};
+export type AIMessage = { role: "user" | "assistant"; content: string; images?: AIImageAttachment[] };
+
+export function toOpenAIChatMessages(messages: AIMessage[]) {
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.images?.length
+      ? [
+          { type: "text", text: message.content || "Please analyze the attached image(s)." },
+          ...message.images.map((image) => ({
+            type: "image_url",
+            image_url: {
+              url: "data:" + image.mimeType + ";base64," + image.dataBase64,
+              detail: "auto",
+            },
+          })),
+        ]
+      : message.content,
+  }));
+}
 export type AIProviderConnection = {
   id: string;
   provider_id: AIProviderId;
@@ -100,7 +122,22 @@ async function requestProvider(
         body: JSON.stringify({
           model,
           max_tokens: maxTokens,
-          messages: messages.map((message) => ({ role: message.role, content: message.content })),
+          messages: messages.map((message) => ({
+            role: message.role,
+            content: message.images?.length
+              ? [
+                  { type: "text", text: message.content || "Please analyze the attached image(s)." },
+                  ...message.images.map((image) => ({
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: image.mimeType,
+                      data: image.dataBase64,
+                    },
+                  })),
+                ]
+              : message.content,
+          })),
         }),
         signal: AbortSignal.timeout(45_000),
         cache: "no-store",
@@ -116,7 +153,15 @@ async function requestProvider(
         body: JSON.stringify({
           contents: messages.map((message) => ({
             role: message.role === "assistant" ? "model" : "user",
-            parts: [{ text: message.content }],
+            parts: [
+              ...(message.content ? [{ text: message.content }] : []),
+              ...(message.images ?? []).map((image) => ({
+                inline_data: { mime_type: image.mimeType, data: image.dataBase64 },
+              })),
+              ...(!message.content && !message.images?.length
+                ? [{ text: "Please analyze the attached image(s)." }]
+                : []),
+            ],
           })),
           generationConfig: { maxOutputTokens: maxTokens },
         }),
@@ -133,7 +178,7 @@ async function requestProvider(
         },
         body: JSON.stringify({
           model,
-          messages: messages.map((message) => ({ role: message.role, content: message.content })),
+          messages: toOpenAIChatMessages(messages),
           max_tokens: maxTokens,
         }),
         signal: AbortSignal.timeout(45_000),
