@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 
 type ImageAttachment = {
   id: string;
@@ -459,6 +460,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           </div>
         </div> : null}
       </section>
+      <QuickChatHelper isAdmin={isAdmin} />
     </main>
   );
 }
