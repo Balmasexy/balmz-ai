@@ -274,7 +274,11 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
                 <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
               </div>
             </div>
-            <p className="mt-4 text-center text-[10px] text-slate-600">AI responses require an active plan and a connected provider. Switch models from the selector when more providers are available.</p>
+            <div className="mt-4 flex flex-col items-center gap-2 text-center">
+              {planCheck === "checking" ? <p className="text-[10px] text-slate-500">Checking your BALMZ AI plan…</p>
+                : planCheck === "active" ? <p className="text-[10px] text-slate-500">Plan active · {currentPlanName || planName || "BALMZ AI"} · message allowance verified before each request.</p>
+                : <><p className="text-xs text-slate-400">{planCheck === "unavailable" ? "Your plan status could not be checked. AI requests are paused until verification succeeds." : "An active BALMZ AI plan is required before sending AI requests."}</p><Link href="/dashboard/billing" className="rounded-xl border border-[var(--balmz-orange)]/30 bg-[var(--balmz-orange)]/[0.08] px-4 py-2 text-xs font-semibold text-[var(--balmz-orange)]">View plans and activate access</Link></>}
+            </div>
           </div> : <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-8">
             <div className="space-y-8">{active?.messages.map((message) => <article key={message.id} className={message.role === "user" ? "flex justify-end" : "flex gap-3"}>
               {message.role === "assistant" ? <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span> : null}
