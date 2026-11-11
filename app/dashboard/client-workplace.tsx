@@ -51,6 +51,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [copied, setCopied] = useState("");
   const [model, setModel] = useState("env:gpt-4.1-mini");
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [planCheck, setPlanCheck] = useState<"checking" | "active" | "inactive" | "unavailable">("checking");
+  const [currentPlanName, setCurrentPlanName] = useState(planName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +83,20 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [activeId, conversations, busy]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/subscription", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json() as { active?: boolean; subscription?: { plan_name?: string } | null; message?: string };
+        if (!response.ok) throw new Error(result.message || "Subscription check failed.");
+        if (cancelled) return;
+        setPlanCheck(result.active ? "active" : "inactive");
+        setCurrentPlanName(result.subscription?.plan_name ?? null);
+      })
+      .catch(() => { if (!cancelled) setPlanCheck("unavailable"); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +139,12 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   async function sendMessage(value = prompt) {
     const text = value.trim();
     if (!text || busy) return;
+    if (planCheck !== "active") {
+      setNotice(planCheck === "unavailable"
+        ? "Your BALMZ AI plan could not be verified. No AI request was sent. Refresh the workspace and try again."
+        : "An active BALMZ AI plan is required before sending AI requests. Choose a plan to continue.");
+      return;
+    }
     let conversation = active;
     if (!conversation) {
       conversation = makeConversation();
@@ -197,21 +219,23 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
           <p className="px-2 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Explore</p>
           <div className="space-y-1">
-            <Link href="/dashboard#workspace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="book" /> Workspace guide</Link>
-            <Link href="/dashboard#tools" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="code" /> Tools & integrations</Link>
-            <Link href="/dashboard/billing" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">₦ Plans & billing</Link>
+            <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
             <Link href="/dashboard/charts" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▥ ChartGPT workspace</Link>
+            <Link href="/dashboard/usage" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▤ Usage and limits</Link>
+            <Link href="/dashboard/billing" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">₦ Plans & billing</Link>
             {isAdmin ? <>
               <Link href="/dashboard/deployments" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]"><Icon name="code" /> Deployment workplace</Link>
+              <Link href="/admin?section=terminal" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">›_ Admin terminal</Link>
               <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">♙ Super Admin</Link>
             </> : null}
           </div>
         </div>
         <div className="border-t border-white/[0.07] p-3">
-          <div className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2">
+          <Link href="/dashboard/settings" className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.045]">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--balmz-orange)]/15 text-sm font-semibold text-[var(--balmz-orange)]">{userName.trim().slice(0, 1).toUpperCase() || "U"}</span>
-            <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-slate-200">{userName}</span><span className="block truncate text-[10px] text-slate-500">{planName || "Free account · no plan assigned"}</span></span>
-          </div>
+            <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-slate-200">{userName}</span><span className="block truncate text-[10px] text-slate-500">{currentPlanName || "No active plan"} · Settings</span></span>
+            <span className="text-slate-500">›</span>
+          </Link>
           <div className="flex items-center justify-between px-2"><span className="truncate text-[10px] text-slate-600">{userEmail}</span><SignOutButton /></div>
         </div>
       </aside>
@@ -223,12 +247,17 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div><p className="text-sm font-semibold text-white">Chat</p><p className="hidden text-[10px] text-slate-500 sm:block">A focused space for your ideas and work</p></div>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[180px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
-            <span className="h-2 w-2 rounded-full bg-emerald-400" title="Workspace interface ready" />
+            <Link href="/dashboard/plugins" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Plugins</Link>
+            <label className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[140px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
+            <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--balmz-orange)]/15 text-xs font-bold text-[var(--balmz-orange)]">{userName.trim().slice(0, 1).toUpperCase() || "B"}</Link>
           </div>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {planCheck !== "active" && planCheck !== "checking" ? <div className="mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] px-4 py-3">
+            <p className="text-xs leading-5 text-slate-200">{planCheck === "unavailable" ? "We could not verify your plan. AI requests are paused until your plan status can be checked." : "An active BALMZ AI plan is required before sending AI requests."}</p>
+            <Link href="/dashboard/billing" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">View plans</Link>
+          </div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
               <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(255,105,0,0.18)]">W</div>
@@ -242,7 +271,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                 <span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
               </div>
             </div>
             <p className="mt-4 text-center text-[10px] text-slate-600">AI responses require an active plan and a connected provider. Switch models from the selector when more providers are available.</p>
@@ -266,7 +295,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={2} placeholder="Message BALMZ AI…" className="max-h-40 min-h-[52px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
             <div className="flex items-center justify-between border-t border-white/[0.06] pt-2">
               <span className="text-[10px] text-slate-600">Shift + Enter for a new line</span>
-              <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+              <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
             </div>
           </div>
         </div> : null}
