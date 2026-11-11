@@ -13,7 +13,8 @@ Use a trusted database administration session (not a public API or browser conso
 ```sql
 UPDATE public."user"
 SET role = 'admin', "updatedAt" = now()
-WHERE lower(email) = lower('OWNER_EMAIL_HERE');
+WHERE lower(email) = lower('OWNER_EMAIL_HERE')
+  AND "emailVerified" = true;
 ```
 
 Confirm exactly one row was updated. If zero rows were updated, sign up/sign in to create the intended account first. Never grant admin to an unverified or unconfirmed email identity. Keep the Neon owner credential private; use the restricted runtime role for normal application traffic.
