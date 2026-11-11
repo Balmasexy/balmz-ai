@@ -3,8 +3,10 @@
 :root {
   --background: #080c14;
   --foreground: #ededed;
-  /* The landing page is the single source of truth for BALMZ brand orange. */
-  --balmz-orange: #ff6900;
+  /* Primary BALMZ orange sampled from the landing-page CTA (Tailwind orange-500). */
+  --balmz-orange: #f97316;
+  --balmz-orange-hover: #ea580c;
+  --balmz-orange-soft: #fb923c;
 }
 
 @theme inline {
@@ -12,11 +14,11 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  /* Keep every Tailwind orange utility on the exact landing-page orange. */
-  --color-orange-300: var(--balmz-orange);
-  --color-orange-400: var(--balmz-orange);
+  /* Preserve the landing page's original orange shade hierarchy. */
+  --color-orange-300: #fdba74;
+  --color-orange-400: var(--balmz-orange-soft);
   --color-orange-500: var(--balmz-orange);
-  --color-orange-600: var(--balmz-orange);
+  --color-orange-600: var(--balmz-orange-hover);
 }
 
 html, body {

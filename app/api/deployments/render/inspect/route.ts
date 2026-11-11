@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
+import { getRenderApiToken } from "@/lib/render-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +24,7 @@ async function authorize() {
 }
 
 async function renderRequest(path: string) {
-  const key = process.env.RENDER_API_KEY;
-  if (!key) throw new Error("RENDER_NOT_CONFIGURED");
+  const key = await getRenderApiToken();
   const response = await fetch(`https://api.render.com/v1${path}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${key}` },
     cache: "no-store",
@@ -47,7 +47,7 @@ function errorResponse(error: unknown) {
   const code = error instanceof Error ? error.message : "RENDER_UNAVAILABLE";
   const status = code === "RENDER_NOT_CONFIGURED" ? 503 : code === "RENDER_AUTH_FAILED" ? 502 : code === "RENDER_RATE_LIMITED" ? 429 : 502;
   const message = code === "RENDER_NOT_CONFIGURED"
-    ? "Add RENDER_API_KEY to the BALMZ AI Render service environment to connect this workplace."
+    ? "Connect and test Render in Super Admin → Service connectors, or configure RENDER_API_KEY as a server-side secret in the BALMZ AI Render service environment."
     : code === "RENDER_AUTH_FAILED"
       ? "Render rejected the configured API key. Replace it in Render environment settings."
       : code === "RENDER_HTTP_404"
