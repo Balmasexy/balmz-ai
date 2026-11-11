@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
+import { findAIProviderConnection, sendAIProviderMessage, type AIProviderConnection } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +17,6 @@ function safeError(code: string, status: number, message: string) {
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return safeError("UNAUTHORIZED", 401, "Sign in to use BALMZ AI.");
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return safeError("AI_PROVIDER_NOT_CONFIGURED", 503, "The OpenAI provider key has not been configured on the server.");
 
   let body: unknown;
   try {
@@ -75,7 +73,45 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const requestedModel = (body as { model?: unknown } | null)?.model;
-  const model = requestedModel === "gpt-4.1" ? "gpt-4.1" : "gpt-4.1-mini";
+  const modelChoice = typeof requestedModel === "string" ? requestedModel : "env:gpt-4.1-mini";
+
+  if (modelChoice.startsWith("connection:")) {
+    const connectionId = modelChoice.slice("connection:".length);
+    if (!/^[a-zA-Z0-9-]{16,64}$/.test(connectionId)) {
+      return safeError("AI_MODEL_INVALID", 400, "The selected AI connection is invalid.");
+    }
+
+    try {
+      const connection = await findAIProviderConnection(connectionId);
+      if (!connection) return safeError("AI_MODEL_UNAVAILABLE", 503, "This AI connection is no longer available. Refresh the model list and select another provider.");
+      const reply = await sendAIProviderMessage(connection, messages);
+      return NextResponse.json({
+        reply,
+        model: connection.model_id,
+        provider: connection.provider_id,
+      }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "AI_PROVIDER_ERROR";
+      if (code === "AI_PROVIDER_AUTH_FAILED") return safeError(code, 503, "The selected provider rejected its saved API key. Ask the Super Admin to reconnect it.");
+      if (code === "AI_PROVIDER_RATE_LIMITED") return safeError(code, 503, "The selected provider is temporarily rate-limited. Please try again later.");
+      if (code === "AI_PROVIDER_UNAVAILABLE") return safeError(code, 502, "The selected provider could not be reached. Please try again later.");
+      if (code === "AI_PROVIDER_DISABLED") return safeError(code, 503, "This AI connection has been disabled. Refresh the model list and choose another provider.");
+      return safeError("AI_PROVIDER_ERROR", 502, "The selected AI provider could not complete this request.");
+    }
+  }
+
+  const legacyModels: Record<string, string> = {
+    "env:gpt-4.1-mini": "gpt-4.1-mini",
+    "env:gpt-4.1": "gpt-4.1",
+    "gpt-4.1-mini": "gpt-4.1-mini",
+    "gpt-4.1": "gpt-4.1",
+  };
+  const model = legacyModels[modelChoice];
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!model || !apiKey) {
+    return safeError("AI_PROVIDER_NOT_CONFIGURED", 503, "The selected AI model is not configured. Ask the Super Admin to connect a provider.");
+  }
+
   let providerResponse: Response;
   try {
     providerResponse = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -88,7 +124,6 @@ export async function POST(request: Request): Promise<NextResponse> {
         model,
         messages,
         max_tokens: 1800,
-        temperature: 0.7,
       }),
       signal: AbortSignal.timeout(45_000),
       cache: "no-store",
@@ -110,7 +145,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const result = await providerResponse.json() as { choices?: Array<{ message?: { content?: string | null } }> };
     const reply = result.choices?.[0]?.message?.content?.trim();
     if (!reply) return safeError("EMPTY_AI_RESPONSE", 502, "The AI provider returned an empty response.");
-    return NextResponse.json({ reply, model }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ reply, model, provider: "openai" }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return safeError("INVALID_AI_RESPONSE", 502, "The AI provider response could not be read.");
   }
