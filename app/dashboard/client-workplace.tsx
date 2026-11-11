@@ -21,7 +21,7 @@ async function prepareImageFile(file: File): Promise<ImageAttachment> {
   if (!file.type.startsWith("image/")) throw new Error(file.name + " is not an image.");
   if (file.size > 15_000_000) throw new Error(file.name + " is too large. Choose an image under 15 MB.");
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(bitmap.width * scale));
   canvas.height = Math.max(1, Math.round(bitmap.height * scale));
@@ -32,9 +32,9 @@ async function prepareImageFile(file: File): Promise<ImageAttachment> {
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/jpeg", 0.82);
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/jpeg", 0.72);
   });
-  if (blob.size > 4_000_000) throw new Error(file.name + " is still too large after compression. Choose a smaller image.");
+  if (blob.size > 1_900_000) throw new Error(file.name + " is still too large after compression. Choose a smaller image.");
   const previewUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Image could not be read."));
@@ -203,12 +203,13 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   async function handleImageSelection(files: FileList | File[]) {
     const chosen = Array.from(files);
     if (!chosen.length || imageBusy) return;
-    const available = Math.max(0, 4 - selectedImages.length);
+    const previousImageCount = active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0;
+    const available = Math.max(0, 4 - previousImageCount - selectedImages.length);
     if (!available) {
-      setNotice("You can attach up to four images to one message.");
+      setNotice("You can attach up to four images to a chat.");
       return;
     }
-    if (chosen.length > available) setNotice("Only four images can be attached to one message. Extra files were skipped.");
+    if (chosen.length > available) setNotice("A chat can contain up to four images. Extra photos were skipped.");
     setImageBusy(true);
     try {
       const prepared: ImageAttachment[] = [];
@@ -281,13 +282,17 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           : response.status === 503
             ? "AI chat is not configured yet. The workspace is ready, but the server-side provider key or plan allowance is missing."
             : "The assistant could not complete this request. Please try again.");
+        updateMessages(conversation.id, conversation.messages);
+        setPrompt(text);
         setNotice(message);
         return;
       }
       updateMessages(conversation.id, [...next, { id: crypto.randomUUID(), role: "assistant", content: payload.reply, createdAt: new Date().toISOString() }]);
       setSelectedImages([]);
     } catch {
-      setNotice("Could not reach BALMZ AI. Check your connection and try again.");
+      updateMessages(conversation.id, conversation.messages);
+      setPrompt(text);
+      setNotice("Could not reach BALMZ AI. Your draft and photo attachments are still available; try again.");
     } finally {
       setBusy(false);
       setMobileSidebar(false);
@@ -308,7 +313,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   const attachmentPicker = (
     <div className="relative flex items-center gap-2">
-      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos and files" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
+      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos and files" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length + (active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0) >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
         <span aria-hidden="true">+</span>
       </button>
       {uploadMenuOpen ? (
@@ -416,7 +421,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               {attachmentPreview}
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
-                <div className="flex items-center gap-2">{attachmentPicker}<span className="text-[10px] text-slate-600">Drop images here · Up to 4 photos</span></div>
+                <div className="flex items-center gap-2">{attachmentPicker}<span className="text-[10px] text-slate-600">Drop images here · Up to 4 photos · Vision support depends on the selected model</span></div>
                 <div className="flex items-center gap-3"><span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
                 <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
               </div>
