@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ChartRow = Record<string, string | number | boolean | null>;
 type ChartResult = { requestId: string; spec: unknown; file: string | null; format: "svg" | "png" | "json" };
@@ -13,6 +14,7 @@ const exampleData = [
 ];
 
 export function ChartGPTWorkspace() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState("Create a bar chart of quarterly revenue, with a clear title and readable labels.");
   const [dataText, setDataText] = useState(JSON.stringify(exampleData, null, 2));
   const [format, setFormat] = useState<"svg" | "png" | "json">("svg");
@@ -71,7 +73,7 @@ export function ChartGPTWorkspace() {
     <main className="min-h-[100dvh] bg-[#080c14] text-slate-100">
       <header className="sticky top-0 z-20 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#080c14]/95 px-4 backdrop-blur-xl sm:px-8">
         <div><p className="text-sm font-semibold text-white">ChartGPT workspace</p><p className="mt-0.5 text-[10px] text-slate-500">Generate charts from your own data and prompts</p></div>
-        <a href="/dashboard" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:text-white">Back to chat</a>
+        <button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push("/dashboard"); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-[var(--balmz-orange)]/40 hover:text-white"><span aria-hidden="true">←</span> Back</button>
       </header>
       <div className="mx-auto grid max-w-[1440px] gap-5 px-4 py-5 sm:px-7 lg:grid-cols-[minmax(320px,0.85fr)_minmax(0,1.15fr)] lg:py-8">
         <section className="space-y-4">
