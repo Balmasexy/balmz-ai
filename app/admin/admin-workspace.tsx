@@ -226,9 +226,9 @@ function OverviewSection({ data, onNavigate }: { data: AdminOverview; onNavigate
               ["Payment records", data.totals.payment_records],
               ["Pending payments", data.totals.pending_payments],
               ["Usage events", data.totals.usage_events],
-              ["Plan catalog", data.plans.length],
+              ["Plan catalog", data.totals.subscription_plans],
               ["Webhook attention", data.totals.pending_webhooks],
-              ["Audit entries", data.audit.length],
+              ["Audit entries", data.totals.audit_events],
             ].map(([label, value]) => (
               <div key={String(label)} className="border-b border-r border-white/[0.055] px-5 py-5 last:border-r-0 sm:px-6">
                 <p className="text-[11px] text-slate-500">{label}</p>
@@ -278,8 +278,8 @@ function OverviewSection({ data, onNavigate }: { data: AdminOverview; onNavigate
   );
 }
 
-function AccountsSection({ data, query }: { data: AdminOverview; query: string }) {
-  const filtered = useMemo(() => data.users.filter((user) => [user.name, user.email, user.role].some((value) => value.toLowerCase().includes(query.toLowerCase()))), [data.users, query]);
+function AccountsSection({ data }: { data: AdminOverview }) {
+  const filtered = data.users;
   return (
     <Panel title="Registered accounts" subtitle={`Showing ${filtered.length} of ${data.users.length} most recent accounts`}>
       {filtered.length ? <TableWrap><Table><TableHead labels={["Account", "Role", "Email verification", "Registered"]} /><tbody>
@@ -297,7 +297,7 @@ function AccountsSection({ data, query }: { data: AdminOverview; query: string }
 
 function PlansSection({ data }: { data: AdminOverview }) {
   return (
-    <Panel title="Configured subscription plans" subtitle={`${data.plans.length} plan records found in Neon`}>
+    <Panel title="Configured subscription plans" subtitle={`${count(data.totals.subscription_plans)} plan records in Neon · ${data.plans.length} latest records loaded`}>
       {data.plans.length ? <TableWrap><Table><TableHead labels={["Plan", "Code", "Price", "Billing", "Visibility", "State"]} /><tbody>
         {data.plans.map((plan) => <TableRow key={plan.id}>
           <Cell><p className="font-medium text-slate-200">{plan.display_name}</p><p className="mt-0.5 max-w-xs truncate text-xs text-slate-500">{plan.description || "No description"}</p></Cell>
@@ -314,7 +314,7 @@ function PlansSection({ data }: { data: AdminOverview }) {
 
 function SubscriptionsSection({ data }: { data: AdminOverview }) {
   return (
-    <Panel title="Subscription records" subtitle={`Latest ${data.subscriptions.length} subscription assignments`}>
+    <Panel title="Subscription records" subtitle={`${count(data.totals.subscriptions)} subscription assignments · ${data.subscriptions.length} latest records loaded`}>
       {data.subscriptions.length ? <TableWrap><Table><TableHead labels={["Account", "Plan", "Status", "Billing provider", "Period ends"]} /><tbody>
         {data.subscriptions.map((item) => <TableRow key={item.id}>
           <Cell><p className="text-slate-200">{item.user_name}</p><p className="mt-0.5 text-xs text-slate-500">{item.email}</p></Cell>
@@ -376,7 +376,7 @@ function UsageSection({ data }: { data: AdminOverview }) {
 
 function WebhooksSection({ data }: { data: AdminOverview }) {
   return (
-    <Panel title="Billing webhook events" subtitle={`${data.webhooks.length} latest provider events`}>
+    <Panel title="Billing webhook events" subtitle={`${count(data.totals.webhook_events)} provider events · ${data.webhooks.length} latest records loaded`}>
       {data.webhooks.length ? <TableWrap><Table><TableHead labels={["Provider event", "Event type", "Processing", "Received", "Processed", "Error code"]} /><tbody>
         {data.webhooks.map((event) => <TableRow key={event.id}>
           <Cell><p className="capitalize text-slate-200">{event.provider}</p><p className="mt-0.5 max-w-44 truncate font-mono text-[10px] text-slate-500">{event.provider_event_id}</p></Cell>
@@ -393,7 +393,7 @@ function WebhooksSection({ data }: { data: AdminOverview }) {
 
 function AuditSection({ data }: { data: AdminOverview }) {
   return (
-    <Panel title="Administrative audit history" subtitle={`Latest ${data.audit.length} recorded events`}>
+    <Panel title="Administrative audit history" subtitle={`${count(data.totals.audit_events)} recorded events · ${data.audit.length} latest records loaded`}>
       {data.audit.length ? <TableWrap><Table><TableHead labels={["Action", "Actor", "Target", "Recorded details", "Timestamp"]} /><tbody>
         {data.audit.map((item) => <TableRow key={item.id}>
           <Cell><span className="font-medium capitalize text-slate-200">{item.action.replaceAll("_", " ")}</span></Cell>
