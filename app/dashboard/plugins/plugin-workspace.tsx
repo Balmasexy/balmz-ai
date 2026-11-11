@@ -15,7 +15,8 @@ type Plugin = {
 };
 
 const plugins: Plugin[] = [
-  { id: "models", name: "AI model providers", category: "AI", description: "Use connected language models from OpenAI, Anthropic, Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI and Fireworks AI.", capabilities: ["Chat", "Model selection", "Provider switching"], route: "/admin?section=ai-connections", access: "admin", provider: "BALMZ AI" },
+  { id: "openai", name: "ChatGPT / OpenAI", category: "AI", description: "Use OpenAI chat models through a server-side provider connection. API credentials stay on the BALMZ AI server.", capabilities: ["Chat", "GPT models", "Usage metering"], route: "/admin?section=ai-connections", access: "admin", provider: "OpenAI" },
+  { id: "models", name: "AI model providers", category: "AI", description: "Use connected language models from Anthropic, Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI and Fireworks AI.", capabilities: ["Chat", "Model selection", "Provider switching"], route: "/admin?section=ai-connections", access: "admin", provider: "BALMZ AI" },
   { id: "github", name: "GitHub", category: "Developer", description: "Connect repositories for code, issues and project workflows through the Super Admin connector.", capabilities: ["Repositories", "Issues", "Development"], route: "/admin?section=service-connectors", access: "admin", provider: "GitHub" },
   { id: "coingecko", name: "CoinGecko", category: "Finance", description: "Configure verified market-data credentials for supported CoinGecko endpoints.", capabilities: ["Crypto market data", "Demo / Pro key"], route: "/admin?section=service-connectors", access: "admin", provider: "CoinGecko" },
   { id: "chartgpt", name: "ChartGPT", category: "Work", description: "Generate charts from prompts and structured data using the connected ChartGPT service.", capabilities: ["Chart generation", "Chart history"], route: "/dashboard/charts", access: "info", provider: "ChartGPT" },
