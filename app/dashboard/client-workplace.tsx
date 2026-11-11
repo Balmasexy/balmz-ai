@@ -349,7 +349,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                 <span className="text-[10px] text-slate-600">{busy ? "Another message will be queued · " : ""}Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> {busy ? "Queue" : "Send"}</button>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
@@ -377,7 +377,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={2} placeholder="Message BALMZ AI…" className="max-h-40 min-h-[52px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
             <div className="flex items-center justify-between border-t border-white/[0.06] pt-2">
               <span className="text-[10px] text-slate-600">Shift + Enter for a new line</span>
-              <button onClick={() => void sendMessage()} disabled={!prompt.trim() || busy || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+              <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
             </div>
           </div>
         </div> : null}
