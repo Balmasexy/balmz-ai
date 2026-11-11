@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
+import { getDbPool } from "@/lib/db";
 import { getCurrentSubscription } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,11 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
+  const pin = await getDbPool().query(
+    "SELECT 1 FROM public.balmz_auth_pins WHERE user_id = $1 LIMIT 1",
+    [session.user.id],
+  );
+  if (!pin.rowCount) redirect("/create-pin");
   const isAdmin = await isAdminUser(session.user.id);
 
   const subscription = await getCurrentSubscription(session.user.id);
