@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 import { getDbPool } from "@/lib/db";
 
 export const AI_PROVIDERS = {
-  openai: { label: "OpenAI", protocol: "openai", endpoint: "https://api.openai.com/v1/chat/completions" },
+  openai: { label: "ChatGPT / OpenAI", protocol: "openai", endpoint: "https://api.openai.com/v1/chat/completions" },
   anthropic: { label: "Anthropic Claude", protocol: "anthropic", endpoint: "https://api.anthropic.com/v1/messages" },
   google: { label: "Google Gemini", protocol: "gemini", endpoint: "https://generativelanguage.googleapis.com/v1beta" },
   xai: { label: "xAI Grok", protocol: "openai", endpoint: "https://api.x.ai/v1/chat/completions" },
