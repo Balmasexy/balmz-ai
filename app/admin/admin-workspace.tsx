@@ -579,14 +579,14 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
   }
 
   return (
-    <main className="min-h-screen bg-[#080d15] text-slate-100">
+    <main className="min-h-screen bg-[#080d15] pb-20 text-slate-100 lg:pb-0">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -left-48 -top-40 h-[520px] w-[520px] rounded-full bg-orange-500/[0.055] blur-[130px]" />
         <div className="absolute right-0 top-1/3 h-[420px] w-[420px] rounded-full bg-sky-500/[0.035] blur-[130px]" />
       </div>
 
       <div className="relative flex min-h-screen">
-        <aside className="hidden w-[252px] shrink-0 border-r border-white/[0.07] bg-[#0a111c]/95 px-4 py-5 lg:flex lg:flex-col">
+        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/[0.07] bg-[#0a111c]/95 px-4 py-5 xl:w-[300px] 2xl:w-[320px] lg:flex lg:flex-col">
           <div className="flex items-center gap-3 px-2 pb-7">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-300 to-orange-600 text-lg font-black text-[#211205] shadow-lg shadow-orange-950/30">B</div>
             <div><p className="text-sm font-bold tracking-[0.17em] text-white">BALMZ AI</p><p className="mt-0.5 text-[9px] font-semibold tracking-[0.2em] text-orange-300">ADMIN WORKPLACE</p></div>
@@ -596,7 +596,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             <p className="mt-1.5 text-xs font-semibold text-white">Super Administrator</p>
             <p className="mt-1 truncate text-[10px] text-slate-500">{adminEmail}</p>
           </div>
-          <nav className="flex-1 space-y-6">
+          <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pr-1">
             {navigation.map((group) => <div key={group.title}>
               <p className="mb-2 px-3 text-[9px] font-bold tracking-[0.18em] text-slate-600">{group.title}</p>
               <div className="space-y-1">
@@ -637,7 +637,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             </div> : null}
           </header>
 
-          <div className="mx-auto max-w-[1600px] px-4 py-7 sm:px-6 sm:py-9 xl:px-9">
+          <div className="mx-auto max-w-[1740px] px-4 py-6 pb-28 sm:px-6 sm:py-9 sm:pb-28 xl:px-10 2xl:px-12">
             <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
               <div className="max-w-2xl">
                 <p className="text-[10px] font-bold tracking-[0.22em] text-orange-300">{current.eyebrow}</p>
@@ -665,6 +665,25 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
           </div>
         </div>
       </div>
+          <nav aria-label="Primary mobile admin navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.09] bg-[#0a111c]/95 px-2 pt-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-16px_45px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:hidden">
+            <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+              {([
+                { id: "overview" as Section, label: "Home", icon: "◫" },
+                { id: "accounts" as Section, label: "Users", icon: "◎" },
+                { id: "payments" as Section, label: "Payments", icon: "₦" },
+                { id: "terminal" as Section, label: "Terminal", icon: "›_" },
+              ]).map((item) => (
+                <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-orange-400/[0.09] text-orange-200" : "text-slate-500 hover:text-slate-200"}`}>
+                  <span className="text-base leading-4">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+              <button type="button" onClick={() => setMobileNavOpen((value) => !value)} aria-expanded={mobileNavOpen} aria-label="Open all admin sections" className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${mobileNavOpen ? "bg-orange-400/[0.09] text-orange-200" : "text-slate-500 hover:text-slate-200"}`}>
+                <span className="text-base leading-4">☰</span>
+                <span>More</span>
+              </button>
+            </div>
+          </nav>
     </main>
   );
 }
