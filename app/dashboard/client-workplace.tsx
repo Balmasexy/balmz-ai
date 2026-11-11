@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { announceForAccessibility, copyNativeText, getNetworkState, hapticNotice, hapticTap, hideNativeKeyboard, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast } from "@/lib/capacitor/native-helpers";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
@@ -49,6 +50,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [networkConnected, setNetworkConnected] = useState(true);
   const [notice, setNotice] = useState("");
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [copied, setCopied] = useState("");
@@ -113,6 +115,15 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [activeId, conversations, busy]);
 
+  useEffect(() => {
+    let active = true;
+    let removeListener: (() => Promise<void>) | undefined;
+    void getNetworkState().then((state) => { if (active) setNetworkConnected(state.connected); }).catch(() => undefined);
+    void listenToNetworkChanges((state) => { if (active) setNetworkConnected(state.connected); })
+      .then((listener) => { if (active) removeListener = () => listener.remove(); else void listener.remove(); })
+      .catch(() => undefined);
+    return () => { active = false; if (removeListener) void removeListener(); };
+  }, []);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/subscription", { cache: "no-store" })
@@ -196,6 +207,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     setBusy(true);
     try {
       while (pendingMessagesRef.current.length) {
+        if (!networkConnected) {
+          setNotice("You are offline. Your queued messages are saved here and will continue when connectivity returns.");
+          break;
+        }
         const task = pendingMessagesRef.current.shift();
         if (!task) continue;
         const savedMessages = conversationMessagesRef.current.get(task.conversationId) ?? [];
@@ -224,6 +239,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           const nextMessages = [...latest];
           nextMessages.splice(userIndex + 1, 0, assistantMessage);
           updateMessages(task.conversationId, nextMessages);
+          void hapticNotice(true);
+          void announceForAccessibility("BALMZ AI has replied.");
           setNotice("");
         } catch {
           setNotice("Could not reach BALMZ AI. Check your connection and try again.");
@@ -233,7 +250,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       processingQueueRef.current = false;
       setBusy(false);
       setMobileSidebar(false);
-      if (pendingMessagesRef.current.length) void processPendingMessages();
+      if (pendingMessagesRef.current.length && networkConnected) void processPendingMessages();
     }
   }
 
@@ -260,20 +277,41 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     };
     updateMessages(conversation.id, [...existing, userMessage]);
     pendingMessagesRef.current.push({ conversationId: conversation.id, messageId: userMessage.id, model });
+    void hapticTap();
+    void hideNativeKeyboard();
     setPrompt("");
     setNotice("");
     setMobileSidebar(false);
     void processPendingMessages();
   }
 
+  function conversationText(conversation: Conversation) {
+    return conversation.messages.map((item) => (item.role === "user" ? "You" : "BALMZ AI") + ":\n" + item.content).join("\n\n");
+  }
+
+  async function shareActiveConversation() {
+    if (!active?.messages.length) return;
+    try { await shareNativeContent({ title: active.title, text: conversationText(active) }); void hapticTap(); }
+    catch { setNotice("The conversation could not be shared from this device."); }
+  }
+
+  async function exportActiveConversation() {
+    if (!active?.messages.length) return;
+    try {
+      const uri = await saveTextExport(active.title + ".txt", conversationText(active));
+      await shareNativeContent({ title: active.title, text: "BALMZ AI conversation export", url: uri });
+      await showNativeToast("Conversation export is ready to share.");
+    } catch { setNotice("The conversation could not be exported on this device."); }
+  }
+
   async function copyMessage(message: Message) {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await copyNativeText(message.content);
       setCopied(message.id);
+      void hapticTap();
+      void showNativeToast("Copied to clipboard.");
       window.setTimeout(() => setCopied(""), 1600);
-    } catch {
-      setNotice("Clipboard access is unavailable in this browser.");
-    }
+    } catch { setNotice("Clipboard access is unavailable in this browser or device."); }
   }
 
   const hasMessages = Boolean(active?.messages.length);
@@ -331,6 +369,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div><p className="text-sm font-semibold text-white">Chat</p><p className="hidden text-[10px] text-slate-500 sm:block">A focused space for your ideas and work</p></div>
           </div>
           <div className="flex items-center gap-1.5">
+            {hasMessages ? <button type="button" onClick={() => void shareActiveConversation()} className="rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white">Share</button> : null}
+            {hasMessages && isNativeApp() ? <button type="button" onClick={() => void exportActiveConversation()} className="rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white">Export</button> : null}
             <Link href="/dashboard/plugins" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Plugins</Link>
             <label className="hidden items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500 sm:flex">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[140px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
             <button type="button" onClick={minimizeChat} title="Minimize and return to the previous page" aria-label="Minimize chat and return to the previous page" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] text-lg text-slate-400 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white">−</button>
@@ -344,6 +384,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <p className="text-xs leading-5 text-slate-200">{planCheck === "unavailable" ? "We could not verify your plan. AI requests are paused until your plan status can be checked." : "An active BALMZ AI plan is required before sending AI requests."}</p>
             <Link href="/dashboard/billing" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">View plans</Link>
           </div> : null}
+          {!networkConnected ? <div role="status" className="mx-auto mt-3 w-[calc(100%-2rem)] max-w-3xl rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-4 py-2.5 text-xs text-amber-100">Offline mode · Chat requests are paused. Queued prompts will continue when the connection returns.</div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
               <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(255,105,0,0.18)]">W</div>
@@ -357,7 +398,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                 <span className="text-[10px] text-slate-600">{busy ? "Another message will be queued · " : ""}Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> {busy ? "Queue" : "Send"}</button>
+                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active" || !networkConnected} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> {busy ? "Queue" : "Send"}</button>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
