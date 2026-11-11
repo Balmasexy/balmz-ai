@@ -354,7 +354,7 @@ function PaymentsSection({ data }: { data: AdminOverview }) {
 function UsageSection({ data }: { data: AdminOverview }) {
   return (
     <Panel title="Usage counters" subtitle="Actual metric counters and configured limits">
-      {data.usage.length ? <TableWrap><Table><TableHead labels={["Account", "Metric", "Units used", "Limit", "Period ends", "Updated"]} /><tbody>
+      {data.usage.length ? <TableWrap><Table><TableHead labels={["Account", "Metric", "Units used", "Limit", "Period ends", "Updated", "Utilization"]} /><tbody>
         {data.usage.map((item, index) => {
           const used = Number(item.units_used);
           const limit = item.units_limit == null ? null : Number(item.units_limit);
@@ -366,7 +366,7 @@ function UsageSection({ data }: { data: AdminOverview }) {
             <Cell>{item.units_limit == null ? "Not set" : count(item.units_limit)}</Cell>
             <Cell className="text-xs text-slate-500">{date(item.period_end)}</Cell>
             <Cell className="text-xs text-slate-500">{date(item.updated_at)}</Cell>
-            <td className="hidden px-5 py-3 lg:table-cell"><div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-orange-400" style={{ width: `${ratio}%` }} /></div></td>
+            <td className="px-5 py-3"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-orange-400" style={{ width: `${ratio}%` }} /></div><p className="mt-1 text-[9px] text-slate-600">{limit && limit > 0 ? `${Math.round(ratio)}%` : "No limit"}</p></td>
           </TableRow>;
         })}
       </tbody></Table></TableWrap> : <EmptyState title="No usage counters yet" detail="The dashboard will show usage when BALMZ AI records tracked activity. No usage totals are fabricated." />}
