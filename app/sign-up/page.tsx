@@ -20,13 +20,13 @@ export default function SignUpPage() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
-        callbackURL: "/dashboard",
+        callbackURL: "/create-pin",
       });
       if (result.error) {
         setError(result.error.message || "Unable to create your account. Please review your details.");
         return;
       }
-      window.location.assign("/dashboard");
+      window.location.assign("/create-pin");
     } catch {
       setError("Registration is temporarily unavailable. Please try again.");
     } finally {
