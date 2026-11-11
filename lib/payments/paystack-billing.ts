@@ -174,11 +174,13 @@ export async function initializePaystackCheckout(input: {
     if (mode.rows[0]?.enabled !== true) throw new Error("PAYMENT_ENVIRONMENT_DISABLED");
 
     const active = await client.query(
-      `SELECT id FROM public.balmz_subscriptions
-        WHERE user_id = $1
-          AND status IN ('active', 'trialing', 'past_due')
-          AND (current_period_ends_at IS NULL OR current_period_ends_at > now())
-        LIMIT 1 FOR UPDATE`,
+      `SELECT s.id
+         FROM public.balmz_subscriptions s
+         JOIN public.balmz_subscription_plans p ON p.id = s.plan_id
+        WHERE s.user_id = $1 AND p.code <> 'free'
+          AND s.status IN ('active', 'trialing', 'past_due')
+          AND (s.current_period_ends_at IS NULL OR s.current_period_ends_at > now())
+        LIMIT 1 FOR UPDATE OF s`,
       [input.userId],
     );
     if (active.rowCount) throw new Error("ACTIVE_SUBSCRIPTION_EXISTS");
