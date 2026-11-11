@@ -152,7 +152,7 @@ export function BillingWorkspace() {
         {!loading && !payload?.plans.length ? <div className="rounded-2xl border border-white/[0.08] p-10 text-center"><p className="text-sm font-semibold text-white">No published plans yet</p><p className="mt-2 text-xs text-slate-500">The administrator must publish a plan with a price, currency and billing interval before checkout can begin.</p></div> : null}
         {!loading && payload?.plans.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{payload.plans.map((plan) => {
           const validPrice = plan.priceMinorNumber !== null && plan.priceMinorNumber >= 0 && Boolean(plan.currency);
-          const payablePlan = validPrice && plan.priceMinorNumber > 0;
+          const payablePlan = plan.priceMinorNumber !== null && plan.priceMinorNumber > 0 && Boolean(plan.currency);
           const canCheckout = available && payablePlan && !paidPlanActive;
           return <article key={plan.id} className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d1420]/90 p-5 transition hover:border-[var(--balmz-orange)]/25">
             <div className="flex-1"><p className="text-xs font-semibold text-slate-200">{plan.display_name}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">{plan.billing_interval ?? "Billing interval not configured"}</p><p className="mt-5 text-3xl font-semibold tracking-tight text-white">{validPrice ? money(plan.priceMinorNumber!, plan.currency!) : "Not configured"}</p>{plan.description ? <p className="mt-3 text-xs leading-6 text-slate-400">{plan.description}</p> : null}</div>
