@@ -46,7 +46,7 @@ export function SettingsWorkspace({ name, email, planName, isAdmin }: Props) {
   ].filter((item) => !query || (item.label + " " + item.value).toLowerCase().includes(query));
   const appearanceRows: SettingRow[] = [
     { id: "appearance", icon: "☼", label: "Appearance", value: "Dark" },
-    { id: "accent", icon: "⚒", label: "Accent color", value: "BALMZ Orange · #FF6900" },
+    { id: "accent", icon: "⚒", label: "Accent color", value: "BALMZ Orange · #F97316" },
   ].filter((item) => !query || (item.label + " " + item.value).toLowerCase().includes(query));
 
   return (
