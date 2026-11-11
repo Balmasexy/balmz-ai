@@ -4,8 +4,7 @@
   --background: #ffffff;
   --foreground: #171717;
   --balmz-orange: #ff6900;
-  --balmz-orange-hover: #e85f00;
-  --balmz-orange-soft: #ff9a52;
+  --balmz-orange-hover: #ff6900;
 }
 
 @theme inline {
@@ -13,10 +12,17 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-orange-300: var(--balmz-orange-soft);
+  --color-orange-50: var(--balmz-orange);
+  --color-orange-100: var(--balmz-orange);
+  --color-orange-200: var(--balmz-orange);
+  --color-orange-300: var(--balmz-orange);
   --color-orange-400: var(--balmz-orange);
   --color-orange-500: var(--balmz-orange);
-  --color-orange-600: var(--balmz-orange-hover);
+  --color-orange-600: var(--balmz-orange);
+  --color-orange-700: var(--balmz-orange);
+  --color-orange-800: var(--balmz-orange);
+  --color-orange-900: var(--balmz-orange);
+  --color-orange-950: var(--balmz-orange);
 }
 
 @media (prefers-color-scheme: dark) {

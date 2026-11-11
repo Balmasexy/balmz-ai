@@ -2,8 +2,9 @@
 
 ## Service boundaries
 
-- Web application and authentication: Render service `balmz-ai`.
-- Accounts, plans, subscriptions, payments, usage, and audit records: dedicated Neon project/database `BALMZ AI` / `balmz_ai`.
+- Web application and authentication: Render service \`balmz-ai\`.
+- Accounts, plans, subscriptions, payments, usage, and audit records: dedicated Neon project/database \`BALMZ AI\` / \`balmz_ai\`.
+- Client conversations and messages: Neon tables \`balmz_conversations\` and \`balmz_messages\`, scoped to the Better Auth user ID.
 - Terminal execution: separate sandbox/gateway/orchestrator infrastructure; never execute untrusted shell commands in the Next.js process.
 - Provider integrations: server-side adapters only; each provider has independent credentials, permissions, usage caps, and health status.
 
@@ -11,28 +12,32 @@
 
 | Variable | Purpose | Exposure |
 |---|---|---|
-| `DATABASE_URL` | Neon runtime DB role | Server only |
-| `BETTER_AUTH_SECRET` | Session/auth signing | Server only |
-| `BETTER_AUTH_URL` | Canonical app origin | Server config |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | Exact allowed origins | Server config |
-| `PAYSTACK_SECRET_KEY` | Paystack server API | Server only |
-| `PAYSTACK_WEBHOOK_SECRET` | Paystack webhook signature | Server only |
-| `PAYSTACK_PUBLIC_KEY` | Optional checkout public key | Public only if needed |
-| `PAYSTACK_MODE` | Explicit test/live mode | Server config |
-| `OPENAI_API_KEY` | OpenAI provider key | Server only |
-| `GEMINI_API_KEY` | Gemini provider key | Server only |
-| `X_CLIENT_ID`, `X_CLIENT_SECRET` | X OAuth application credentials | Server only |
-| `X_BEARER_TOKEN` | X app-only public-data token, if used | Server only |
-| `BALMZ_API_KEY` | First-party service credential, if provisioned | Server only |
-| `TERMINAL_GATEWAY_URL` | Private/public gateway endpoint | Server config |
-| `TERMINAL_GATEWAY_SIGNING_KEY` | Short-lived ticket signing | Server only |
-| `SANDBOX_ORCHESTRATOR_URL`, `SANDBOX_ORCHESTRATOR_TOKEN` | Sandbox control plane | Server only |
+| \`DATABASE_URL\` | Neon runtime DB role | Server only |
+| \`BETTER_AUTH_SECRET\` | Session/auth signing | Server only |
+| \`BETTER_AUTH_URL\` | Canonical app origin | Server config |
+| \`BETTER_AUTH_TRUSTED_ORIGINS\` | Exact allowed origins | Server config |
+| \`OPENAI_API_KEY\` | Client workplace OpenAI Responses API | Server only |
+| \`OPENAI_MODEL\` | Configured OpenAI model ID | Server config |
+| \`BALMZ_AI_CHAT_ENABLED\` | Enable/disable authenticated AI chat | Server config |
+| \`BALMZ_AI_DAILY_MESSAGE_LIMIT\` | Per-user rolling 24-hour chat limit | Server config |
+| \`BALMZ_AI_MAX_OUTPUT_TOKENS\` | Maximum generated output per turn | Server config |
+| \`PAYSTACK_SECRET_KEY\` | Paystack server API | Server only |
+| \`PAYSTACK_WEBHOOK_SECRET\` | Paystack webhook signature | Server only |
+| \`PAYSTACK_PUBLIC_KEY\` | Optional checkout public key | Public only if needed |
+| \`PAYSTACK_MODE\` | Explicit test/live mode | Server config |
+| \`GEMINI_API_KEY\` | Gemini provider key | Server only |
+| \`X_CLIENT_ID\`, \`X_CLIENT_SECRET\` | X OAuth application credentials | Server only |
+| \`X_BEARER_TOKEN\` | X app-only public-data token, if used | Server only |
+| \`BALMZ_API_KEY\` | First-party service credential, if provisioned | Server only |
+| \`TERMINAL_GATEWAY_URL\` | Private/public gateway endpoint | Server config |
+| \`TERMINAL_GATEWAY_SIGNING_KEY\` | Short-lived ticket signing | Server only |
+| \`SANDBOX_ORCHESTRATOR_URL\`, \`SANDBOX_ORCHESTRATOR_TOKEN\` | Sandbox control plane | Server only |
 
-Only configure variables for implemented features. Never put secrets in `NEXT_PUBLIC_*`, client bundles, repository files, terminal containers, analytics, logs, or support tickets. Use separate credentials for test and production and rotate after suspected exposure.
+Only configure variables for implemented features. Never put secrets in \`NEXT_PUBLIC_*\`, client bundles, repository files, terminal containers, analytics, logs, or support tickets. Use separate credentials for test and production and rotate after suspected exposure.
 
 ## Provider credential model
 
-- OpenAI: use a project service account key for the deployed workload where available; scope it to the minimum required permissions and set project budgets/alerts.
+- OpenAI: use a project service account key for the deployed workload where available; scope it to the minimum required permissions and set project budgets/alerts. The key must be stored only in the Render service environment.
 - Gemini: restrict the key to the Gemini API and keep requests behind the BALMZ backend.
 - X: distinguish app-only Bearer Token access from user-context OAuth. Posting as a user requires user authorization (for example OAuth 2.0 PKCE with appropriate scopes); an app Bearer Token alone is not user consent to publish.
 - BALMZ API: define a first-party key issuer, hashed-at-rest key storage, prefix + one-time display, scopes, per-key quotas, expiry, revocation, rotation, and audit history. Never treat an arbitrary text field as an authenticated API key.
@@ -60,14 +65,15 @@ Only configure variables for implemented features. Never put secrets in `NEXT_PU
 
 ## Environment and release gates
 
+- OpenAI chat stays disabled until the server-side key and valid model ID are set, the Neon conversation migration is applied, the per-user request limit and output-token ceiling are set, and a provider round-trip test passes.
 - Paystack stays disabled until test credentials are configured, the test suite passes, merchant live-mode approval is confirmed, plan prices/currency/intervals/entitlements and refund/cancellation policy are approved, and the owner explicitly authorizes live charges.
 - Terminal stays disabled until an isolated sandbox provider/worker fleet, persistent storage, network policy, quotas, monitoring, backups, and cross-tenant isolation tests are in place. A Render web-service deployment by itself is not a terminal sandbox.
-- AI provider routes stay disabled until their keys are configured and provider-specific cost caps, per-user quotas, model allow-lists, and error handling are verified.
 - Email verification and password reset stay disabled until a transactional email provider and verified sender are configured and tested.
 
 ## Documentation index
 
-- `docs/ACCOUNT_SUBSCRIPTION_FOUNDATION.md`: current identity, subscription schema, and usage foundation.
-- `docs/PAYSTACK_BILLING_RUNBOOK.md`: Paystack design, webhook security, lifecycle, testing, and go-live gates.
-- `docs/TERMINAL_ARCHITECTURE.md`: Termux-style Linux workspace architecture, isolation, API contract, and acceptance tests.
-- `docs/OPERATIONS_AND_RELEASE_CHECKLIST.md`: secret inventory, service boundaries, migrations, release gates, and operations.
+- \`docs/ACCOUNT_SUBSCRIPTION_FOUNDATION.md\`: current identity, subscription schema, and usage foundation.
+- \`docs/CLIENT-WORKSPACE.md\`: chat UI, conversation storage, OpenAI configuration, and API contract.
+- \`docs/PAYSTACK_BILLING_RUNBOOK.md\`: Paystack design, webhook security, lifecycle, testing, and go-live gates.
+- \`docs/TERMINAL_ARCHITECTURE.md\`: Termux-style Linux workspace architecture, isolation, API contract, and acceptance tests.
+- \`docs/OPERATIONS_AND_RELEASE_CHECKLIST.md\`: secret inventory, service boundaries, migrations, release gates, and operations.
