@@ -50,6 +50,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [queueBlocked, setQueueBlocked] = useState(false);
   const [networkConnected, setNetworkConnected] = useState(true);
   const [notice, setNotice] = useState("");
   const [mobileSidebar, setMobileSidebar] = useState(false);
@@ -63,6 +64,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const conversationMessagesRef = useRef<Map<string, Message[]>>(new Map());
   const pendingMessagesRef = useRef<PendingChatMessage[]>([]);
   const processingQueueRef = useRef(false);
+  const queueBlockedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -213,7 +215,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   }
 
   async function processPendingMessages() {
-    if (processingQueueRef.current) return;
+    if (processingQueueRef.current || queueBlockedRef.current) return;
     processingQueueRef.current = true;
     setBusy(true);
     try {
@@ -233,12 +235,15 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           const response = await fetch("/api/ai/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: requestMessages, model: task.model }),
+            body: JSON.stringify({ messages: requestMessages, model: task.model, requestId: task.messageId }),
           });
           const payload = await response.json().catch(() => ({})) as { message?: string; reply?: string };
           if (!response.ok || !payload.reply) {
-            setNotice(payload.message || "The assistant could not complete this request. Please try again.");
-            continue;
+            pendingMessagesRef.current.unshift(task);
+            queueBlockedRef.current = true;
+            setQueueBlocked(true);
+            setNotice(payload.message || "This turn failed. Later prompts are held in order; check the provider then retry the queue.");
+            break;
           }
           const latest = conversationMessagesRef.current.get(task.conversationId) ?? [];
           const userIndex = latest.findIndex((message) => message.id === task.messageId);
@@ -254,22 +259,33 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           void announceForAccessibility("BALMZ AI has replied.");
           setNotice("");
         } catch {
-          setNotice("Could not reach BALMZ AI. Check your connection and try again.");
+          pendingMessagesRef.current.unshift(task);
+          queueBlockedRef.current = true;
+          setQueueBlocked(true);
+          setNotice("Could not reach BALMZ AI. This turn and later prompts remain queued in order. Check your connection, then retry.");
+          break;
         }
       }
     } finally {
       processingQueueRef.current = false;
       setBusy(false);
       setMobileSidebar(false);
-      if (pendingMessagesRef.current.length && networkConnected) void processPendingMessages();
+      if (pendingMessagesRef.current.length && networkConnected && !queueBlockedRef.current) void processPendingMessages();
     }
   }
 
   useEffect(() => {
-    if (networkConnected && pendingMessagesRef.current.length && !processingQueueRef.current) {
+    if (networkConnected && pendingMessagesRef.current.length && !processingQueueRef.current && !queueBlockedRef.current) {
       void processPendingMessages();
     }
   }, [networkConnected]);
+  function retryQueuedMessages() {
+    if (!networkConnected || processingQueueRef.current) return;
+    queueBlockedRef.current = false;
+    setQueueBlocked(false);
+    setNotice("");
+    void processPendingMessages();
+  }
   async function sendMessage(value = prompt) {
     const text = value.trim();
     if (!text) return;
@@ -442,7 +458,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             </div>
             <div ref={bottomRef} />
           </div>}
-          {notice ? <div role="alert" className="mx-auto mb-4 w-[calc(100%-2rem)] max-w-3xl rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-4 py-3 text-xs leading-5 text-amber-100">{notice}</div> : null}
+          {notice ? <div role="alert" className="mx-auto mb-4 flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-4 py-3 text-xs leading-5 text-amber-100"><span>{notice}</span>{queueBlocked ? <button type="button" disabled={!networkConnected || busy} onClick={retryQueuedMessages} className="shrink-0 rounded-lg border border-amber-300/25 px-3 py-2 text-[10px] font-semibold text-amber-100 disabled:opacity-40">Retry queued messages</button> : null}</div> : null}
         </div>
 
         {hasMessages ? <div className="shrink-0 px-4 pb-4 sm:px-8 sm:pb-6">
