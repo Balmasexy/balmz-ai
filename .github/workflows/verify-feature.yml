@@ -41,7 +41,7 @@ jobs:
           git add pnpm-lock.yaml package-lock.json
           if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
-            git config user.email "41898282+balmasexy@users.noreply.github.com"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -m "chore: synchronize dependency lockfiles"
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
               git push origin "HEAD:$GITHUB_HEAD_REF"
