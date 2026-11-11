@@ -2,6 +2,8 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { baseURL } from "@/baseUrl";
 import { getDbPool } from "@/lib/db";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { pinAuthPlugin } from "@/lib/pin-auth-plugin";
 
 let authInstance: ReturnType<typeof createAuth> | undefined;
 
@@ -62,7 +64,35 @@ function createAuth(config: {
       enabled: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
+      revokeSessionsOnPasswordReset: true,
     },
+    // Users may use their password once to establish a PIN. Once a PIN exists,
+    // the normal email/password sign-in endpoint is rejected server-side.
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email") return;
+        const email =
+          typeof ctx.body?.email === "string" ? ctx.body.email.trim().toLowerCase() : "";
+        if (!email) return;
+
+        const pin = await getDbPool().query(
+          `SELECT 1
+           FROM public.balmz_auth_pins p
+           JOIN public."user" u ON u.id = p.user_id
+           WHERE lower(u.email) = lower($1)
+           LIMIT 1`,
+          [email],
+        );
+        if (pin.rowCount) {
+          throw APIError.from("FORBIDDEN", {
+            message: "This account uses PIN login. Enter your six-digit PIN.",
+          });
+        }
+      }),
+    },
+    // Password reset must follow the app's email-code -> existing PIN -> new
+    // password recovery flow; do not expose the built-in bypass endpoints.
+    disabledPaths: ["/request-password-reset", "/reset-password", "/change-password"],
     user: {
       additionalFields: {
         role: {
@@ -89,6 +119,6 @@ function createAuth(config: {
         path: "/",
       },
     },
-    plugins: [nextCookies()],
+    plugins: [pinAuthPlugin(), nextCookies()],
   });
 }
