@@ -51,7 +51,7 @@ export function UsageWorkspace() {
           return <article key={item.metric} className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-5">
             <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-white">{labelMetric(item.metric)}</h2><span className="text-xs tabular-nums text-slate-400">{item.used.toLocaleString("en-NG")} / {item.limit === null ? "No limit set" : item.limit.toLocaleString("en-NG")}</span></div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[var(--balmz-orange)]" style={{ width: item.limit && item.limit > 0 ? `${ratio}%` : "0%" }} /></div>
-            <p className="mt-2 text-[10px] text-slate-500">{item.limit === null ? "This metric has no numeric limit configured." : `${Math.round(ratio)}% of the current monthly allowance used`}</p>
+            <p className="mt-2 text-[10px] text-slate-500">{item.limit === null ? "This metric has no numeric limit configured." : item.limit === 0 ? "This plan does not include any units for this metric." : `${Math.round(ratio)}% of the current monthly allowance used`}</p>
           </article>;
         })}</section> : null}
         {!loading && !error && payload?.active && !rows.length ? <div className="rounded-2xl border border-white/[0.08] p-8 text-center"><p className="text-sm font-medium text-white">No usage metrics are configured yet</p><p className="mt-2 text-xs text-slate-500">This plan has no numeric usage limits or current-period usage counters to display.</p></div> : null}
