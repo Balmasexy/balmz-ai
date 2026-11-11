@@ -15,7 +15,7 @@ export const AI_PROVIDERS = {
 } as const;
 
 export type AIProviderId = keyof typeof AI_PROVIDERS;
-export type AIMessage = { role: "user" | "assistant"; content: string };
+export type AIMessage = { role: "system" | "user" | "assistant"; content: string };
 export type AIProviderConnection = {
   id: string;
   provider_id: AIProviderId;
@@ -100,7 +100,8 @@ async function requestProvider(
         body: JSON.stringify({
           model,
           max_tokens: maxTokens,
-          messages: messages.map((message) => ({ role: message.role, content: message.content })),
+          system: messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n") || undefined,
+          messages: messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content })),
         }),
         signal: AbortSignal.timeout(45_000),
         cache: "no-store",
@@ -114,7 +115,10 @@ async function requestProvider(
           "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
-          contents: messages.map((message) => ({
+          systemInstruction: messages.some((message) => message.role === "system")
+            ? { parts: [{ text: messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n") }] }
+            : undefined,
+          contents: messages.filter((message) => message.role !== "system").map((message) => ({
             role: message.role === "assistant" ? "model" : "user",
             parts: [{ text: message.content }],
           })),
