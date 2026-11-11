@@ -79,7 +79,7 @@ export function QuickChatHelper({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-[70]">
+    <div className={`fixed right-5 z-[70] ${isAdmin ? "bottom-20 sm:bottom-5" : "bottom-5"}`}>
       {open ? (
         <section aria-label="Quick Chat helper" className="mb-3 flex h-[min(540px,calc(100dvh-112px))] w-[min(390px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b111c] shadow-2xl shadow-black/50">
           <header className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
