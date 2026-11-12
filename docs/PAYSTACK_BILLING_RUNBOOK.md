@@ -17,13 +17,16 @@ Set in Render service secrets only; never commit these values or expose them to 
 
 | Variable | Purpose |
 |---|---|
-| `PAYSTACK_SECRET_KEY` | Server-side Paystack secret for the selected mode |
-| `PAYSTACK_PUBLIC_KEY` | Public checkout key, if the chosen checkout flow requires it; may be exposed only as a public key |
 | `PAYSTACK_MODE` | Explicit `test` or `live`; fail closed if absent or inconsistent with key prefix |
+| `PAYSTACK_TEST_SECRET_KEY` | Dedicated Test secret beginning with `sk_test_` |
+| `PAYSTACK_LIVE_SECRET_KEY` | Dedicated Live secret beginning with `sk_live_` |
+| `PAYSTACK_SECRET_KEY` | Legacy compatibility fallback only; keep the dedicated keys as the normal configuration |
+| `PAYSTACK_PUBLIC_KEY` | Optional public checkout key only if the chosen checkout flow requires it |
+
 | `PAYSTACK_WEBHOOK_SECRET` | Webhook signing secret where the Paystack dashboard provides the newer `Paystack-Signature` format |
 | `APP_BASE_URL` | Canonical HTTPS origin used to construct trusted callback URLs |
 
-Do not use a real key in local examples, CI, logs, issue comments, or source control. Verify test/live key prefixes at startup and reject mode mismatches.
+Do not use a real key in local examples, CI, logs, issue comments, or source control. Configure Test and Live credentials separately. The resolver prefers `PAYSTACK_TEST_SECRET_KEY` for Demo and `PAYSTACK_LIVE_SECRET_KEY` for Live, validates the key prefix against the requested mode, and retains `PAYSTACK_SECRET_KEY` only as a backwards-compatible fallback. BALMZ AI also supports independently encrypted Paystack credentials saved through the Super Admin service-connector workflow; those per-environment credentials take precedence over environment variables. Billing remains disabled until an administrator separately verifies credentials, webhook signing secrets, canonical HTTPS URLs, plan pricing and entitlements, then explicitly enables the corresponding database payment environment.
 
 ## Database work required before implementation
 
