@@ -60,7 +60,7 @@ export function listAIProviderEnvironmentStatus() {
     const source = getAIProviderEnvironmentSource(providerId);
     const general = providerId === "general" ? getGeneralLanguageEnvironmentConfig() : null;
     const endpointConfigured = providerId === "general" ? Boolean(general?.baseUrl) : null;
-    const configured = providerId === "general" ? Boolean(general?.apiKey && general?.baseUrl) : Boolean(source);
+    const configured = providerId === "general" ? Boolean(general?.apiKey) : Boolean(source);
     return {
       providerId,
       providerName: definition.label,
