@@ -80,6 +80,8 @@ The migrations cover:
 4. Paystack checkout-attempt records.
 5. Subscription catalogue, trials and family-access grants.
 6. One-time Pro trial redemption.
+7. Account-owned durable chat conversations and idempotent turns.
+8. General OpenAI-compatible Language API provider endpoint.
 
 Run schema changes using a separate migration/owner credential after reviewing the SQL and taking the appropriate backup. The restricted `balmz_ai_app` runtime role is not the migration owner. Never drop or recreate the production database to fix a schema mismatch.
 
@@ -98,7 +100,7 @@ See [docs/AUTH_EMAIL_DELIVERY.md](docs/AUTH_EMAIL_DELIVERY.md).
 
 ## AI providers, ChartGPT and usage
 
-The Super Admin can connect OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI and Fireworks AI from `/admin?section=ai-connections`. Connections are tested before saving, and credentials are encrypted server-side. The client receives safe provider/model metadata, not the original keys.
+The Super Admin can connect OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI, Fireworks AI and a provider-neutral General Language API from `/admin?section=ai-connections`. The General Language API supports OpenAI-compatible HTTPS endpoints, live `/models` discovery where offered, manually specified model IDs and server-side encrypted API keys. Connections are tested before saving, and credentials are encrypted server-side. The client receives safe provider/model metadata, not the original keys.
 
 Provider connections are not created merely because a provider appears in the plugin directory. A real provider key and a valid model must be configured. Image understanding depends on the selected model supporting vision.
 
