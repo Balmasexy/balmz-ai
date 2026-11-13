@@ -35,7 +35,7 @@ export const SERVICE_CATALOG: Array<{
     id: "paystack",
     name: "Paystack",
     category: "Payments",
-    description: "Verify test/live API credentials and prepare payment integration. Live processing stays disabled until the merchant account is approved and live mode is explicitly enabled.",
+    description: "Connect through the existing server-side Paystack merchant credentials. Demo and Live modes remain isolated; Live processing stays disabled until verified and explicitly enabled.",
     keyRequired: true,
     demoLive: true,
     url: "https://dashboard.paystack.com/#/settings/developer",
@@ -47,7 +47,7 @@ export const SERVICE_CATALOG: Array<{
     id: "chartgpt",
     name: "ChartGPT",
     category: "Chart generation",
-    description: "Connect ChartGPT's chart-generation API to turn prompts and structured data into chart specifications and SVG/PNG output.",
+    description: "Connect through the ChartGPT service credential configured once on the BALMZ AI Render service. The dashboard does not ask users to paste API keys.",
     keyRequired: true,
     demoLive: false,
     url: "https://www.chartgpt.co/api/",
@@ -59,7 +59,7 @@ export const SERVICE_CATALOG: Array<{
     id: "coingecko",
     name: "CoinGecko",
     category: "Market data",
-    description: "Connect Demo API or Pro API keys for live cryptocurrency market-data requests.",
+    description: "Connect through a server-side CoinGecko Demo or Pro key configured on Render. Market-data API access is authenticated; the dashboard does not collect keys from end users.",
     keyRequired: true,
     demoLive: true,
     url: "https://www.coingecko.com/en/developers/dashboard",
@@ -71,11 +71,11 @@ export const SERVICE_CATALOG: Array<{
     id: "github",
     name: "GitHub",
     category: "Developer tools",
-    description: "Connect a fine-grained personal access token to list accessible repositories and inspect the connected account.",
-    keyRequired: true,
+    description: "Authorize a GitHub App account directly. Repository access is granted on GitHub and tokens are stored encrypted on the server; no personal API token is pasted into BALMZ AI.",
+    keyRequired: false,
     demoLive: false,
-    url: "https://github.com/settings/personal-access-tokens",
-    keyHelp: "Create a fine-grained personal access token. Start with read-only Metadata and Contents permissions; grant Actions read/write only when you intend to manage workflows.",
+    url: "https://github.com/settings/apps",
+    keyHelp: "Use Connect with GitHub. The one-time GitHub App registration is configured on the BALMZ AI Render service.",
     envAliases: { live: ["GITHUB_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN"] },
     capabilities: ["Verify identity", "List accessible repositories", "Repository integration"],
   },
@@ -83,7 +83,7 @@ export const SERVICE_CATALOG: Array<{
     id: "render",
     name: "Render",
     category: "Hosting",
-    description: "Use the existing Render API key for service, deployment, event, and metrics controls.",
+    description: "Connect using the server-side Render API key already configured on the BALMZ AI Render service. Render’s public API authenticates with API keys; BALMZ AI never asks the user to paste one into this page.",
     keyRequired: true,
     demoLive: false,
     url: "https://dashboard.render.com/account/api-keys",
@@ -95,7 +95,7 @@ export const SERVICE_CATALOG: Array<{
     id: "neon",
     name: "Neon",
     category: "Database",
-    description: "Connect a Neon API key for project, branch, and database administration.",
+    description: "Connect using the server-side Neon API key already configured on the BALMZ AI Render service. Neon’s management API authenticates with bearer API keys; BALMZ AI never asks the user to paste one into this page.",
     keyRequired: true,
     demoLive: false,
     url: "https://console.neon.tech/app/settings/api-keys",
@@ -107,11 +107,11 @@ export const SERVICE_CATALOG: Array<{
     id: "notion",
     name: "Notion workspace",
     category: "Knowledge tools",
-    description: "Connect a Notion internal integration to securely search and access pages and databases granted to that integration. Notion AI features require the corresponding Notion account entitlement.",
-    keyRequired: true,
+    description: "Authorize a public Notion integration through Notion’s page picker. Only the workspace pages and databases explicitly shared during consent are available to BALMZ AI.",
+    keyRequired: false,
     demoLive: false,
     url: "https://www.notion.so/profile/integrations",
-    keyHelp: "Create an internal integration in Notion Settings → Connections / Integrations and grant it only the page/database access BALMZ AI needs.",
+    keyHelp: "Use Connect with Notion. The one-time public integration registration is configured on the BALMZ AI Render service.",
     envAliases: { live: ["NOTION_API_KEY", "NOTION_TOKEN"] },
     capabilities: ["Verify workspace token", "Search granted pages", "Knowledge workspace access"],
   },
@@ -277,7 +277,7 @@ async function testNotion(credentials: ServiceCredentials) {
   const response = await checkedFetch("https://api.notion.com/v1/users/me", {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Notion-Version": "2022-06-28",
+      "Notion-Version": "2026-03-11",
       Accept: "application/json",
     },
   });
@@ -410,5 +410,10 @@ export function getServiceSecretStatus(serviceId: ServiceId, environment: Servic
 export function publicServiceCatalog() {
   return SERVICE_CATALOG.map(({ id, name, category, description, keyRequired, demoLive, url, keyHelp, capabilities }) => ({
     id, name, category, description, keyRequired, demoLive, url, keyHelp, capabilities,
+    connectionMode: id === "github" || id === "notion"
+      ? "oauth"
+      : id === "agentic-ai"
+        ? "public"
+        : "server_environment",
   }));
 }
