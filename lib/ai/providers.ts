@@ -303,13 +303,14 @@ async function requestProvider(
         cache: "no-store",
       });
     } else {
-      response = await fetch(definition.endpoint, {
+      response = await fetch(completionEndpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           ...(provider === "openrouter" ? { "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://balmz-ai.onrender.com", "X-Title": "BALMZ AI" } : {}),
         },
+        redirect: "error",
         body: JSON.stringify({
           model,
           messages: toOpenAIChatMessages(messages),
