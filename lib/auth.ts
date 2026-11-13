@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { baseURL } from "@/baseUrl";
 import { getDbPool } from "@/lib/db";
+import { isTransactionalEmailConfigured, sendAuthEmail } from "@/lib/email";
 
 let authInstance: ReturnType<typeof createAuth> | undefined;
 
@@ -85,7 +86,25 @@ function createAuth(config: {
       enabled: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
+      revokeSessionsOnPasswordReset: true,
+      ...(isTransactionalEmailConfigured() ? {
+        requireEmailVerification: true,
+        sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
+          await sendAuthEmail({ to: user.email, url, kind: "password-reset" });
+        },
+      } : {}),
     },
+    ...(isTransactionalEmailConfigured() ? {
+      emailVerification: {
+        sendOnSignUp: true,
+        sendOnSignIn: true,
+        autoSignInAfterVerification: false,
+        expiresIn: 60 * 60,
+        sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
+          await sendAuthEmail({ to: user.email, url, kind: "verification" });
+        },
+      },
+    } : {}),
     user: {
       additionalFields: {
         role: {
