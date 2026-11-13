@@ -56,7 +56,7 @@ function migrationRequired() {
 function generalLanguageMigrationRequired() {
   return NextResponse.json({
     error: "GENERAL_LANGUAGE_SCHEMA_REQUIRED",
-    message: "Apply db/migrations/0007_general_language_api.sql before saving a General Language API connection.",
+    message: "Apply db/migrations/0008_general_language_api_provider.sql before saving a General Language API connection.",
   }, { status: 503, headers: { "Cache-Control": "no-store" } });
 }
 
