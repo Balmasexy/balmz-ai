@@ -38,6 +38,7 @@ async function saveUserTurn(input: {
   identity: ChatTurnIdentity;
   requestId: string;
   content: string;
+  model: string;
   hasAttachments: boolean;
 }): Promise<"saved" | "unavailable" | "not-owned"> {
   const pool = getDbPool();
@@ -60,15 +61,16 @@ async function saveUserTurn(input: {
     }
     await client.query(
       `INSERT INTO public.balmz_messages
-         (id, conversation_id, user_id, role, content, request_id, has_attachments, status)
-       VALUES ($1, $2, $3, 'user', $4, $5, $6, 'queued')
+         (id, conversation_id, user_id, role, content, request_id, model, has_attachments, status)
+       VALUES ($1, $2, $3, 'user', $4, $5, $6, $7, 'queued')
        ON CONFLICT (conversation_id, user_id, request_id, role)
          WHERE request_id IS NOT NULL
        DO UPDATE SET content = EXCLUDED.content,
+                     model = EXCLUDED.model,
                      has_attachments = EXCLUDED.has_attachments,
                      status = 'queued'`,
       [input.identity.userMessageId, input.identity.conversationId, input.userId,
-       input.content || "Please analyze the attached image(s).", input.requestId, input.hasAttachments],
+       input.content || "Please analyze the attached image(s).", input.requestId, input.model, input.hasAttachments],
     );
     await client.query(
       `UPDATE public.balmz_conversations SET
@@ -261,6 +263,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("USAGE_UNAVAILABLE", 503, "The usage allowance could not be reserved. No AI request was sent.");
   }
 
+  const requestedModel = (body as { model?: unknown } | null)?.model;
+  const modelChoice = typeof requestedModel === "string" ? requestedModel : "env:gpt-4.1-mini";
+
   let historySaved = false;
   if (turnIdentity) {
     const lastUser = messages[messages.length - 1];
@@ -269,14 +274,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       identity: turnIdentity,
       requestId,
       content: lastUser.content,
+      model: modelChoice,
       hasAttachments: Boolean(lastUser.images?.length),
     });
     if (saveState === "not-owned") return safeError("CONVERSATION_NOT_FOUND", 404, "This conversation was not found.");
     historySaved = saveState === "saved";
   }
 
-  const requestedModel = (body as { model?: unknown } | null)?.model;
-  const modelChoice = typeof requestedModel === "string" ? requestedModel : "env:gpt-4.1-mini";
+
 
   if (modelChoice.startsWith("connection:")) {
     const connectionId = modelChoice.slice("connection:".length);
