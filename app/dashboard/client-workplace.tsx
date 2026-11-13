@@ -2,16 +2,52 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
-import { announceForAccessibility, copyNativeText, readNativeText, getNetworkState, hapticNotice, hapticTap, hideNativeKeyboard, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast, getNativePreference, setNativePreference } from "@/lib/capacitor/native-helpers";
+import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 
-type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
+type ImageAttachment = {
+  id: string;
+  name: string;
+  mimeType: "image/jpeg";
+  dataBase64: string;
+  previewUrl: string;
+};
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[] };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
 type PendingChatMessage = { conversationId: string; messageId: string; model: string };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
 
 const STORAGE_KEY = "balmz-ai-client-workplace-v1";
-const NEW_CHAT_AFTER_AUTH_KEY = "balmz-ai-open-new-chat-after-auth";
+async function prepareImageFile(file: File): Promise<ImageAttachment> {
+  if (!file.type.startsWith("image/")) throw new Error(file.name + " is not an image.");
+  if (file.size > 15_000_000) throw new Error(file.name + " is too large. Choose an image under 15 MB.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) { bitmap.close(); throw new Error("This browser could not prepare the image."); }
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/jpeg", 0.72);
+  });
+  if (blob.size > 1_900_000) throw new Error(file.name + " is still too large after compression. Choose a smaller image.");
+  const previewUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Image could not be read."));
+    reader.onerror = () => reject(new Error("Image could not be read."));
+    reader.readAsDataURL(blob);
+  });
+  const dataBase64 = previewUrl.split(",")[1];
+  if (!dataBase64) throw new Error("Image encoding failed.");
+  return { id: crypto.randomUUID(), name: file.name.slice(0, 160), mimeType: "image/jpeg", dataBase64, previewUrl };
+}
+
 const starterPrompts = [
   { title: "Write something", detail: "Draft an email, proposal or post", prompt: "Help me draft a clear, professional email about " },
   { title: "Learn something", detail: "Explain a topic step by step", prompt: "Explain this topic step by step, with practical examples: " },
@@ -55,10 +91,18 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const [notice, setNotice] = useState("");
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [copied, setCopied] = useState("");
-  const [model, setModel] = useState("env:gpt-4.1-mini");
+  const [model, setModel] = useState("");
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsMessage, setModelsMessage] = useState("");
   const [planCheck, setPlanCheck] = useState<"checking" | "active" | "inactive" | "unavailable">("checking");
   const [currentPlanName, setCurrentPlanName] = useState(planName);
+  const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([]);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const conversationMessagesRef = useRef<Map<string, Message[]>>(new Map());
@@ -110,7 +154,15 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   }, []);
 
   useEffect(() => {
-    if (conversations.length) localStorage.setItem(conversationStorageKey, JSON.stringify(conversations));
+    if (conversations.length) {
+      const textOnly = conversations.map((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.map((message) => ({
+          id: message.id, role: message.role, content: message.content, createdAt: message.createdAt,
+        })),
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(textOnly));
+    }
   }, [conversations]);
 
   useEffect(() => {
@@ -140,31 +192,30 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    void getNativePreference("balmz-ai-preferred-model").then((saved) => {
-      if (active && saved) setModel(saved);
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
+  async function refreshModels() {
+    setModelsLoading(true);
+    try {
+      const response = await fetch("/api/ai/models", { cache: "no-store" });
+      const payload = await response.json() as { models?: ModelOption[]; message?: string };
+      if (!response.ok || !Array.isArray(payload.models)) {
+        throw new Error(payload.message || "AI model list could not be loaded.");
+      }
+      setModelOptions(payload.models);
+      setModelsMessage(payload.message || "");
+      setModel((current) => payload.models!.some((option) => option.value === current)
+        ? current
+        : payload.models![0]?.value ?? "");
+    } catch (cause) {
+      setModelOptions([]);
+      setModel("");
+      setModelsMessage(cause instanceof Error ? cause.message : "AI model list could not be loaded.");
+    } finally {
+      setModelsLoading(false);
+    }
+  }
 
   useEffect(() => {
-    if (model) void setNativePreference("balmz-ai-preferred-model", model).catch(() => undefined);
-  }, [model]);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/ai/models", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as { models?: ModelOption[] };
-        if (!response.ok || !Array.isArray(payload.models)) return;
-        if (cancelled) return;
-        setModelOptions(payload.models);
-        setModel((current) => payload.models!.some((option) => option.value === current)
-          ? current
-          : payload.models![0]?.value ?? current);
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
+    void refreshModels();
   }, []);
 
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
@@ -176,6 +227,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     setConversations((current) => [item, ...current]);
     setActiveId(item.id);
     setPrompt("");
+    setSelectedImages([]);
     setNotice("");
     setMobileSidebar(false);
     window.setTimeout(() => textareaRef.current?.focus(), 50);
@@ -214,85 +266,61 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     } : item).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   }
 
-  async function processPendingMessages() {
-    if (processingQueueRef.current || queueBlockedRef.current) return;
-    processingQueueRef.current = true;
-    setBusy(true);
+  async function handleImageSelection(files: FileList | File[]) {
+    const chosen = Array.from(files);
+    if (!chosen.length || imageBusy) return;
+    const previousImageCount = active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0;
+    const available = Math.max(0, 4 - previousImageCount - selectedImages.length);
+    if (!available) {
+      setNotice("You can attach up to four images to a chat.");
+      return;
+    }
+    if (chosen.length > available) setNotice("A chat can contain up to four images. Extra photos were skipped.");
+    setImageBusy(true);
     try {
-      while (pendingMessagesRef.current.length) {
-        if (!networkConnected) {
-          setNotice("You are offline. Your queued messages are saved here and will continue when connectivity returns.");
-          break;
-        }
-        const task = pendingMessagesRef.current.shift();
-        if (!task) continue;
-        const savedMessages = conversationMessagesRef.current.get(task.conversationId) ?? [];
-        const taskIndex = savedMessages.findIndex((message) => message.id === task.messageId);
-        if (taskIndex < 0) continue;
-        const requestMessages = savedMessages.slice(0, taskIndex + 1).slice(-20)
-          .map(({ role, content }) => ({ role, content }));
-        try {
-          const response = await fetch("/api/ai/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: requestMessages, model: task.model, requestId: task.messageId }),
-          });
-          const payload = await response.json().catch(() => ({})) as { message?: string; reply?: string };
-          if (!response.ok || !payload.reply) {
-            pendingMessagesRef.current.unshift(task);
-            queueBlockedRef.current = true;
-            setQueueBlocked(true);
-            setNotice(payload.message || "This turn failed. Later prompts are held in order; check the provider then retry the queue.");
-            break;
-          }
-          const latest = conversationMessagesRef.current.get(task.conversationId) ?? [];
-          const userIndex = latest.findIndex((message) => message.id === task.messageId);
-          if (userIndex < 0) continue;
-          const assistantMessage: Message = {
-            id: crypto.randomUUID(), role: "assistant", content: payload.reply,
-            createdAt: new Date().toISOString(),
-          };
-          const nextMessages = [...latest];
-          nextMessages.splice(userIndex + 1, 0, assistantMessage);
-          updateMessages(task.conversationId, nextMessages);
-          void hapticNotice(true);
-          void announceForAccessibility("BALMZ AI has replied.");
-          setNotice("");
-        } catch {
-          pendingMessagesRef.current.unshift(task);
-          queueBlockedRef.current = true;
-          setQueueBlocked(true);
-          setNotice("Could not reach BALMZ AI. This turn and later prompts remain queued in order. Check your connection, then retry.");
-          break;
-        }
-      }
+      const prepared: ImageAttachment[] = [];
+      for (const file of chosen.slice(0, available)) prepared.push(await prepareImageFile(file));
+      setSelectedImages((current) => [...current, ...prepared].slice(0, 4));
+      setNotice("");
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "An image could not be uploaded.");
     } finally {
-      processingQueueRef.current = false;
-      setBusy(false);
-      setMobileSidebar(false);
-      if (pendingMessagesRef.current.length && networkConnected && !queueBlockedRef.current) void processPendingMessages();
+      setImageBusy(false);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   }
 
-  useEffect(() => {
-    if (networkConnected && pendingMessagesRef.current.length && !processingQueueRef.current && !queueBlockedRef.current) {
-      void processPendingMessages();
-    }
-  }, [networkConnected]);
-  function retryQueuedMessages() {
-    if (!networkConnected || processingQueueRef.current) return;
-    queueBlockedRef.current = false;
-    setQueueBlocked(false);
-    setNotice("");
-    void processPendingMessages();
+  function removeSelectedImage(id: string) {
+    setSelectedImages((current) => current.filter((image) => image.id !== id));
   }
+
+  const attachmentPreview = selectedImages.length ? (
+    <div className="flex flex-wrap gap-2 px-2 pb-3" aria-label="Attached images">
+      {selectedImages.map((image) => (
+        <div key={image.id} className="relative h-[76px] w-[76px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+          <img src={image.previewUrl} alt={image.name} className="h-full w-full object-cover" />
+          <button type="button" onClick={() => removeSelectedImage(image.id)} aria-label={"Remove " + image.name} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-white hover:bg-black">
+            <Icon name="close" />
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   async function sendMessage(value = prompt) {
     const text = value.trim();
-    if (!text) return;
+    const attachments = selectedImages;
+    if ((!text && !attachments.length) || busy) return;
+    const messageText = text || "Please analyze the attached image(s).";
     if (planCheck !== "active") {
       setNotice(planCheck === "unavailable"
         ? "Your BALMZ AI plan could not be verified. No AI request was sent. Refresh the workspace and try again."
         : "An active BALMZ AI plan is required before sending AI requests. Choose a plan to continue.");
+      return;
+    }
+    if (!model || !modelOptions.some((option) => option.value === model)) {
+      setNotice(modelsMessage || "No AI model is connected yet. Ask the Super Admin to connect and test a provider in AI connections.");
       return;
     }
     let conversation = active;
@@ -302,15 +330,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setConversations((current) => [conversation!, ...current]);
       setActiveId(conversation.id);
     }
-    const existing = conversationMessagesRef.current.get(conversation.id) ?? conversation.messages;
-    const userMessage: Message = {
-      id: crypto.randomUUID(), role: "user", content: text,
-      createdAt: new Date().toISOString(),
-    };
-    updateMessages(conversation.id, [...existing, userMessage]);
-    pendingMessagesRef.current.push({ conversationId: conversation.id, messageId: userMessage.id, model });
-    void hapticTap();
-    void hideNativeKeyboard();
+    const userMessage: Message = { id: crypto.randomUUID(), role: "user", content: messageText, createdAt: new Date().toISOString(), ...(attachments.length ? { images: attachments } : {}) };
+    const next = [...conversation.messages, userMessage];
+    updateMessages(conversation.id, next);
     setPrompt("");
     setNotice("");
     setMobileSidebar(false);
@@ -319,28 +341,33 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   async function pasteFromClipboard() {
     try {
-      const value = await readNativeText();
-      if (value) setPrompt((current) => current ? current + "\n" + value : value);
-      void hapticTap();
-    } catch { setNotice("Clipboard read permission is unavailable on this device."); }
-  }
-  function conversationText(conversation: Conversation) {
-    return conversation.messages.map((item) => (item.role === "user" ? "You" : "BALMZ AI") + ":\n" + item.content).join("\n\n");
-  }
-
-  async function shareActiveConversation() {
-    if (!active?.messages.length) return;
-    try { await shareNativeContent({ title: active.title, text: conversationText(active) }); void hapticTap(); }
-    catch { setNotice("The conversation could not be shared from this device."); }
-  }
-
-  async function exportActiveConversation() {
-    if (!active?.messages.length) return;
-    try {
-      const uri = await saveTextExport(active.title + ".txt", conversationText(active));
-      await shareNativeContent({ title: active.title, text: "BALMZ AI conversation export", url: uri });
-      await showNativeToast("Conversation export is ready to share.");
-    } catch { setNotice("The conversation could not be exported on this device."); }
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: next.map(({ role, content, images }) => ({ role, content, ...(images?.length ? { images: images.map(({ mimeType, dataBase64 }) => ({ mimeType, dataBase64 })) } : {}) })), model }),
+      });
+      const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
+      if (!response.ok || !payload.reply) {
+        const message = payload.message || (response.status === 402
+          ? "AI chat requires an active subscription with an ai_messages allowance."
+          : response.status === 503
+            ? "AI chat is not configured yet. The workspace is ready, but the server-side provider key or plan allowance is missing."
+            : "The assistant could not complete this request. Please try again.");
+        updateMessages(conversation.id, conversation.messages);
+        setPrompt(text);
+        setNotice(message);
+        return;
+      }
+      updateMessages(conversation.id, [...next, { id: crypto.randomUUID(), role: "assistant", content: payload.reply, createdAt: new Date().toISOString() }]);
+      setSelectedImages([]);
+    } catch {
+      updateMessages(conversation.id, conversation.messages);
+      setPrompt(text);
+      setNotice("Could not reach BALMZ AI. Your draft and photo attachments are still available; try again.");
+    } finally {
+      setBusy(false);
+      setMobileSidebar(false);
+    }
   }
 
   async function copyMessage(message: Message) {
@@ -355,13 +382,40 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   const hasMessages = Boolean(active?.messages.length);
 
+  const attachmentPicker = (
+    <div className="relative flex items-center gap-2">
+      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length + (active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0) >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
+        <span aria-hidden="true">+</span>
+      </button>
+      {uploadMenuOpen ? (
+        <div role="menu" aria-label="Add to message" className="absolute bottom-12 left-0 z-50 w-56 rounded-2xl border border-white/10 bg-[#151f2e] p-2 shadow-2xl shadow-black/50">
+          <button type="button" role="menuitem" onClick={() => { setUploadMenuOpen(false); galleryInputRef.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs text-slate-200 transition hover:bg-white/[0.07]">
+            <span className="text-lg text-[var(--balmz-orange)]">▧</span><span><span className="block font-semibold">Photos</span><span className="mt-0.5 block text-[10px] text-slate-500">Choose from your device</span></span>
+          </button>
+          <button type="button" role="menuitem" onClick={() => { setUploadMenuOpen(false); cameraInputRef.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs text-slate-200 transition hover:bg-white/[0.07]">
+            <span className="text-lg text-[var(--balmz-orange)]">◎</span><span><span className="block font-semibold">Take photo</span><span className="mt-0.5 block text-[10px] text-slate-500">Open your camera</span></span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const uploadInputs = (
+    <>
+      <input ref={galleryInputRef} type="file" accept="image/*" multiple aria-label="Choose photos" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" aria-label="Take a photo with your camera" className="sr-only" onChange={(event) => { if (event.target.files) void handleImageSelection(event.target.files); }} />
+    </>
+  );
+
+
   return (
     <main className="flex h-[100dvh] min-h-[560px] overflow-hidden bg-[#080c14] text-slate-100">
+      {uploadInputs}
       {mobileSidebar ? <button aria-label="Close navigation" onClick={() => setMobileSidebar(false)} className="fixed inset-0 z-30 bg-black/60 lg:hidden" /> : null}
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[286px] shrink-0 flex-col border-r border-white/[0.08] bg-[#0b111c] transition-transform duration-200 lg:static lg:translate-x-0 ${mobileSidebar ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-[68px] items-center justify-between border-b border-white/[0.07] px-4">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-sm font-black text-[#17100a]">W</span>
+            <Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={36} height={36} priority className="h-9 w-9 rounded-xl object-contain" />
             <span><span className="block text-sm font-bold tracking-[0.16em] text-white">BALMZ AI</span><span className="block text-[10px] text-slate-500">Your AI workplace</span></span>
           </Link>
           <button onClick={() => setMobileSidebar(false)} className="rounded-lg p-2 text-slate-400 hover:bg-white/5 lg:hidden" aria-label="Close sidebar"><Icon name="close" /></button>
@@ -377,7 +431,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
           <p className="px-2 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Recent</p>
-          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
+          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setPrompt(""); setSelectedImages([]); setUploadMenuOpen(false); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
           <p className="px-2 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Explore</p>
           <div className="space-y-1">
             <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
@@ -411,9 +465,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             {hasMessages ? <button type="button" onClick={() => void shareActiveConversation()} className="rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white">Share</button> : null}
             {hasMessages && isNativeApp() ? <button type="button" onClick={() => void exportActiveConversation()} className="rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white">Export</button> : null}
             <Link href="/dashboard/plugins" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Plugins</Link>
-            <label className="hidden items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500 sm:flex">Model <select value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[140px] bg-transparent text-xs font-medium text-slate-200 outline-none">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value={model}>No providers connected</option>}</select></label>
-            <button type="button" onClick={minimizeChat} title="Minimize and return to the previous page" aria-label="Minimize chat and return to the previous page" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] text-lg text-slate-400 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white">−</button>
-            <button type="button" onClick={closeChat} title="Close this chat and open a new chat" aria-label="Close this chat and start a new chat" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] text-slate-400 transition hover:border-rose-400/30 hover:bg-rose-400/[0.07] hover:text-rose-200"><Icon name="close" /></button>
+            <label className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select aria-label="Choose AI model" disabled={modelsLoading || !modelOptions.length} value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[150px] bg-transparent text-xs font-medium text-slate-200 outline-none disabled:opacity-60">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.provider} · {option.label}</option>) : <option value="">{modelsLoading ? "Loading models…" : "No connected models"}</option>}</select></label>
+            <button type="button" onClick={() => void refreshModels()} disabled={modelsLoading} className="hidden rounded-lg border border-white/[0.08] px-2.5 py-2 text-[10px] font-medium text-slate-400 hover:border-[var(--balmz-orange)]/40 hover:text-white disabled:opacity-40 sm:inline-flex">{modelsLoading ? "Loading…" : "Refresh models"}</button>
+            {!modelsLoading && !modelOptions.length ? <Link href={isAdmin ? "/admin?section=ai-connections" : "/dashboard/plugins"} className="hidden rounded-lg bg-[var(--balmz-orange)]/[0.09] px-2.5 py-2 text-[10px] font-semibold text-[var(--balmz-orange)] hover:bg-[var(--balmz-orange)]/[0.15] sm:inline-flex">{isAdmin ? "Connect provider" : "Provider setup"}</Link> : null}
             <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--balmz-orange)]/15 text-xs font-bold text-[var(--balmz-orange)]">{userName.trim().slice(0, 1).toUpperCase() || "B"}</Link>
           </div>
         </header>
@@ -423,22 +477,26 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <p className="text-xs leading-5 text-slate-200">{planCheck === "unavailable" ? "We could not verify your plan. AI requests are paused until your plan status can be checked." : "An active BALMZ AI plan is required before sending AI requests."}</p>
             <Link href="/dashboard/billing" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">View plans</Link>
           </div> : null}
-          {!networkConnected ? <div role="status" className="mx-auto mt-3 w-[calc(100%-2rem)] max-w-3xl rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-4 py-2.5 text-xs text-amber-100">Offline mode · Chat requests are paused. Queued prompts will continue when the connection returns.</div> : null}
+          {!modelsLoading && !modelOptions.length ? <div className="mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] px-4 py-3">
+            <div><p className="text-xs font-semibold text-slate-200">No chat model is connected</p><p className="mt-1 text-[10px] leading-5 text-slate-500">{modelsMessage || "A Super Admin must connect and test an AI provider before chat can start."}</p></div>
+            {isAdmin ? <Link href="/admin?section=ai-connections" className="shrink-0 rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a]">Connect a provider</Link> : <span className="text-[10px] text-slate-500">Ask your administrator to configure a provider</span>}
+          </div> : null}
           {!hasMessages ? <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-4 py-10 sm:px-8">
             <div className="mx-auto mb-8 max-w-2xl text-center">
-              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--balmz-orange)] text-lg font-black text-[#17100a] shadow-[0_0_38px_rgba(255,105,0,0.18)]">W</div>
+              <Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={48} height={48} className="mx-auto mb-5 h-12 w-12 rounded-2xl object-contain shadow-[0_0_38px_rgba(249,115,22,0.18)]" />
               <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">What can I help you with?</h1>
               <p className="mt-3 text-sm leading-6 text-slate-500">Ask a question, develop an idea, or continue your work.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {starterPrompts.map((item) => <button key={item.title} onClick={() => { setPrompt(item.prompt); textareaRef.current?.focus(); }} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-left transition hover:border-[var(--balmz-orange)]/35 hover:bg-white/[0.045]"><span className="block text-sm font-medium text-slate-200">{item.title}</span><span className="mt-1 block text-xs text-slate-500">{item.detail}</span></button>)}
             </div>
-            <div className="mt-6 rounded-2xl border border-white/[0.08] bg-[#0d1420] p-3 shadow-2xl shadow-black/20">
+            <div onDragOver={(event) => { event.preventDefault(); setIsDraggingImages(true); }} onDragLeave={() => setIsDraggingImages(false)} onDrop={(event) => { event.preventDefault(); setIsDraggingImages(false); if (event.dataTransfer.files.length) void handleImageSelection(event.dataTransfer.files); }} className={`mt-6 rounded-2xl border bg-[#0d1420] p-3 shadow-2xl shadow-black/20 transition ${isDraggingImages ? "border-[var(--balmz-orange)] bg-[var(--balmz-orange)]/[0.05]" : "border-white/[0.08]"}`}>
+              {attachmentPreview}
               <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={3} placeholder="Message BALMZ AI…" className="max-h-44 min-h-[72px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
-              <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
-                <button type="button" onClick={() => void pasteFromClipboard()} className="text-[10px] text-slate-500 hover:text-slate-200">Paste</button>
-                <span className="text-[10px] text-slate-600">{busy ? "Another message will be queued · " : ""}Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active" || !networkConnected} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> {busy ? "Queue" : "Send"}</button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                <div className="flex items-center gap-2">{attachmentPicker}<span className="text-[10px] text-slate-600">Drop images here · Up to 4 photos · Vision support depends on the selected model</span></div>
+                <div className="flex items-center gap-3"><span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
+                <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
@@ -448,13 +506,14 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             </div>
           </div> : <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-8">
             <div className="space-y-8">{active?.messages.map((message) => <article key={message.id} className={message.role === "user" ? "flex justify-end" : "flex gap-3"}>
-              {message.role === "assistant" ? <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span> : null}
+              {message.role === "assistant" ? <Image src="/balmz-logo.svg" alt="BALMZ AI" width={32} height={32} className="h-8 w-8 shrink-0 rounded-xl object-contain" /> : null}
               <div className={message.role === "user" ? "max-w-[88%] rounded-3xl bg-[#182232] px-5 py-3.5 text-sm leading-7 text-slate-100" : "min-w-0 flex-1 pt-1 text-sm leading-7 text-slate-200"}>
                 <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                {message.images?.length ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{message.images.map((image) => <img key={image.id} src={image.previewUrl} alt={image.name} className="max-h-52 w-full rounded-xl border border-white/10 object-cover" />)}</div> : null}
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
               </div>
             </article>)}
-              {busy ? <div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--balmz-orange)] text-xs font-black text-[#17100a]">W</span><span className="animate-pulse">{pendingMessagesRef.current.length ? "BALMZ AI is responding · " + pendingMessagesRef.current.length + " queued…" : "BALMZ AI is thinking…"}</span></div> : null}
+              {busy ? <div className="flex items-center gap-3 text-xs text-slate-500"><Image src="/balmz-logo.svg" alt="BALMZ AI" width={32} height={32} className="h-8 w-8 shrink-0 rounded-xl object-contain" /><span className="animate-pulse">BALMZ AI is thinking…</span></div> : null}
             </div>
             <div ref={bottomRef} />
           </div>}
@@ -462,16 +521,18 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         </div>
 
         {hasMessages ? <div className="shrink-0 px-4 pb-4 sm:px-8 sm:pb-6">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-white/[0.09] bg-[#0d1420] p-3 shadow-2xl shadow-black/20 focus-within:border-[var(--balmz-orange)]/35">
+          <div onDragOver={(event) => { event.preventDefault(); setIsDraggingImages(true); }} onDragLeave={() => setIsDraggingImages(false)} onDrop={(event) => { event.preventDefault(); setIsDraggingImages(false); if (event.dataTransfer.files.length) void handleImageSelection(event.dataTransfer.files); }} className={`mx-auto max-w-3xl rounded-2xl border bg-[#0d1420] p-3 shadow-2xl shadow-black/20 transition focus-within:border-[var(--balmz-orange)]/35 ${isDraggingImages ? "border-[var(--balmz-orange)] bg-[var(--balmz-orange)]/[0.05]" : "border-white/[0.09]"}`}>
+            {attachmentPreview}
             <textarea ref={textareaRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={2} placeholder="Message BALMZ AI…" className="max-h-40 min-h-[52px] w-full resize-y bg-transparent px-2 py-2 text-sm leading-6 text-white outline-none placeholder:text-slate-600" />
-            <div className="flex items-center justify-between border-t border-white/[0.06] pt-2">
-              <button type="button" onClick={() => void pasteFromClipboard()} className="text-[10px] text-slate-500 hover:text-slate-200">Paste</button>
-              <span className="text-[10px] text-slate-600">Shift + Enter for a new line</span>
-              <button onClick={() => void sendMessage()} disabled={!prompt.trim() || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-2">
+              <div className="flex items-center gap-2">{attachmentPicker}<span className="hidden text-[10px] text-slate-600 sm:inline">Add a photo or drop it here</span></div>
+              <div className="flex items-center gap-3"><span className="hidden text-[10px] text-slate-600 sm:inline">Shift + Enter for a new line</span>
+              <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
             </div>
           </div>
         </div> : null}
       </section>
+      <QuickChatHelper isAdmin={isAdmin} />
     </main>
   );
 }

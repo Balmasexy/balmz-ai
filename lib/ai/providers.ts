@@ -15,7 +15,29 @@ export const AI_PROVIDERS = {
 } as const;
 
 export type AIProviderId = keyof typeof AI_PROVIDERS;
-export type AIMessage = { role: "system" | "user" | "assistant"; content: string };
+export type AIImageAttachment = {
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  dataBase64: string;
+};
+export type AIMessage = { role: "user" | "assistant"; content: string; images?: AIImageAttachment[] };
+
+export function toOpenAIChatMessages(messages: AIMessage[]) {
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.images?.length
+      ? [
+          { type: "text", text: message.content || "Please analyze the attached image(s)." },
+          ...message.images.map((image) => ({
+            type: "image_url",
+            image_url: {
+              url: "data:" + image.mimeType + ";base64," + image.dataBase64,
+              detail: "auto",
+            },
+          })),
+        ]
+      : message.content,
+  }));
+}
 export type AIProviderConnection = {
   id: string;
   provider_id: AIProviderId;
@@ -100,8 +122,22 @@ async function requestProvider(
         body: JSON.stringify({
           model,
           max_tokens: maxTokens,
-          system: messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n") || undefined,
-          messages: messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content })),
+          messages: messages.map((message) => ({
+            role: message.role,
+            content: message.images?.length
+              ? [
+                  { type: "text", text: message.content || "Please analyze the attached image(s)." },
+                  ...message.images.map((image) => ({
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: image.mimeType,
+                      data: image.dataBase64,
+                    },
+                  })),
+                ]
+              : message.content,
+          })),
         }),
         signal: AbortSignal.timeout(45_000),
         cache: "no-store",
@@ -120,7 +156,15 @@ async function requestProvider(
             : undefined,
           contents: messages.filter((message) => message.role !== "system").map((message) => ({
             role: message.role === "assistant" ? "model" : "user",
-            parts: [{ text: message.content }],
+            parts: [
+              ...(message.content ? [{ text: message.content }] : []),
+              ...(message.images ?? []).map((image) => ({
+                inline_data: { mime_type: image.mimeType, data: image.dataBase64 },
+              })),
+              ...(!message.content && !message.images?.length
+                ? [{ text: "Please analyze the attached image(s)." }]
+                : []),
+            ],
           })),
           generationConfig: { maxOutputTokens: maxTokens },
         }),
@@ -137,7 +181,7 @@ async function requestProvider(
         },
         body: JSON.stringify({
           model,
-          messages: messages.map((message) => ({ role: message.role, content: message.content })),
+          messages: toOpenAIChatMessages(messages),
           max_tokens: maxTokens,
         }),
         signal: AbortSignal.timeout(45_000),
@@ -176,6 +220,101 @@ export async function testAIProvider(provider: AIProviderId, apiKey: string, mod
   await requestProvider(provider, apiKey, model, [
     { role: "user", content: "Reply with the single word: OK" },
   ], 12);
+}
+
+export type AIProviderModelOption = { id: string; label: string };
+
+const AI_MODEL_ENDPOINTS: Record<AIProviderId, string> = {
+  openai: "https://api.openai.com/v1/models",
+  anthropic: "https://api.anthropic.com/v1/models",
+  google: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100",
+  xai: "https://api.x.ai/v1/models",
+  openrouter: "https://openrouter.ai/api/v1/models",
+  deepseek: "https://api.deepseek.com/models",
+  groq: "https://api.groq.com/openai/v1/models",
+  mistral: "https://api.mistral.ai/v1/models",
+  together: "https://api.together.xyz/v1/models",
+  fireworks: "https://api.fireworks.ai/inference/v1/models",
+};
+
+/**
+ * Fetch the provider's live model catalogue using the unsaved key supplied by
+ * the Super Admin. Keys are sent only to this server route and are never saved
+ * by this operation. Only fixed provider endpoints are contacted.
+ */
+export async function listAIProviderModels(
+  provider: AIProviderId,
+  apiKey: string,
+): Promise<AIProviderModelOption[]> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (provider === "anthropic") {
+    headers["x-api-key"] = apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+  } else if (provider === "google") {
+    headers["x-goog-api-key"] = apiKey;
+  } else {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(AI_MODEL_ENDPOINTS[provider], {
+      method: "GET",
+      headers,
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new Error("AI_PROVIDER_UNAVAILABLE");
+  }
+  if (!response.ok) throw new Error(errorCode(response.status));
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("AI_PROVIDER_INVALID_RESPONSE");
+  }
+
+  const root = payload && typeof payload === "object"
+    ? payload as Record<string, unknown>
+    : {};
+  const rawItems = provider === "google"
+    ? Array.isArray(root.models) ? root.models : []
+    : Array.isArray(root.data) ? root.data
+      : Array.isArray(root.models) ? root.models : [];
+
+  const models = rawItems.flatMap((item): AIProviderModelOption[] => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    if (provider === "google") {
+      const methods = Array.isArray(row.supportedGenerationMethods)
+        ? row.supportedGenerationMethods.filter((method): method is string => typeof method === "string")
+        : [];
+      if (methods.length && !methods.includes("generateContent")) return [];
+    }
+    const rawId = typeof row.id === "string"
+      ? row.id
+      : typeof row.name === "string" ? row.name : "";
+    const id = (provider === "google" ? rawId.replace(/^models\//, "") : rawId).trim();
+    if (!id || id.length > 180 || /[\r\n]/.test(id)) return [];
+    // The chat adapter supports text generation, not embeddings, audio,
+    // moderation, image generation, transcription or reranking endpoints.
+    if (/(^|[-/.])(embedding|embeddings|embed|moderation|whisper|transcribe|transcription|tts|speech|dall-e|image|rerank|audio|realtime)([-/.]|$)/i.test(id)) return [];
+    const label = typeof row.display_name === "string" && row.display_name.trim()
+      ? row.display_name.trim().slice(0, 180)
+      : typeof row.name === "string" && provider !== "google" && row.name.trim()
+        ? row.name.trim().slice(0, 180)
+        : id;
+    return [{ id, label }];
+  });
+
+  const unique = new Map<string, AIProviderModelOption>();
+  for (const model of models) unique.set(model.id, model);
+  return [...unique.values()]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .slice(0, 150);
 }
 
 export async function sendAIProviderMessage(connection: AIProviderConnection, messages: AIMessage[]): Promise<string> {

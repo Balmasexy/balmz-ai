@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 type Provider = { id: string; name: string };
+type ProviderModel = { id: string; label: string };
 type Connection = {
   id: string;
   providerId: string;
@@ -46,6 +47,9 @@ export function AIConnectionsSection() {
   const [displayName, setDisplayName] = useState("OpenAI primary");
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [customModelMode, setCustomModelMode] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -63,6 +67,44 @@ export function AIConnectionsSection() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  async function loadModels() {
+    if (loadingModels) return;
+    if (!apiKey.trim()) {
+      setError("Enter the provider API key first, then load its live model list.");
+      return;
+    }
+    setLoadingModels(true);
+    setError("");
+    setNotice("");
+    setAvailableModels([]);
+    try {
+      const response = await fetch("/api/admin/ai-connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list-models", providerId, apiKey }),
+      });
+      const result = await response.json() as { models?: ProviderModel[]; message?: string };
+      if (!response.ok || !Array.isArray(result.models)) {
+        throw new Error(result.message || "The provider model list could not be loaded.");
+      }
+      setAvailableModels(result.models);
+      setCustomModelMode(false);
+      if (result.models.length) {
+        setModelId((current) => result.models!.some((item) => item.id === current)
+          ? current
+          : result.models![0].id);
+        setNotice(`${result.models.length} models loaded from ${providers.find((item) => item.id === providerId)?.name ?? "the provider"}.`);
+      } else {
+        setModelId("");
+        setNotice(result.message || "No chat models were returned. You can enter an exact model ID manually.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The provider model list could not be loaded.");
+    } finally {
+      setLoadingModels(false);
+    }
+  }
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,12 +195,18 @@ export function AIConnectionsSection() {
         <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
           <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6"><h3 className="text-sm font-semibold text-white">Add a provider connection</h3><p className="mt-1 text-xs text-slate-500">Each provider key is tested before it is saved.</p></div>
           <form onSubmit={connect} className="space-y-4 p-5 sm:p-6">
-            <label className="block"><span className="text-[11px] font-medium text-slate-400">AI provider</span><select value={providerId} onChange={(event) => setProviderId(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
+            <label className="block"><span className="text-[11px] font-medium text-slate-400">AI provider</span><select value={providerId} onChange={(event) => { setProviderId(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); setNotice(""); setError(""); }} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
             <label className="block"><span className="text-[11px] font-medium text-slate-400">Connection name</span><input required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="e.g. Claude production" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
-            <label className="block"><span className="text-[11px] font-medium text-slate-400">Model ID from provider</span><input required minLength={2} maxLength={180} value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="Enter the exact model ID from the provider's console" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
-            <label className="block"><span className="text-[11px] font-medium text-slate-400">Provider API key</span><input required type="password" autoComplete="new-password" minLength={10} maxLength={4096} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste the provider API key here" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
+            
+            <div className="space-y-2">
+              <label className="block"><span className="text-[11px] font-medium text-slate-400">Provider API key</span><input required type="password" autoComplete="new-password" minLength={10} maxLength={4096} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); }} placeholder="Paste the provider API key here" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
+              <button type="button" onClick={() => void loadModels()} disabled={loadingModels || apiKey.trim().length < 10} className="min-h-10 rounded-xl border border-[var(--balmz-orange)]/30 bg-[var(--balmz-orange)]/[0.08] px-4 text-xs font-semibold text-[var(--balmz-orange)] transition hover:bg-[var(--balmz-orange)]/[0.14] disabled:cursor-not-allowed disabled:opacity-40">{loadingModels ? "Loading provider models…" : "Load available models"}</button>
+              <p className="text-[10px] leading-5 text-slate-500">Loads the live model catalogue using this key. The key is not saved by this step.</p>
+            </div>
+            <label className="block"><span className="text-[11px] font-medium text-slate-400">Select model</span><select value={customModelMode ? "__custom__" : modelId} onChange={(event) => { const value = event.target.value; setCustomModelMode(value === "__custom__"); setModelId(value === "__custom__" ? "" : value); }} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50"><option value="">{availableModels.length ? "Choose a model" : "Load available models first"}</option>{availableModels.map((model) => <option key={model.id} value={model.id}>{model.label === model.id ? model.id : `${model.label} · ${model.id}`}</option>)}<option value="__custom__">Enter a custom model ID…</option></select></label>
+            {customModelMode ? <label className="block"><span className="text-[11px] font-medium text-slate-400">Custom model ID</span><input required minLength={2} maxLength={180} value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="Enter the exact model ID from the provider" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label> : null}
             <div className="rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4"><p className="text-xs font-semibold text-amber-100">Provider test request</p><p className="mt-1 text-[11px] leading-5 text-slate-400">Connect & test sends one tiny “reply OK” request to the selected model. The provider may charge a small amount for that request. No key is saved if the test fails.</p></div>
-            <button type="submit" disabled={saving || !apiKey.trim() || !modelId.trim()} className="min-h-11 w-full rounded-xl bg-[var(--balmz-orange)] px-5 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">{saving ? "Testing and saving…" : "Connect & test provider"}</button>
+            <button type="submit" disabled={saving || loadingModels || !apiKey.trim() || !modelId.trim()} className="min-h-11 w-full rounded-xl bg-[var(--balmz-orange)] px-5 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">{saving ? "Testing and saving…" : "Connect & test provider"}</button>
           </form>
         </div>
 
