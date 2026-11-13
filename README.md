@@ -108,6 +108,8 @@ AI requests require an active subscription and are metered against the server-si
 
 See [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md).
 
+See [docs/SERVER-SIDE-INTEGRATIONS.md](docs/SERVER-SIDE-INTEGRATIONS.md) for connecting service integrations directly from existing Render secrets without pasting API keys into the connector form.
+
 ## Subscription catalogue and trials
 
 The database contains the Free, Pro Monthly, Pro Yearly, Pro 7-Day Trial and Family Complimentary plan records. The current catalogue defines server-side prices and `ai_messages` allowances. Subscription validity is determined from Neon, not from browser state or a payment redirect.
