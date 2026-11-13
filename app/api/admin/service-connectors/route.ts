@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { getDbPool } from "@/lib/db";
 import { isAdminUser } from "@/lib/admin";
+import { getOAuthAppCredentials, refreshOAuthCredentials, type OAuthServiceId } from "@/lib/service-oauth";
 import {
   checkStoredServiceCredential,
   encryptServiceCredentials,
@@ -100,6 +101,10 @@ export async function GET() {
     );
     return NextResponse.json({
       catalog: publicServiceCatalog(),
+      oauthStatus: {
+        github: Boolean(getOAuthAppCredentials("github")),
+        notion: Boolean(getOAuthAppCredentials("notion")),
+      },
       connections: saved,
       environmentStatuses,
     }, { headers: { "Cache-Control": "no-store" } });
@@ -124,8 +129,9 @@ export async function POST(request: Request) {
       const credentials = serviceCredentialsFromEnvironment(service.id, environment);
       if (!credentials) return NextResponse.json({
         error: "ENVIRONMENT_SECRET_NOT_FOUND",
-        message: "No matching service credential was found in the Render environment. Add the documented environment variable or connect a key here.",
+        message: "No matching server-side credential is configured. This integration must be configured in the Render environment or connected through its OAuth flow.",
       }, { status: 404 });
+
       const result = await testServiceConnection(service.id, credentials, environment);
       return NextResponse.json({
         success: true,
@@ -133,6 +139,59 @@ export async function POST(request: Request) {
         source: "Render environment",
         details: result,
       }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "connect-environment" || body.action === "connect-public") {
+      const service = SERVICE_CATALOG.find((item) => item.id === body.serviceId);
+      if (!service) return NextResponse.json({ error: "UNKNOWN_SERVICE" }, { status: 400 });
+      const environment: ServiceEnvironment = body.environment === "demo" && service.demoLive ? "demo" : "live";
+      let credentials = service.id === "agentic-ai"
+        ? {}
+        : serviceCredentialsFromEnvironment(service.id, environment);
+      if (!credentials) return NextResponse.json({
+        error: "SERVER_CREDENTIAL_NOT_CONFIGURED",
+        message: service.id === "agentic-ai"
+          ? "The public directory connection is not available."
+          : "This provider requires an API credential. Configure it once in the BALMZ AI Render environment; no user-side API key form is used.",
+      }, { status: 409 });
+
+      if (service.id === "github" || service.id === "notion") {
+        return NextResponse.json({
+          error: "OAUTH_CONNECTION_REQUIRED",
+          message: "Use the provider authorization button to connect this account securely.",
+        }, { status: 409 });
+      }
+
+      const details = await testServiceConnection(service.id, credentials, environment);
+      const displayName = typeof body.displayName === "string" && body.displayName.trim().length >= 2
+        ? body.displayName.trim().slice(0, 60)
+        : service.id === "agentic-ai" ? "Agentic.ai public directory" : service.name + " · Render";
+      const encrypted = encryptServiceCredentials(credentials);
+      const savedConnection = await getDbPool().query<{
+        id: string; service_id: ServiceId; display_name: string; environment: ServiceEnvironment;
+        status: string; last_tested_at: string | null; last_error_code: string | null;
+      }>(
+        `INSERT INTO public.balmz_service_credentials
+           (id, service_id, display_name, environment, encrypted_credentials, status, last_tested_at, last_error_code, created_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, 'connected', now(), NULL, $6)
+         ON CONFLICT (service_id, environment, display_name)
+         DO UPDATE SET encrypted_credentials = EXCLUDED.encrypted_credentials,
+                       status = 'connected', last_tested_at = now(), last_error_code = NULL,
+                       created_by_user_id = EXCLUDED.created_by_user_id, updated_at = now()
+         RETURNING id, service_id, display_name, environment, status, last_tested_at, last_error_code`,
+        [randomUUID(), service.id, displayName, environment, encrypted, auth.session.user.id],
+      );
+      await getDbPool().query(
+        `INSERT INTO public.balmz_admin_audit_log (id, actor_user_id, action, metadata)
+         VALUES ($1, $2, 'service_connector_connected', $3::jsonb)`,
+        [randomUUID(), auth.session.user.id, JSON.stringify({ serviceId: service.id, environment, source: service.id === "agentic-ai" ? "public" : "render_environment" })],
+      ).catch(() => undefined);
+      return NextResponse.json({
+        success: true,
+        connection: publicEntry(savedConnection.rows[0]),
+        source: service.id === "agentic-ai" ? "public" : "Render environment",
+        details,
+      }, { status: 201, headers: { "Cache-Control": "no-store" } });
     }
 
     if (body.action === "test") {
@@ -147,10 +206,16 @@ export async function POST(request: Request) {
       );
       const row = result.rows[0];
       if (!row) return NextResponse.json({ error: "CONNECTION_NOT_FOUND" }, { status: 404 });
-      await checkStoredServiceCredential(row.encrypted_credentials, row.service_id, row.environment);
+      let storedCredentials = await import("@/lib/service-connectors").then((module) => module.decryptServiceCredentials(row.encrypted_credentials));
+      if (row.service_id === "github" || row.service_id === "notion") {
+        storedCredentials = await refreshOAuthCredentials(row.service_id as OAuthServiceId, storedCredentials);
+      }
+      await checkStoredServiceCredential(encryptServiceCredentials(storedCredentials), row.service_id, row.environment);
       await getDbPool().query(
-        `UPDATE public.balmz_service_credentials SET status = 'connected', last_tested_at = now(), last_error_code = NULL, updated_at = now() WHERE id = $1`,
-        [row.id],
+        `UPDATE public.balmz_service_credentials
+            SET encrypted_credentials = $2, status = 'connected', last_tested_at = now(), last_error_code = NULL, updated_at = now()
+          WHERE id = $1`,
+        [row.id, encryptServiceCredentials(storedCredentials)],
       );
       return NextResponse.json({ success: true, status: "connected" }, { headers: { "Cache-Control": "no-store" } });
     }
