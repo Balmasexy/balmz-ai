@@ -6,9 +6,12 @@ import { getDbPool } from "@/lib/db";
 import { isAdminUser } from "@/lib/admin";
 import {
   AI_PROVIDERS,
+  decryptProviderKey,
   encryptProviderKey,
+  getAIProviderEnvironmentKey,
   isAIProviderId,
   listAIProviderConnections,
+  listAIProviderEnvironmentStatus,
   listAIProviderModels,
   testAIProvider,
   type AIProviderConnection,
@@ -47,6 +50,18 @@ function migrationRequired() {
   }, { status: 503, headers: { "Cache-Control": "no-store" } });
 }
 
+async function resolveProviderApiKey(providerId: keyof typeof AI_PROVIDERS, supplied?: unknown): Promise<{ apiKey: string; source: "request" | "Render environment" | "saved connection" } | null> {
+  if (typeof supplied === "string" && supplied.trim().length >= 10 && supplied.length <= 4096) {
+    return { apiKey: supplied.trim(), source: "request" };
+  }
+  const environmentKey = getAIProviderEnvironmentKey(providerId);
+  if (environmentKey) return { apiKey: environmentKey, source: "Render environment" };
+  const saved = await listAIProviderConnections();
+  const existing = saved.find((connection) => connection.provider_id === providerId && connection.last_test_status === "connected");
+  if (existing) return { apiKey: decryptProviderKey(existing.encrypted_api_key), source: "saved connection" };
+  return null;
+}
+
 function retryAfterSeconds(error: unknown): number | undefined {
   if (!error || typeof error !== "object" || !("retryAfterSeconds" in error)) return undefined;
   const value = error.retryAfterSeconds;
@@ -71,6 +86,7 @@ export async function GET() {
     const connections = await listAIProviderConnections();
     return NextResponse.json({
       providers: Object.entries(AI_PROVIDERS).map(([id, provider]) => ({ id, name: provider.label })),
+      environmentProviders: listAIProviderEnvironmentStatus(),
       connections: connections.map(publicConnection),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -105,12 +121,17 @@ export async function POST(request: Request) {
       if (!isAIProviderId(body.providerId)) {
         return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
       }
-      if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
-        return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter the provider API key before loading its models." }, { status: 400 });
+      const credential = await resolveProviderApiKey(body.providerId, body.apiKey);
+      if (!credential) {
+        return NextResponse.json({
+          error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
+          message: "No server-side or saved credential is configured for this provider. Add its secret once in the Render environment, or enter a key here for this connection.",
+        }, { status: 409, headers: { "Cache-Control": "no-store" } });
       }
-      const models = await listAIProviderModels(body.providerId, body.apiKey.trim());
+      const models = await listAIProviderModels(body.providerId, credential.apiKey);
       return NextResponse.json({
         success: true,
+        credentialSource: credential.source,
         models,
         message: models.length ? null : "The provider returned no chat models for this key or account.",
       }, { headers: { "Cache-Control": "no-store" } });
@@ -165,16 +186,19 @@ export async function POST(request: Request) {
     if (typeof body.modelId !== "string" || body.modelId.trim().length < 2 || body.modelId.trim().length > 180) {
       return NextResponse.json({ error: "INVALID_MODEL_ID", message: "Enter the model ID exactly as shown by the provider." }, { status: 400 });
     }
-    if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
-      return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter a valid provider API key." }, { status: 400 });
-    }
-
     const providerId = body.providerId;
     const displayName = body.displayName.trim();
     const modelId = body.modelId.trim();
-    const apiKey = body.apiKey.trim();
+    const credential = await resolveProviderApiKey(providerId, body.apiKey);
+    if (!credential) {
+      return NextResponse.json({
+        error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
+        message: "No server-side or saved credential is configured for this provider. Add its secret once in the Render environment, or enter a key here for this connection.",
+      }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
+    const apiKey = credential.apiKey;
 
-    // Verify the key/model pair before storing the encrypted credential.
+    // Verify the resolved provider credential before saving it encrypted.
     await testAIProvider(providerId, apiKey, modelId);
 
     const id = randomUUID();
