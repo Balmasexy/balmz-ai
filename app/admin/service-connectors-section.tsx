@@ -8,6 +8,7 @@ type Environment = "demo" | "live";
 type CatalogItem = {
   id: ServiceId; name: string; category: string; description: string; keyRequired: boolean;
   demoLive: boolean; url: string; keyHelp: string; capabilities: string[];
+  connectionMode?: "oauth" | "public" | "server_environment";
 };
 type Connection = {
   id: string; serviceId: ServiceId; serviceName: string; displayName: string; environment: Environment;
@@ -38,20 +39,15 @@ export function ServiceConnectorsSection() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [environmentStatuses, setEnvironmentStatuses] = useState<EnvStatus[]>([]);
+  const [oauthStatus, setOauthStatus] = useState<{ github: boolean; notion: boolean }>({ github: false, notion: false });
   const [selectedId, setSelectedId] = useState<ServiceId>("github");
   const [environment, setEnvironment] = useState<Environment>("live");
-  const [displayName, setDisplayName] = useState("GitHub primary");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [token, setToken] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [publicKey, setPublicKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [modelId, setModelId] = useState("");
   const [repos, setRepos] = useState<Repository[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
   const [agentQuery, setAgentQuery] = useState("");
@@ -65,11 +61,12 @@ export function ServiceConnectorsSection() {
     setError("");
     try {
       const response = await fetch("/api/admin/service-connectors", { cache: "no-store" });
-      const payload = await response.json() as { catalog?: CatalogItem[]; connections?: Connection[]; environmentStatuses?: EnvStatus[]; message?: string };
+      const payload = await response.json() as { catalog?: CatalogItem[]; connections?: Connection[]; environmentStatuses?: EnvStatus[]; oauthStatus?: { github?: boolean; notion?: boolean }; message?: string };
       if (!response.ok) throw new Error(payload.message || "Connectors could not be loaded.");
       setCatalog(payload.catalog ?? []);
       setConnections(payload.connections ?? []);
       setEnvironmentStatuses(payload.environmentStatuses ?? []);
+      setOauthStatus({ github: payload.oauthStatus?.github === true, notion: payload.oauthStatus?.notion === true });
       const modesResponse = await fetch("/api/admin/payments/environment", { cache: "no-store" });
       const modesPayload = await modesResponse.json() as { modes?: PaymentMode[] };
       if (modesResponse.ok) setPaymentModes(modesPayload.modes ?? []);
@@ -91,71 +88,69 @@ export function ServiceConnectorsSection() {
   const visibleConnections = selectedConnections.filter((item) => item.environment === environment);
 
   useEffect(() => {
-    if (!catalog.some((item) => item.id === selectedId)) return;
-    const label = catalog.find((item) => item.id === selectedId)?.name ?? "Service";
-    setDisplayName(`${label} primary`);
-    setToken("");
-    setApiKey("");
-    setPublicKey("");
-    setBaseUrl("");
-    setModelId("");
     setRepos([]);
     setNotice("");
-  }, [selectedId, catalog]);
+  }, [selectedId]);
 
-  async function connect(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected || saving) return;
-    setSaving(true);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("oauth");
+    const integration = params.get("integration");
+    if (result === "connected") {
+      setNotice((integration === "github" ? "GitHub" : "Notion") + " account authorized and connected.");
+      void refresh();
+      params.delete("oauth");
+      params.delete("integration");
+      window.history.replaceState({}, "", window.location.pathname + (params.size ? "?" + params.toString() : "") + window.location.hash);
+    } else if (result) {
+      setError(result === "unauthorized"
+        ? "The OAuth session changed before authorization completed. Sign in again and reconnect."
+        : "The provider authorization could not be completed. Check the app configuration and try again.");
+      params.delete("oauth");
+      params.delete("integration");
+      window.history.replaceState({}, "", window.location.pathname + (params.size ? "?" + params.toString() : "") + window.location.hash);
+    }
+  }, [refresh]);
+
+  async function connectAvailable() {
+    if (!selected || saving || busyId) return;
     setError("");
     setNotice("");
-    const credentials: Record<string, string> = {};
-    if (["github", "render", "neon", "notion"].includes(selected.id)) credentials.token = token;
-    if (["coingecko", "chartgpt"].includes(selected.id)) credentials.apiKey = apiKey;
-    if (selected.id === "paystack") {
-      credentials.secretKey = apiKey;
-      if (publicKey.trim()) credentials.publicKey = publicKey.trim();
+    if (selected.id === "github" || selected.id === "notion") {
+      const configured = oauthStatus[selected.id];
+      if (!configured) {
+        setError(selected.id === "github"
+          ? "One-time setup is required: configure GITHUB_APP_CLIENT_ID and GITHUB_APP_CLIENT_SECRET in the Render service after registering the BALMZ AI GitHub App."
+          : "One-time setup is required: configure NOTION_OAUTH_CLIENT_ID and NOTION_OAUTH_CLIENT_SECRET in the Render service after creating the BALMZ AI public Notion integration.");
+        return;
+      }
+      window.location.assign("/api/admin/service-connectors/oauth/" + selected.id);
+      return;
     }
-    if (["notes-ai", "custom"].includes(selected.id)) {
-      credentials.baseUrl = baseUrl;
-      credentials.apiKey = apiKey;
-      credentials.modelId = modelId;
-    }
+
+    setSaving(true);
     try {
+      const action = selected.id === "agentic-ai" ? "connect-public" : "connect-environment";
       const response = await fetch("/api/admin/service-connectors", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "connect", serviceId: selected.id, environment,
-          displayName, credentials,
-        }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, serviceId: selected.id, environment }),
       });
       const result = await response.json() as { connection?: Connection; message?: string };
-      if (!response.ok || !result.connection) throw new Error(result.message || "Service connection failed.");
+      if (!response.ok || !result.connection) throw new Error(result.message || "Integration could not be connected.");
       setConnections((current) => [...current.filter((item) => item.id !== result.connection!.id), result.connection!]);
-      setToken(""); setApiKey(""); setPublicKey("");
-      setNotice(`${selected.name} passed its live connection test and was saved securely.`);
+      setNotice(selected.id === "agentic-ai"
+        ? "Agentic.ai public directory connected and tested."
+        : selected.name + " connected using the verified server-side Render credential.");
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Service connection failed.");
-    } finally { setSaving(false); }
+      setError(cause instanceof Error ? cause.message : "Integration could not be connected.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function testEnvironment() {
-    if (!selected || busyId) return;
-    setBusyId("environment");
-    setError(""); setNotice("");
-    try {
-      const response = await fetch("/api/admin/service-connectors", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test-environment", serviceId: selected.id, environment }),
-      });
-      const result = await response.json() as { message?: string; source?: string };
-      if (!response.ok) throw new Error(result.message || "Environment credential test failed.");
-      setNotice(`${selected.name} credential from Render environment passed its live connection test.`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Environment credential test failed.");
-    } finally { setBusyId(""); }
-  }
+
 
   async function testSaved(connection: Connection) {
     if (busyId) return;
@@ -247,7 +242,7 @@ export function ServiceConnectorsSection() {
           <div className="max-w-2xl">
             <span className="inline-flex rounded-full border border-[var(--balmz-orange)]/25 bg-[var(--balmz-orange)]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--balmz-orange)]">Service connector hub</span>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Connect the services that power your work.</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">Find a provider, use an existing Render environment secret or save a key in the encrypted connector vault, then run a real read-only connection test. Credentials are never returned to the browser.</p>
+            <p className="mt-3 text-sm leading-6 text-slate-400">Connect with the provider authorization screen or use a credential already stored securely on Render. BALMZ AI does not collect API keys in this integration list; each connection is tested server-side before it is saved.</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><p className="text-[10px] uppercase tracking-wider text-slate-500">Saved connections</p><p className="mt-1 text-2xl font-semibold tabular-nums text-white">{connections.length}</p><p className="mt-1 text-[10px] text-slate-500">External service entries</p></div>
         </div>
@@ -266,7 +261,7 @@ export function ServiceConnectorsSection() {
             </button>)}
             {!filtered.length ? <p className="px-4 py-7 text-center text-xs text-slate-500">No matching services.</p> : null}
           </div>
-          <div className="border-t border-white/[0.07] px-4 py-3 text-[10px] leading-5 text-slate-600">The catalogue can grow without changing the connector navigation.</div>
+          <div className="border-t border-white/[0.07] px-4 py-3 text-[10px] leading-5 text-slate-600">OAuth services open their own consent pages. Other authenticated APIs use approved server-side credentials; no secret is collected in this page.</div>
         </aside>
 
         {selected ? <section className="min-w-0 space-y-4">
@@ -280,26 +275,47 @@ export function ServiceConnectorsSection() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
-              <div className="border-b border-white/[0.07] px-5 py-4"><h4 className="text-sm font-semibold text-white">Connect or test credentials</h4><p className="mt-1 text-xs text-slate-500">Use Render secrets or save an encrypted key.</p></div>
+              <div className="border-b border-white/[0.07] px-5 py-4">
+                <h4 className="text-sm font-semibold text-white">Direct connection</h4>
+                <p className="mt-1 text-xs text-slate-500">No API-key entry in this page. Authorize the provider or use its server-side credential.</p>
+              </div>
               <div className="space-y-4 p-5">
-                <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-slate-200">Render environment</p><p className="mt-1 text-[10px] text-slate-500">{selectedEnvironmentStatus?.configured ? "A matching secret is present on the Render service." : "No matching environment variable detected."}</p></div><Status value={selectedEnvironmentStatus?.configured ? "configured" : "not configured"} /></div><button type="button" onClick={() => void testEnvironment()} disabled={busyId === "environment" || !selectedEnvironmentStatus?.configured} className="mt-3 min-h-9 w-full rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/40 disabled:opacity-40">{busyId === "environment" ? "Testing Render secret…" : "Test Render environment key"}</button></div>
-                <div className="relative flex items-center gap-3"><div className="h-px flex-1 bg-white/[0.08]" /><span className="text-[9px] uppercase tracking-wider text-slate-600">or add a connector secret</span><div className="h-px flex-1 bg-white/[0.08]" /></div>
-                <form onSubmit={connect} className="space-y-3">
-                  <label className="block"><span className="text-[10px] text-slate-400">Connection label</span><input required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label>
-                  {["github", "render", "neon", "notion"].includes(selected.id) ? <label className="block"><span className="text-[10px] text-slate-400">Personal / service API token</span><input type="password" autoComplete="new-password" required minLength={10} value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste API token" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
-                  {["paystack", "coingecko", "chartgpt"].includes(selected.id) ? <label className="block"><span className="text-[10px] text-slate-400">{selected.id === "paystack" ? "Paystack secret key" : selected.id === "chartgpt" ? "ChartGPT API key" : "CoinGecko API key"}</span><input type="password" autoComplete="new-password" required minLength={10} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={selected.id === "paystack" ? (environment === "demo" ? "sk_test_…" : "sk_live_…") : "API key"} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
-                  {selected.id === "paystack" ? <label className="block"><span className="text-[10px] text-slate-400">Paystack public key (optional)</span><input type="password" autoComplete="new-password" value={publicKey} onChange={(event) => setPublicKey(event.target.value)} placeholder={environment === "demo" ? "pk_test_…" : "pk_live_…"} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label> : null}
-                  {["notes-ai", "custom"].includes(selected.id) ? <><label className="block"><span className="text-[10px] text-slate-400">Public HTTPS API base URL</span><input type="url" required value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.vendor.com/v1" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label><label className="block"><span className="text-[10px] text-slate-400">Model ID</span><input required value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="provider-model-id" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label><label className="block"><span className="text-[10px] text-slate-400">API key</span><input type="password" autoComplete="new-password" required minLength={10} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Provider API key" className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label></> : null}
-                  {selected.id === "agentic-ai" ? <p className="rounded-xl border border-sky-400/15 bg-sky-400/[0.04] p-3 text-[10px] leading-5 text-sky-100">No API key is required. Connect & test will contact the public Agentic.ai directory directly.</p> : null}
-                  <p className="text-[10px] leading-5 text-slate-500">{selected.keyHelp}</p>
-                  <button type="submit" disabled={saving || (!selected.keyRequired && selected.id !== "agentic-ai")} className="min-h-10 w-full rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] hover:brightness-110 disabled:opacity-40">{saving ? "Testing and saving…" : "Connect & test"}</button>
-                </form>
+                {selected.id === "github" || selected.id === "notion" ? (
+                  <div className="rounded-xl border border-white/[0.07] bg-black/20 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-200">{selected.id === "github" ? "GitHub App authorization" : "Notion workspace authorization"}</p>
+                        <p className="mt-1 text-[10px] leading-5 text-slate-500">{oauthStatus[selected.id] ? "OAuth is configured. Continue to the provider to choose the account and grant access." : "A one-time provider app registration must be configured in Render before the authorization button can be enabled."}</p>
+                      </div>
+                      <Status value={oauthStatus[selected.id] ? "ready" : "setup needed"} />
+                    </div>
+                    <button type="button" onClick={() => void connectAvailable()} disabled={!oauthStatus[selected.id] || saving || Boolean(busyId)} className="mt-4 min-h-11 w-full rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                      {oauthStatus[selected.id] ? "Connect with " + selected.name : "OAuth setup required"}
+                    </button>
+                    {!oauthStatus[selected.id] ? <p className="mt-3 text-[10px] leading-5 text-slate-500">{selected.id === "github" ? "Render variables: GITHUB_APP_CLIENT_ID and GITHUB_APP_CLIENT_SECRET. Register the callback URL shown in the BALMZ AI OAuth setup guide." : "Render variables: NOTION_OAUTH_CLIENT_ID and NOTION_OAUTH_CLIENT_SECRET. Register the callback URL shown in the BALMZ AI OAuth setup guide."}</p> : null}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-white/[0.07] bg-black/20 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-200">{selected.id === "agentic-ai" ? "Public directory connection" : "Server-side provider credential"}</p>
+                        <p className="mt-1 text-[10px] leading-5 text-slate-500">{selected.id === "agentic-ai" ? "This public directory does not require an API key. BALMZ AI connects and verifies it directly." : selectedEnvironmentStatus?.configured ? "A matching provider credential is already available on the BALMZ AI Render service. It will not be exposed to the browser." : "This provider does not offer a direct OAuth flow for this API. Configure its credential once in the Render environment; users will never paste it into this page."}</p>
+                      </div>
+                      <Status value={selected.id === "agentic-ai" ? "no key required" : selectedEnvironmentStatus?.configured ? "configured" : "not configured"} />
+                    </div>
+                    <button type="button" onClick={() => void connectAvailable()} disabled={(selected.id !== "agentic-ai" && !selectedEnvironmentStatus?.configured) || saving || Boolean(busyId)} className="mt-4 min-h-11 w-full rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                      {saving ? "Connecting…" : selected.id === "agentic-ai" ? "Connect public directory" : "Connect using Render credential"}
+                    </button>
+                    {selected.id !== "agentic-ai" && !selectedEnvironmentStatus?.configured ? <p className="mt-3 text-[10px] leading-5 text-slate-500">{selected.keyHelp}</p> : null}
+                    <p className="mt-3 text-[10px] leading-5 text-slate-600">Connection and verification run on the server. Secrets are stored in the encrypted service vault and are never returned to the browser.</p>
+                  </div>
+                )}
               </div>
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
               <div className="border-b border-white/[0.07] px-5 py-4"><h4 className="text-sm font-semibold text-white">Saved connections</h4><p className="mt-1 text-xs text-slate-500">{environment.toUpperCase()} connections for {selected.name}</p></div>
-              {loading ? <p className="p-6 text-xs text-slate-500">Loading…</p> : visibleConnections.length ? <div className="divide-y divide-white/[0.055]">{visibleConnections.map((connection) => <article key={connection.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-semibold text-white">{connection.displayName}</p><p className="mt-1 text-[10px] text-slate-500">Last tested: {date(connection.lastTestedAt)}</p></div><Status value={connection.status} /></div><div className="flex gap-2"><button type="button" disabled={Boolean(busyId)} onClick={() => void testSaved(connection)} className="min-h-9 rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{busyId === connection.id ? "Testing…" : "Test again"}</button><button type="button" disabled={Boolean(busyId)} onClick={() => void disconnect(connection)} className="min-h-9 rounded-lg border border-rose-400/15 px-3 text-[10px] font-semibold text-rose-300 disabled:opacity-40">Disconnect</button></div></article>)}</div> : <div className="p-7 text-center"><p className="text-xs font-medium text-slate-300">No saved {environment} connection</p><p className="mt-2 text-[10px] text-slate-500">Test an existing Render variable or add a connector key.</p></div>}
+              {loading ? <p className="p-6 text-xs text-slate-500">Loading…</p> : visibleConnections.length ? <div className="divide-y divide-white/[0.055]">{visibleConnections.map((connection) => <article key={connection.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-semibold text-white">{connection.displayName}</p><p className="mt-1 text-[10px] text-slate-500">Last tested: {date(connection.lastTestedAt)}</p></div><Status value={connection.status} /></div><div className="flex gap-2"><button type="button" disabled={Boolean(busyId)} onClick={() => void testSaved(connection)} className="min-h-9 rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{busyId === connection.id ? "Testing…" : "Test again"}</button><button type="button" disabled={Boolean(busyId)} onClick={() => void disconnect(connection)} className="min-h-9 rounded-lg border border-rose-400/15 px-3 text-[10px] font-semibold text-rose-300 disabled:opacity-40">Disconnect</button></div></article>)}</div> : <div className="p-7 text-center"><p className="text-xs font-medium text-slate-300">No saved {environment} connection</p><p className="mt-2 text-[10px] text-slate-500">Authorize the provider or configure its credential securely in Render.</p></div>}
               {selected.id === "paystack" ? <div className="border-t border-white/[0.06] p-4">
                 <h4 className="text-xs font-semibold text-white">Payment activation</h4>
                 <p className="mt-1 text-[10px] leading-5 text-slate-500">Connecting a key is not the same as enabling payments. Each mode must be verified and explicitly activated. Live charges require an active Paystack merchant account and a webhook signing secret.</p>
