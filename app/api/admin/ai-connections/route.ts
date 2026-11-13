@@ -138,6 +138,7 @@ export async function POST(request: Request) {
     displayName?: unknown;
     modelId?: unknown;
     apiKey?: unknown;
+    endpointUrl?: unknown;
   };
   try {
     body = await request.json();
