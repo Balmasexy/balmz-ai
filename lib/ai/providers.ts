@@ -19,7 +19,7 @@ export type AIImageAttachment = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   dataBase64: string;
 };
-export type AIMessage = { role: "user" | "assistant"; content: string; images?: AIImageAttachment[] };
+export type AIMessage = { role: "system" | "user" | "assistant"; content: string; images?: AIImageAttachment[] };
 
 export function toOpenAIChatMessages(messages: AIMessage[]) {
   return messages.map((message) => ({
@@ -122,7 +122,8 @@ async function requestProvider(
         body: JSON.stringify({
           model,
           max_tokens: maxTokens,
-          messages: messages.map((message) => ({
+          system: messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n") || undefined,
+          messages: messages.filter((message) => message.role !== "system").map((message) => ({
             role: message.role,
             content: message.images?.length
               ? [
