@@ -9,7 +9,9 @@ import {
   decryptProviderKey,
   encryptProviderKey,
   getAIProviderEnvironmentKey,
+  getGeneralLanguageEnvironmentConfig,
   isAIProviderId,
+  normalizeGeneralLanguageBaseUrl,
   listAIProviderConnections,
   listAIProviderEnvironmentStatus,
   listAIProviderModels,
@@ -50,16 +52,38 @@ function migrationRequired() {
   }, { status: 503, headers: { "Cache-Control": "no-store" } });
 }
 
-async function resolveProviderApiKey(providerId: keyof typeof AI_PROVIDERS, supplied?: unknown): Promise<{ apiKey: string; source: "request" | "Render environment" | "saved connection" } | null> {
-  if (typeof supplied === "string" && supplied.trim().length >= 10 && supplied.length <= 4096) {
-    return { apiKey: supplied.trim(), source: "request" };
-  }
-  const environmentKey = getAIProviderEnvironmentKey(providerId);
-  if (environmentKey) return { apiKey: environmentKey, source: "Render environment" };
+function generalLanguageMigrationRequired() {
+  return NextResponse.json({
+    error: "GENERAL_LANGUAGE_SCHEMA_REQUIRED",
+    message: "Apply db/migrations/0007_general_language_api.sql before saving a General Language API connection.",
+  }, { status: 503, headers: { "Cache-Control": "no-store" } });
+}
+
+async function resolveProviderCredential(
+  providerId: keyof typeof AI_PROVIDERS,
+  supplied?: unknown,
+): Promise<{ apiKey: string; source: "request" | "Render environment" | "saved connection"; endpointUrl: string | null } | null> {
   const saved = await listAIProviderConnections();
   const existing = saved.find((connection) => connection.provider_id === providerId && connection.last_test_status === "connected");
-  if (existing) return { apiKey: decryptProviderKey(existing.encrypted_api_key), source: "saved connection" };
-  return null;
+  const suppliedKey = typeof supplied === "string" && supplied.trim().length >= 10 && supplied.length <= 4096
+    ? supplied.trim()
+    : null;
+  const environmentKey = getAIProviderEnvironmentKey(providerId);
+  const apiKey = suppliedKey ?? environmentKey ?? (existing ? decryptProviderKey(existing.encrypted_api_key) : null);
+  if (!apiKey) return null;
+
+  let endpointUrl: string | null = null;
+  if (providerId === "general") {
+    const environment = getGeneralLanguageEnvironmentConfig();
+    const rawEndpoint = environment.baseUrl ?? existing?.endpoint_url ?? null;
+    if (!rawEndpoint) throw new Error("AI_PROVIDER_ENDPOINT_NOT_CONFIGURED");
+    endpointUrl = await normalizeGeneralLanguageBaseUrl(rawEndpoint);
+  }
+  return {
+    apiKey,
+    source: suppliedKey ? "request" : environmentKey ? "Render environment" : "saved connection",
+    endpointUrl,
+  };
 }
 
 function retryAfterSeconds(error: unknown): number | undefined {
@@ -121,14 +145,14 @@ export async function POST(request: Request) {
       if (!isAIProviderId(body.providerId)) {
         return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
       }
-      const credential = await resolveProviderApiKey(body.providerId, body.apiKey);
+      const credential = await resolveProviderCredential(body.providerId, body.apiKey);
       if (!credential) {
         return NextResponse.json({
           error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
           message: "No server-side or saved credential is configured for this provider. Add its secret once in the Render environment, or enter a key here for this connection.",
         }, { status: 409, headers: { "Cache-Control": "no-store" } });
       }
-      const models = await listAIProviderModels(body.providerId, credential.apiKey);
+      const models = await listAIProviderModels(body.providerId, credential.apiKey, credential.endpointUrl);
       return NextResponse.json({
         success: true,
         credentialSource: credential.source,
@@ -146,7 +170,7 @@ export async function POST(request: Request) {
       if (!connection) return NextResponse.json({ error: "CONNECTION_NOT_FOUND" }, { status: 404 });
       try {
         const { decryptProviderKey } = await import("@/lib/ai/providers");
-        await testAIProvider(connection.provider_id, decryptProviderKey(connection.encrypted_api_key), connection.model_id);
+        await testAIProvider(connection.provider_id, decryptProviderKey(connection.encrypted_api_key), connection.model_id, connection.endpoint_url);
         await getDbPool().query(
           `UPDATE public.balmz_ai_provider_connections
               SET last_test_status = 'connected', last_tested_at = now(), last_error_code = NULL, updated_at = now()
@@ -183,13 +207,15 @@ export async function POST(request: Request) {
     if (typeof body.displayName !== "string" || body.displayName.trim().length < 2 || body.displayName.trim().length > 60) {
       return NextResponse.json({ error: "INVALID_DISPLAY_NAME", message: "Connection name must be 2–60 characters." }, { status: 400 });
     }
-    if (typeof body.modelId !== "string" || body.modelId.trim().length < 2 || body.modelId.trim().length > 180) {
-      return NextResponse.json({ error: "INVALID_MODEL_ID", message: "Enter the model ID exactly as shown by the provider." }, { status: 400 });
-    }
     const providerId = body.providerId;
     const displayName = body.displayName.trim();
-    const modelId = body.modelId.trim();
-    const credential = await resolveProviderApiKey(providerId, body.apiKey);
+    const generalEnvironment = providerId === "general" ? getGeneralLanguageEnvironmentConfig() : null;
+    const requestedModelId = typeof body.modelId === "string" ? body.modelId.trim() : "";
+    const modelId = requestedModelId || generalEnvironment?.modelId || "";
+    if (modelId.length < 2 || modelId.length > 180) {
+      return NextResponse.json({ error: "INVALID_MODEL_ID", message: "Select a model or configure GENERAL_LANGUAGE_API_MODEL in Render." }, { status: 400 });
+    }
+    const credential = await resolveProviderCredential(providerId, body.apiKey);
     if (!credential) {
       return NextResponse.json({
         error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
@@ -199,18 +225,18 @@ export async function POST(request: Request) {
     const apiKey = credential.apiKey;
 
     // Verify the resolved provider credential before saving it encrypted.
-    await testAIProvider(providerId, apiKey, modelId);
+    await testAIProvider(providerId, apiKey, modelId, credential.endpointUrl);
 
     const id = randomUUID();
     const encrypted = encryptProviderKey(apiKey);
     const inserted = await getDbPool().query<AIProviderConnection>(
       `INSERT INTO public.balmz_ai_provider_connections
-         (id, provider_id, display_name, model_id, encrypted_api_key, enabled,
+         (id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url, enabled,
           last_test_status, last_tested_at, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, true, 'connected', now(), $6)
-       RETURNING id, provider_id, display_name, model_id, encrypted_api_key,
+       VALUES ($1, $2, $3, $4, $5, $6, true, 'connected', now(), $7)
+       RETURNING id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url,
                  enabled, last_test_status, last_tested_at, last_error_code`,
-      [id, providerId, displayName, modelId, encrypted, auth.session.user.id],
+      [id, providerId, displayName, modelId, encrypted, credential.endpointUrl, auth.session.user.id],
     );
 
     await getDbPool().query(
@@ -224,6 +250,15 @@ export async function POST(request: Request) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (providerId === "general" && error && typeof error === "object" && "code" in error && error.code === "42703") return generalLanguageMigrationRequired();
+    if (error instanceof Error && ["AI_PROVIDER_ENDPOINT_INVALID", "AI_PROVIDER_ENDPOINT_PRIVATE", "AI_PROVIDER_ENDPOINT_UNAVAILABLE"].includes(error.message)) {
+      return NextResponse.json({
+        error: error.message,
+        message: error.message === "AI_PROVIDER_ENDPOINT_PRIVATE"
+          ? "The General Language API endpoint resolved to a private or reserved network address and was blocked."
+          : "The General Language API base URL must be a reachable public HTTPS endpoint without credentials, query parameters or fragments.",
+      }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
     if (error && typeof error === "object" && "code" in error && error.code === "42P01") return migrationRequired();
     if (error && typeof error === "object" && "code" in error && error.code === "23505") {
       return NextResponse.json({ error: "CONNECTION_ALREADY_EXISTS", message: "A connection with this provider and name already exists." }, { status: 409 });
