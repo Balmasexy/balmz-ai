@@ -1,4 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { getDbPool } from "@/lib/db";
 
 export const AI_PROVIDERS = {
@@ -12,6 +14,7 @@ export const AI_PROVIDERS = {
   mistral: { label: "Mistral", protocol: "openai", endpoint: "https://api.mistral.ai/v1/chat/completions" },
   together: { label: "Together AI", protocol: "openai", endpoint: "https://api.together.xyz/v1/chat/completions" },
   fireworks: { label: "Fireworks AI", protocol: "openai", endpoint: "https://api.fireworks.ai/inference/v1/chat/completions" },
+  general: { label: "General Language API", protocol: "openai", endpoint: "" },
 } as const;
 
 export type AIProviderId = keyof typeof AI_PROVIDERS;
@@ -27,6 +30,7 @@ const AI_PROVIDER_ENV_ALIASES: Record<AIProviderId, string[]> = {
   mistral: ["MISTRAL_API_KEY"],
   together: ["TOGETHER_API_KEY"],
   fireworks: ["FIREWORKS_API_KEY"],
+  general: ["GENERAL_LANGUAGE_API_KEY"],
 };
 
 /** Resolve only server-side environment credentials. Never return the value to a client. */
@@ -42,15 +46,25 @@ export function getAIProviderEnvironmentSource(provider: AIProviderId): string |
   return AI_PROVIDER_ENV_ALIASES[provider].find((name) => Boolean(process.env[name]?.trim())) ?? null;
 }
 
+export function getGeneralLanguageEnvironmentConfig() {
+  const apiKey = process.env.GENERAL_LANGUAGE_API_KEY?.trim() ?? "";
+  const baseUrl = process.env.GENERAL_LANGUAGE_API_BASE_URL?.trim() ?? "";
+  const modelId = process.env.GENERAL_LANGUAGE_API_MODEL?.trim() ?? "";
+  return apiKey && baseUrl && modelId ? { apiKey, baseUrl, modelId } : null;
+}
+
 export function listAIProviderEnvironmentStatus() {
   return Object.entries(AI_PROVIDERS).map(([id, definition]) => {
     const providerId = id as AIProviderId;
     const source = getAIProviderEnvironmentSource(providerId);
+    const general = providerId === "general" ? getGeneralLanguageEnvironmentConfig() : null;
+    const configured = providerId === "general" ? Boolean(general) : Boolean(source);
     return {
       providerId,
       providerName: definition.label,
-      configured: Boolean(source),
-      source: source ? "Render environment" : null,
+      configured,
+      source: configured ? "Render environment" : null,
+      defaultModelId: general?.modelId ?? null,
     };
   });
 }
@@ -87,10 +101,64 @@ export type AIProviderConnection = {
   last_test_status: "untested" | "connected" | "failed";
   last_tested_at: string | null;
   last_error_code: string | null;
+  endpoint_url: string | null;
 };
 
 export function isAIProviderId(value: unknown): value is AIProviderId {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(AI_PROVIDERS, value);
+}
+
+function isPublicIPv4(address: string): boolean {
+  const parts = address.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const [a, b, c] = parts;
+  return !(
+    a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && (b === 0 || b === 168)) ||
+    (a === 198 && (b === 18 || b === 19 || b === 51)) ||
+    (a === 203 && b === 0 && c === 113)
+  );
+}
+
+function isPublicIP(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) return isPublicIPv4(address);
+  if (family !== 6) return false;
+  const normalized = address.toLowerCase();
+  if (normalized.startsWith("::ffff:")) return isPublicIP(normalized.slice(7));
+  // Accept only global-unicast IPv6 (2000::/3); reject documentation space.
+  return /^[23][0-9a-f]{3}:/i.test(normalized) && !normalized.startsWith("2001:db8:");
+}
+
+/** Validate the server-configured OpenAI-compatible endpoint and reject private destinations. */
+export async function normalizeGeneralLanguageBaseUrl(value: string): Promise<string> {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error("AI_PROVIDER_ENDPOINT_INVALID"); }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password || url.search || url.hash) {
+    throw new Error("AI_PROVIDER_ENDPOINT_INVALID");
+  }
+  const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal")) {
+    throw new Error("AI_PROVIDER_ENDPOINT_PRIVATE");
+  }
+  let addresses: Array<{ address: string; family: number }>;
+  try { addresses = await lookup(hostname, { all: true, verbatim: true }); }
+  catch { throw new Error("AI_PROVIDER_ENDPOINT_UNAVAILABLE"); }
+  if (!addresses.length || addresses.some((item) => !isPublicIP(item.address))) {
+    throw new Error("AI_PROVIDER_ENDPOINT_PRIVATE");
+  }
+  let pathname = url.pathname.replace(/\/+$/, "");
+  if (pathname.endsWith("/chat/completions")) pathname = pathname.slice(0, -"/chat/completions".length);
+  if (pathname.endsWith("/models")) pathname = pathname.slice(0, -"/models".length);
+  return (`${url.origin}${pathname}`).replace(/\/$/, "");
+}
+
+async function generalLanguageEndpoint(baseUrl: string | null | undefined, resource: "models" | "chat/completions"): Promise<string> {
+  if (!baseUrl) throw new Error("AI_PROVIDER_ENDPOINT_NOT_CONFIGURED");
+  return `${await normalizeGeneralLanguageBaseUrl(baseUrl)}/${resource}`;
 }
 
 function encryptionKey(): Buffer {
@@ -163,13 +231,17 @@ async function requestProvider(
   model: string,
   messages: AIMessage[],
   maxTokens: number,
+  baseUrl?: string | null,
 ): Promise<string> {
   const definition = AI_PROVIDERS[provider];
+  const completionEndpoint = provider === "general"
+    ? await generalLanguageEndpoint(baseUrl, "chat/completions")
+    : definition.endpoint;
   let response: Response;
 
   try {
     if (definition.protocol === "anthropic") {
-      response = await fetch(definition.endpoint, {
+      response = await fetch(completionEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -274,10 +346,10 @@ async function requestProvider(
   return reply.slice(0, 40_000);
 }
 
-export async function testAIProvider(provider: AIProviderId, apiKey: string, model: string): Promise<void> {
+export async function testAIProvider(provider: AIProviderId, apiKey: string, model: string, baseUrl?: string | null): Promise<void> {
   await requestProvider(provider, apiKey, model, [
     { role: "user", content: "Reply with the single word: OK" },
-  ], 12);
+  ], 12, baseUrl);
 }
 
 export type AIProviderModelOption = { id: string; label: string };
@@ -303,6 +375,7 @@ const AI_MODEL_ENDPOINTS: Record<AIProviderId, string> = {
 export async function listAIProviderModels(
   provider: AIProviderId,
   apiKey: string,
+  baseUrl?: string | null,
 ): Promise<AIProviderModelOption[]> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (provider === "anthropic") {
@@ -314,9 +387,12 @@ export async function listAIProviderModels(
     headers.Authorization = `Bearer ${apiKey}`;
   }
 
+  const catalogueEndpoint = provider === "general"
+    ? await generalLanguageEndpoint(baseUrl, "models")
+    : AI_MODEL_ENDPOINTS[provider];
   let response: Response;
   try {
-    response = await fetch(AI_MODEL_ENDPOINTS[provider], {
+    response = await fetch(catalogueEndpoint, {
       method: "GET",
       headers,
       cache: "no-store",
@@ -378,28 +454,54 @@ export async function listAIProviderModels(
 export async function sendAIProviderMessage(connection: AIProviderConnection, messages: AIMessage[]): Promise<string> {
   if (!connection.enabled) throw new Error("AI_PROVIDER_DISABLED");
   const apiKey = decryptProviderKey(connection.encrypted_api_key);
-  return requestProvider(connection.provider_id, apiKey, connection.model_id, messages, 1800);
+  return requestProvider(connection.provider_id, apiKey, connection.model_id, messages, 1800, connection.endpoint_url);
 }
 
 export async function listAIProviderConnections(): Promise<AIProviderConnection[]> {
-  const result = await getDbPool().query<AIProviderConnection>(
-    `SELECT id, provider_id, display_name, model_id, encrypted_api_key,
-            enabled, last_test_status, last_tested_at, last_error_code
-       FROM public.balmz_ai_provider_connections
-      WHERE enabled = true
-      ORDER BY provider_id ASC, display_name ASC`,
-  );
-  return result.rows;
+  try {
+    const result = await getDbPool().query<AIProviderConnection>(
+      `SELECT id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url,
+              enabled, last_test_status, last_tested_at, last_error_code
+         FROM public.balmz_ai_provider_connections
+        WHERE enabled = true
+        ORDER BY provider_id ASC, display_name ASC`,
+    );
+    return result.rows;
+  } catch (error) {
+    if (!error || typeof error !== "object" || !("code" in error) || error.code !== "42703") throw error;
+    const result = await getDbPool().query<Omit<AIProviderConnection, "endpoint_url">>(
+      `SELECT id, provider_id, display_name, model_id, encrypted_api_key,
+              enabled, last_test_status, last_tested_at, last_error_code
+         FROM public.balmz_ai_provider_connections
+        WHERE enabled = true AND provider_id <> 'general'
+        ORDER BY provider_id ASC, display_name ASC`,
+    );
+    return result.rows.map((row) => ({ ...row, endpoint_url: null }));
+  }
 }
 
 export async function findAIProviderConnection(id: string): Promise<AIProviderConnection | null> {
-  const result = await getDbPool().query<AIProviderConnection>(
-    `SELECT id, provider_id, display_name, model_id, encrypted_api_key,
-            enabled, last_test_status, last_tested_at, last_error_code
-       FROM public.balmz_ai_provider_connections
-      WHERE id = $1 AND enabled = true AND last_test_status = 'connected'
-      LIMIT 1`,
-    [id],
-  );
-  return result.rows[0] ?? null;
+  try {
+    const result = await getDbPool().query<AIProviderConnection>(
+      `SELECT id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url,
+              enabled, last_test_status, last_tested_at, last_error_code
+         FROM public.balmz_ai_provider_connections
+        WHERE id = $1 AND enabled = true AND last_test_status = 'connected'
+        LIMIT 1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  } catch (error) {
+    if (!error || typeof error !== "object" || !("code" in error) || error.code !== "42703") throw error;
+    const result = await getDbPool().query<Omit<AIProviderConnection, "endpoint_url">>(
+      `SELECT id, provider_id, display_name, model_id, encrypted_api_key,
+              enabled, last_test_status, last_tested_at, last_error_code
+         FROM public.balmz_ai_provider_connections
+        WHERE id = $1 AND enabled = true AND last_test_status = 'connected'
+          AND provider_id <> 'general'
+        LIMIT 1`,
+      [id],
+    );
+    return result.rows[0] ? { ...result.rows[0], endpoint_url: null } : null;
+  }
 }
