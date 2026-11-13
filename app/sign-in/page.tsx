@@ -11,6 +11,9 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,6 +27,12 @@ export default function SignInPage() {
         callbackURL: startNewChat ? "/dashboard?new=1" : "/dashboard",
       });
       if (result.error) {
+        const authError = result.error as typeof result.error & { status?: number; code?: string };
+        if (authError.status === 403 || authError.code?.toUpperCase().includes("EMAIL_NOT_VERIFIED")) {
+          setVerificationPending(true);
+          setError("");
+          return;
+        }
         setError(result.error.message || "Unable to sign in. Check your details and try again.");
         return;
       }
@@ -32,6 +41,24 @@ export default function SignInPage() {
       setError("Sign-in is temporarily unavailable. Please try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resendVerification() {
+    setResendingVerification(true);
+    setVerificationSent(false);
+    setError("");
+    try {
+      const result = await authClient.sendVerificationEmail({
+        email: email.trim().toLowerCase(),
+        callbackURL: "/dashboard",
+      });
+      if (result.error) throw new Error(result.error.message || "Verification email could not be sent.");
+      setVerificationSent(true);
+    } catch {
+      setError("We could not send a verification email. Check that your address is correct or contact the administrator.");
+    } finally {
+      setResendingVerification(false);
     }
   }
 
@@ -56,7 +83,10 @@ export default function SignInPage() {
             />
           </label>
           <div className="block text-sm text-slate-300">
-            <label htmlFor="sign-in-password">Password</label>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="sign-in-password">Password</label>
+              <Link href="/forgot-password" className="text-xs font-semibold text-orange-400 hover:text-orange-300">Forgot password?</Link>
+            </div>
             <div className="mt-2 flex overflow-hidden rounded-xl border border-white/10 bg-[#0b1220] transition focus-within:border-orange-400">
               <input
                 id="sign-in-password"
@@ -79,6 +109,13 @@ export default function SignInPage() {
               </button>
             </div>
           </div>
+          {verificationPending ? <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+            <p>Your email address still needs verification. Use the link in your inbox before signing in.</p>
+            <button type="button" disabled={resendingVerification} onClick={() => void resendVerification()} className="mt-3 font-semibold text-orange-300 underline underline-offset-4 disabled:opacity-50">
+              {resendingVerification ? "Sending…" : "Resend verification email"}
+            </button>
+            {verificationSent ? <p role="status" className="mt-2 text-xs text-emerald-300">Verification email requested. Check your inbox and spam folder.</p> : null}
+          </div> : null}
           {error ? <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{error}</p> : null}
           <button
             type="submit"
