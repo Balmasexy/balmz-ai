@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { openNativeBrowser, showNativeToast } from "@/lib/capacitor/native-helpers";
 
 type Plugin = {
   id: string;
