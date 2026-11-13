@@ -47,6 +47,23 @@ function migrationRequired() {
   }, { status: 503, headers: { "Cache-Control": "no-store" } });
 }
 
+function retryAfterSeconds(error: unknown): number | undefined {
+  if (!error || typeof error !== "object" || !("retryAfterSeconds" in error)) return undefined;
+  const value = error.retryAfterSeconds;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.min(86_400, Math.ceil(value))
+    : undefined;
+}
+
+function rateLimitMessage(retryIn?: number, operation: "catalogue" | "test" = "catalogue"): string {
+  const wait = retryIn
+    ? ` Retry after approximately ${retryIn} second${retryIn === 1 ? "" : "s"}.`
+    : " Wait for the provider's rate-limit window to reset before trying again.";
+  return operation === "catalogue"
+    ? "The provider is temporarily rate-limiting model catalogue requests for this key or account." + wait + " You can enter the exact model ID manually instead of repeatedly loading the catalogue."
+    : "The provider is temporarily rate-limiting test requests for this key or account." + wait + " BALMZ AI has not saved a new connection or changed the last successful connection status.";
+}
+
 export async function GET() {
   const auth = await authorize();
   if (auth.response) return auth.response;
@@ -118,16 +135,26 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, status: "connected" }, { headers: { "Cache-Control": "no-store" } });
       } catch (error) {
         const code = error instanceof Error ? error.message : "AI_PROVIDER_TEST_FAILED";
+        const rateLimited = code === "AI_PROVIDER_RATE_LIMITED";
+        const retryIn = retryAfterSeconds(error);
         await getDbPool().query(
           `UPDATE public.balmz_ai_provider_connections
-              SET last_test_status = 'failed', last_tested_at = now(), last_error_code = $2, updated_at = now()
+              SET last_test_status = CASE WHEN $2 THEN last_test_status ELSE 'failed' END,
+                  last_tested_at = CASE WHEN $2 THEN last_tested_at ELSE now() END,
+                  last_error_code = $3,
+                  updated_at = now()
             WHERE id = $1`,
-          [connection.id, code.slice(0, 80)],
+          [connection.id, rateLimited, code.slice(0, 80)],
         );
+        const responseHeaders = new Headers({ "Cache-Control": "no-store" });
+        if (retryIn) responseHeaders.set("Retry-After", String(retryIn));
         return NextResponse.json({
           error: code,
-          message: "The saved provider could not complete a test request. Check the provider key, model ID, and provider account limits.",
-        }, { status: 502 });
+          retryAfterSeconds: retryIn,
+          message: rateLimited
+            ? rateLimitMessage(retryIn, "test")
+            : "The saved provider could not complete a test request. Check the provider key, model ID, and provider account limits.",
+        }, { status: rateLimited ? 429 : 502, headers: responseHeaders });
       }
     }
 
@@ -178,19 +205,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "CONNECTION_ALREADY_EXISTS", message: "A connection with this provider and name already exists." }, { status: 409 });
     }
     const code = error instanceof Error ? error.message : "AI_CONNECTION_FAILED";
-    const status = code.startsWith("AI_PROVIDER_") ? 502 : 503;
+    const rateLimited = code === "AI_PROVIDER_RATE_LIMITED";
+    const retryIn = retryAfterSeconds(error);
+    const status = rateLimited ? 429 : code.startsWith("AI_PROVIDER_") ? 502 : 503;
+    const message = rateLimited
+      ? rateLimitMessage(retryIn, body.action === "test" ? "test" : "catalogue")
+      : code === "AI_PROVIDER_AUTH_FAILED"
+        ? "The provider rejected this API key. Check that the key is active and belongs to this provider."
+        : code === "AI_PROVIDER_REQUEST_REJECTED"
+          ? "The provider rejected the request. Check key permissions, the exact model ID, and provider account access."
+          : code === "AI_PROVIDER_UNAVAILABLE"
+            ? "The provider could not be reached right now. Check the provider status and try again."
+            : "The provider operation could not be completed. Check the server and provider configuration.";
+    const responseHeaders = new Headers({ "Cache-Control": "no-store" });
+    if (retryIn) responseHeaders.set("Retry-After", String(retryIn));
     return NextResponse.json({
       error: code,
-      message: code === "AI_PROVIDER_AUTH_FAILED"
-        ? "The provider rejected this API key. Check that the key is active and belongs to this provider."
-        : code === "AI_PROVIDER_RATE_LIMITED"
-          ? "The provider rate-limited the model catalogue request or test. Wait and try again."
-          : code === "AI_PROVIDER_REQUEST_REJECTED"
-            ? "The provider rejected the model catalogue request. Check key permissions and provider account access."
-            : code === "AI_PROVIDER_UNAVAILABLE"
-              ? "The provider could not be reached right now. Check the provider status and try again."
-              : "The provider operation could not be completed. Check the server and provider configuration.",
-    }, { status, headers: { "Cache-Control": "no-store" } });
+      retryAfterSeconds: retryIn,
+      message,
+    }, { status, headers: responseHeaders });
   }
 }
 
