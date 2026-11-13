@@ -15,6 +15,45 @@ export const AI_PROVIDERS = {
 } as const;
 
 export type AIProviderId = keyof typeof AI_PROVIDERS;
+
+const AI_PROVIDER_ENV_ALIASES: Record<AIProviderId, string[]> = {
+  openai: ["OPENAI_API_KEY"],
+  anthropic: ["ANTHROPIC_API_KEY"],
+  google: ["GEMINI_API_KEY", "GOOGLE_AI_API_KEY", "GOOGLE_API_KEY"],
+  xai: ["XAI_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
+  deepseek: ["DEEPSEEK_API_KEY"],
+  groq: ["GROQ_API_KEY"],
+  mistral: ["MISTRAL_API_KEY"],
+  together: ["TOGETHER_API_KEY"],
+  fireworks: ["FIREWORKS_API_KEY"],
+};
+
+/** Resolve only server-side environment credentials. Never return the value to a client. */
+export function getAIProviderEnvironmentKey(provider: AIProviderId): string | null {
+  for (const name of AI_PROVIDER_ENV_ALIASES[provider]) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+export function getAIProviderEnvironmentSource(provider: AIProviderId): string | null {
+  return AI_PROVIDER_ENV_ALIASES[provider].find((name) => Boolean(process.env[name]?.trim())) ?? null;
+}
+
+export function listAIProviderEnvironmentStatus() {
+  return Object.entries(AI_PROVIDERS).map(([id, definition]) => {
+    const providerId = id as AIProviderId;
+    const source = getAIProviderEnvironmentSource(providerId);
+    return {
+      providerId,
+      providerName: definition.label,
+      configured: Boolean(source),
+      source: source ? "Render environment" : null,
+    };
+  });
+}
 export type AIImageAttachment = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   dataBase64: string;
