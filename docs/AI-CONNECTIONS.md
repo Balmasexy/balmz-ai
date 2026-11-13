@@ -23,15 +23,15 @@ Apply db/migrations/0002_ai_provider_connections.sql to the production balmz_ai 
 
 This additive migration creates balmz_ai_provider_connections and records version 0002 in balmz_schema_migrations. It does not change users, sessions, subscriptions, payment records, or usage counters.
 
-## Add a connection
+## Add a connection without re-entering an API key
 
-1. Open /admin → **AI connections**.
-2. Select a provider, connection name, and exact model ID.
-3. Paste its API key into the password field and select **Connect & test provider**.
-4. BALMZ AI sends a small one-word test request before saving the credential. A provider may charge for this request. Failed tests are not saved.
+1. Configure the provider key once in the Render environment using the matching name in `.env.example`, such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`.
+2. Open /admin → **AI connections** and select the provider.
+3. Choose **Load available models**. BALMZ AI resolves the credential from the Render environment first, then from an existing encrypted connection. The browser never receives the key.
+4. Select the model and choose **Connect using available credential**. BALMZ AI tests the resolved key/model pair before storing the encrypted connection.
 5. Once connected, the model appears in the signed-in Chat model selector.
 
-The original API key is not returned to the browser after saving.
+A key can still be entered once in the optional field when no Render or saved credential exists. This is a fallback, not a requirement when the server already has a credential. Failed tests are not saved.
 
 ## Credential protection
 
@@ -46,6 +46,7 @@ A connected provider key does not make that provider free. Requests are billed o
 ## Troubleshooting
 
 - If the page asks for migration 0002, apply the SQL migration and refresh.
+- If no key is entered and no Render/saved credential exists, the provider cannot be authenticated. Add the provider key once to Render's encrypted environment settings; do not expect a provider's public name or catalogue to grant API access.
 - If the provider returns HTTP 429, BALMZ AI reads the provider's `Retry-After` header when available and displays the suggested wait. Do not repeatedly click **Load available models**, **Connect & test**, or **Test again** while the provider is rate-limiting the key/account.
 - When model catalogue access is rate-limited, select **Enter a custom model ID** and enter the exact model identifier shown in the provider's own console/documentation. This avoids repeated catalogue calls; the connection test still sends one real, small provider request and may also be rate-limited.
 - A 429 during **Test again** does not downgrade a previously connected model or clear its last successful test timestamp. Authentication failures, invalid model IDs and other definitive test failures remain visible as failed tests.
