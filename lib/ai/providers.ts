@@ -380,7 +380,7 @@ export async function listAIProviderConnections(): Promise<AIProviderConnection[
 export async function findAIProviderConnection(id: string): Promise<AIProviderConnection | null> {
   const result = await getDbPool().query<AIProviderConnection>(
     `SELECT id, provider_id, display_name, model_id, encrypted_api_key,
-            enabled, last_test_status, last_tested_at, last_error_code
+            enabled, last_test_status, last_tested_at, last_error_code, endpoint_url
        FROM public.balmz_ai_provider_connections
       WHERE id = $1 AND enabled = true AND last_test_status = 'connected'
       LIMIT 1`,
