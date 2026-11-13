@@ -33,7 +33,7 @@ Migration `0007_general_language_api.sql` adds the provider ID and endpoint URL 
 
 ## Database migration
 
-Apply db/migrations/0002_ai_provider_connections.sql to the production balmz_ai database using the migration/owner role. Do not run it with the restricted application role if it lacks DDL permission.
+Apply db/migrations/0002_ai_provider_connections.sql to the production balmz_ai database using the migration/owner role. To enable General Language API, also apply db/migrations/0007_general_language_api.sql before deploying the feature. Do not run migrations with the restricted application role if it lacks DDL permission.
 
 This additive migration creates balmz_ai_provider_connections and records version 0002 in balmz_schema_migrations. It does not change users, sessions, subscriptions, payment records, or usage counters.
 
