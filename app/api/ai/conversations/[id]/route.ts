@@ -69,6 +69,41 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 }
 
+export async function PATCH(request: Request, context: RouteContext) {
+  const userId = await currentUserId();
+  if (!userId) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: noStore });
+  const { id } = await context.params;
+  if (!id || id.length > 80) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404, headers: noStore });
+
+  let body: { messageId?: unknown; action?: unknown };
+  try { body = await request.json(); }
+  catch { return NextResponse.json({ error: "INVALID_JSON" }, { status: 400, headers: noStore }); }
+  if (body.action !== "fail-unrecoverable-attachment" ||
+      typeof body.messageId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.messageId)) {
+    return NextResponse.json({ error: "INVALID_MESSAGE_UPDATE" }, { status: 400, headers: noStore });
+  }
+
+  try {
+    const updated = await getDbPool().query(
+      `UPDATE public.balmz_messages
+          SET status = 'failed'
+        WHERE id = $1
+          AND conversation_id = $2
+          AND user_id = $3
+          AND role = 'user'
+          AND has_attachments = true
+          AND status = 'queued'
+        RETURNING id`,
+      [body.messageId, id, userId],
+    );
+    if (!updated.rowCount) return NextResponse.json({ error: "MESSAGE_NOT_QUEUED" }, { status: 409, headers: noStore });
+    return NextResponse.json({ success: true, status: "failed" }, { headers: noStore });
+  } catch {
+    return NextResponse.json({ error: "WORKSPACE_STORAGE_UNAVAILABLE" }, { status: 503, headers: noStore });
+  }
+}
+
 export async function DELETE(_request: Request, context: RouteContext) {
   const userId = await currentUserId();
   if (!userId) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: noStore });
