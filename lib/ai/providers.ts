@@ -89,6 +89,24 @@ function errorCode(status: number): string {
   return "AI_PROVIDER_REQUEST_REJECTED";
 }
 
+function providerRetryAfterSeconds(headers: Headers): number | undefined {
+  const value = headers.get("retry-after")?.trim();
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(86_400, Math.max(1, Math.ceil(seconds)));
+  const date = Date.parse(value);
+  if (!Number.isFinite(date)) return undefined;
+  return Math.min(86_400, Math.max(1, Math.ceil((date - Date.now()) / 1000)));
+}
+
+function providerResponseError(response: Response): Error {
+  const error = new Error(errorCode(response.status)) as Error & { retryAfterSeconds?: number };
+  if (response.status === 429) {
+    error.retryAfterSeconds = providerRetryAfterSeconds(response.headers);
+  }
+  return error;
+}
+
 function extractOpenAIText(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const choices = (value as { choices?: Array<{ message?: { content?: unknown } }> }).choices;
@@ -193,7 +211,7 @@ async function requestProvider(
     throw new Error("AI_PROVIDER_UNAVAILABLE");
   }
 
-  if (!response.ok) throw new Error(errorCode(response.status));
+  if (!response.ok) throw providerResponseError(response);
 
   let payload: unknown;
   try {
@@ -269,7 +287,7 @@ export async function listAIProviderModels(
   } catch {
     throw new Error("AI_PROVIDER_UNAVAILABLE");
   }
-  if (!response.ok) throw new Error(errorCode(response.status));
+  if (!response.ok) throw providerResponseError(response);
 
   let payload: unknown;
   try {
