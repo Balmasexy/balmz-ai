@@ -346,6 +346,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     if (!active?.id || busy) return;
     const queued = active.messages.filter((message) =>
       message.role === "user" && message.status === "queued" &&
+      Date.now() - new Date(message.createdAt).getTime() < 120_000 &&
       !pendingMessagesRef.current.some((pending) => pending.messageId === message.id),
     );
     if (!queued.length) return;
