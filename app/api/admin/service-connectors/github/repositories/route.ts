@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
 import { getDbPool } from "@/lib/db";
+import { encryptServiceCredentials, decryptServiceCredentials } from "@/lib/service-connectors";
+import { refreshOAuthCredentials } from "@/lib/service-oauth";
 import {
   decryptServiceCredentials,
   SERVICE_CATALOG,
@@ -20,13 +22,23 @@ export async function GET() {
 
   let token = "";
   try {
-    const result = await getDbPool().query<{ encrypted_credentials: string }>(
-      `SELECT encrypted_credentials FROM public.balmz_service_credentials
+    const result = await getDbPool().query<{ id: string; encrypted_credentials: string }>(
+      `SELECT id, encrypted_credentials FROM public.balmz_service_credentials
         WHERE service_id = 'github' AND status = 'connected'
         ORDER BY last_tested_at DESC NULLS LAST LIMIT 1`,
     );
     if (result.rows[0]) {
-      token = decryptServiceCredentials(result.rows[0].encrypted_credentials).token ?? "";
+      const stored = decryptServiceCredentials(result.rows[0].encrypted_credentials);
+      const credentials = stored.authMethod === "github-app-oauth"
+        ? await refreshOAuthCredentials("github", stored)
+        : stored;
+      token = credentials.token ?? "";
+      if (credentials.token !== stored.token) {
+        await getDbPool().query(
+          "UPDATE public.balmz_service_credentials SET encrypted_credentials = $2, updated_at = now() WHERE id = $1",
+          [result.rows[0].id, encryptServiceCredentials(credentials)],
+        );
+      }
     } else {
       const env = serviceCredentialsFromEnvironment("github", "live" as ServiceEnvironment);
       token = env?.token ?? "";
