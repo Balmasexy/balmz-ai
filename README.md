@@ -70,7 +70,7 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 
 ## Neon database and migrations
 
-Use the dedicated Neon project and the `balmz_ai` database. The database schema is versioned by additive SQL files in `db/migrations`; production currently records versions `0001` through `0006` in `public.balmz_schema_migrations`; migration `0007` is pending and adds General Language API endpoint support.
+Use the dedicated Neon project and the `balmz_ai` database. The database schema is versioned by additive SQL files in `db/migrations`; production currently records versions `0001` through `0006` in `public.balmz_schema_migrations`; additive migrations `0007` and `0008` are pending.
 
 The migrations cover:
 
@@ -80,7 +80,8 @@ The migrations cover:
 4. Paystack checkout-attempt records.
 5. Subscription catalogue, trials and family-access grants.
 6. One-time Pro trial redemption.
-7. General Language API provider ID and validated endpoint URL.
+7. Account-owned durable chat conversations and idempotent chat turns.
+8. General Language API provider ID and validated endpoint URL.
 
 Run schema changes using a separate migration/owner credential after reviewing the SQL and taking the appropriate backup. The restricted `balmz_ai_app` runtime role is not the migration owner. Never drop or recreate the production database to fix a schema mismatch.
 
@@ -107,7 +108,7 @@ ChartGPT requires its own service credential from `/admin?section=service-connec
 
 AI requests require an active subscription and are metered against the server-side `ai_messages` allowance. Usage reservation uses a request idempotency key so a network retry does not count a second request.
 
-See [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md). The General Language API integration accepts public HTTPS OpenAI-compatible endpoints configured with `GENERAL_LANGUAGE_API_KEY`, `GENERAL_LANGUAGE_API_BASE_URL`, and `GENERAL_LANGUAGE_API_MODEL` in Render.
+See [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) and [docs/GENERAL_LANGUAGE_API.md](docs/GENERAL_LANGUAGE_API.md). The General Language API accepts a provider API key and public HTTPS OpenAI-compatible endpoint in Super Admin, or can use server-side `GENERAL_LANGUAGE_API_KEY`, `GENERAL_LANGUAGE_API_BASE_URL`, and `GENERAL_LANGUAGE_API_MODEL` values configured in Render.
 
 See [docs/SERVER-SIDE-INTEGRATIONS.md](docs/SERVER-SIDE-INTEGRATIONS.md) for connecting service integrations directly from existing Render secrets without pasting API keys into the connector form.
 
