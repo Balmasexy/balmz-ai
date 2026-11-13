@@ -84,8 +84,14 @@ export function AIConnectionsSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "list-models", providerId, apiKey }),
       });
-      const result = await response.json() as { models?: ProviderModel[]; message?: string };
+      const result = await response.json() as { error?: string; models?: ProviderModel[]; message?: string; retryAfterSeconds?: number };
       if (!response.ok || !Array.isArray(result.models)) {
+        if (result.error === "AI_PROVIDER_RATE_LIMITED") {
+          // The live catalogue may be rate-limited. Allow manual model ID entry
+          // so the administrator does not repeatedly call the same endpoint.
+          setCustomModelMode(true);
+          setModelId("");
+        }
         throw new Error(result.message || "The provider model list could not be loaded.");
       }
       setAvailableModels(result.models);
@@ -141,13 +147,14 @@ export function AIConnectionsSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "test", id: connection.id }),
       });
-      const result = await response.json() as { message?: string };
+      const result = await response.json() as { error?: string; message?: string; retryAfterSeconds?: number };
       if (!response.ok) throw new Error(result.message || "Provider test failed.");
       setNotice(`${connection.providerName} connection test passed.`);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Connection test failed.");
+      const message = cause instanceof Error ? cause.message : "Connection test failed.";
       await refresh();
+      setError(message);
     } finally {
       setBusyId("");
     }
