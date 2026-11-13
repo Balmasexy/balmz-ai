@@ -42,6 +42,7 @@ function publicConnection(connection: AIProviderConnection) {
     status: connection.last_test_status,
     lastTestedAt: connection.last_tested_at,
     lastErrorCode: connection.last_error_code,
+    endpointConfigured: Boolean(connection.endpoint_url),
   };
 }
 
@@ -62,6 +63,7 @@ function generalLanguageMigrationRequired() {
 async function resolveProviderCredential(
   providerId: keyof typeof AI_PROVIDERS,
   supplied?: unknown,
+  suppliedEndpoint?: unknown,
 ): Promise<{ apiKey: string; source: "request" | "Render environment" | "saved connection"; endpointUrl: string | null } | null> {
   const saved = await listAIProviderConnections();
   const existing = saved.find((connection) => connection.provider_id === providerId && connection.last_test_status === "connected");
@@ -75,7 +77,10 @@ async function resolveProviderCredential(
   let endpointUrl: string | null = null;
   if (providerId === "general") {
     const environment = getGeneralLanguageEnvironmentConfig();
-    const rawEndpoint = environment.baseUrl ?? existing?.endpoint_url ?? null;
+    const requestedEndpoint = typeof suppliedEndpoint === "string" && suppliedEndpoint.trim().length <= 500
+      ? suppliedEndpoint.trim()
+      : null;
+    const rawEndpoint = requestedEndpoint || environment.baseUrl || existing?.endpoint_url || null;
     if (!rawEndpoint) throw new Error("AI_PROVIDER_ENDPOINT_NOT_CONFIGURED");
     endpointUrl = await normalizeGeneralLanguageBaseUrl(rawEndpoint);
   }
@@ -145,7 +150,7 @@ export async function POST(request: Request) {
       if (!isAIProviderId(body.providerId)) {
         return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
       }
-      const credential = await resolveProviderCredential(body.providerId, body.apiKey);
+      const credential = await resolveProviderCredential(body.providerId, body.apiKey, body.endpointUrl);
       if (!credential) {
         return NextResponse.json({
           error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
@@ -215,7 +220,7 @@ export async function POST(request: Request) {
     if (modelId.length < 2 || modelId.length > 180) {
       return NextResponse.json({ error: "INVALID_MODEL_ID", message: "Select a model or configure GENERAL_LANGUAGE_API_MODEL in Render." }, { status: 400 });
     }
-    const credential = await resolveProviderCredential(providerId, body.apiKey);
+    const credential = await resolveProviderCredential(providerId, body.apiKey, body.endpointUrl);
     if (!credential) {
       return NextResponse.json({
         error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
