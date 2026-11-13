@@ -46,6 +46,9 @@ A connected provider key does not make that provider free. Requests are billed o
 ## Troubleshooting
 
 - If the page asks for migration 0002, apply the SQL migration and refresh.
-- If a test fails, verify the provider key is active, the model ID exists, and the account has API access or credit.
-- If a stored provider stops responding, select **Test again** or reconnect it.
+- If the provider returns HTTP 429, BALMZ AI reads the provider's `Retry-After` header when available and displays the suggested wait. Do not repeatedly click **Load available models**, **Connect & test**, or **Test again** while the provider is rate-limiting the key/account.
+- When model catalogue access is rate-limited, select **Enter a custom model ID** and enter the exact model identifier shown in the provider's own console/documentation. This avoids repeated catalogue calls; the connection test still sends one real, small provider request and may also be rate-limited.
+- A 429 during **Test again** does not downgrade a previously connected model or clear its last successful test timestamp. Authentication failures, invalid model IDs and other definitive test failures remain visible as failed tests.
+- If a test fails, verify the provider key is active, the model ID exists, and the account has API access, quota and credit.
+- If a stored provider stops responding, wait for the provider's reset window before selecting **Test again**.
 - The provider connection is available to user accounts only after the authenticated chat UI receives it from /api/ai/models.
