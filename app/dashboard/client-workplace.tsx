@@ -14,7 +14,7 @@ type ImageAttachment = {
   dataBase64: string;
   previewUrl: string;
 };
-type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[]; hasAttachments?: boolean; status?: "queued" | "completed" | "failed" };
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[]; hasAttachments?: boolean; status?: "queued" | "completed" | "failed"; requestId?: string | null; model?: string | null };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
 type PendingChatMessage = { conversationId: string; messageId: string; model: string; requestId: string };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
@@ -172,7 +172,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     if (!response.ok) throw new Error("This saved conversation could not be loaded.");
     const result = await response.json() as {
       conversation?: { id: string; title: string; updated_at?: string; updatedAt?: string };
-      messages?: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string; hasAttachments?: boolean; status?: "queued" | "completed" | "failed" }>;
+      messages?: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string; hasAttachments?: boolean; status?: "queued" | "completed" | "failed"; requestId?: string | null; model?: string | null }>;
     };
     const messages: Message[] = Array.isArray(result.messages) ? result.messages.map((message) => ({
       id: message.id,
@@ -181,8 +181,35 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       createdAt: message.createdAt,
       hasAttachments: message.hasAttachments === true,
       status: message.status,
+      requestId: message.requestId ?? null,
+      model: message.model ?? null,
     })) : [];
     conversationMessagesRef.current.set(id, messages);
+
+    const now = Date.now();
+    let recoveredTextTurns = 0;
+    for (const message of messages) {
+      if (message.role !== "user" || message.status !== "queued" ||
+          now - new Date(message.createdAt).getTime() < 120_000) continue;
+      if (message.hasAttachments) {
+        const response = await fetch("/api/ai/conversations/" + encodeURIComponent(id), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "fail-unrecoverable-attachment", messageId: message.id }),
+        });
+        if (response.ok) message.status = "failed";
+        continue;
+      }
+      if (!message.requestId || !message.model) continue;
+      if (pendingMessagesRef.current.some((pending) => pending.messageId === message.id)) continue;
+      pendingMessagesRef.current.push({
+        conversationId: id,
+        messageId: message.id,
+        model: message.model,
+        requestId: message.requestId,
+      });
+      recoveredTextTurns += 1;
+    }
     setConversations((current) => {
       const existing = current.find((item) => item.id === id);
       const title = result.conversation?.title || existing?.title || "New chat";
@@ -190,6 +217,12 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       const item: Conversation = { id, title, updatedAt, messages };
       return [item, ...current.filter((entry) => entry.id !== id)].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     });
+    if (recoveredTextTurns > 0) {
+      setNotice(recoveredTextTurns === 1
+        ? "Recovered a queued text message from your saved chat. Resuming it now."
+        : `Recovered ${recoveredTextTurns} queued text messages from your saved chat. Resuming them now.`);
+      void processPendingMessages();
+    }
   }
 
   useEffect(() => {
@@ -308,6 +341,21 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   useEffect(() => {
     void refreshModels();
   }, []);
+
+  useEffect(() => {
+    if (!active?.id || busy) return;
+    const queued = active.messages.filter((message) =>
+      message.role === "user" && message.status === "queued" &&
+      !pendingMessagesRef.current.some((pending) => pending.messageId === message.id),
+    );
+    if (!queued.length) return;
+    const nextRecoveryAt = Math.min(...queued.map((message) => new Date(message.createdAt).getTime() + 120_000));
+    const delay = Math.max(1_000, nextRecoveryAt - Date.now());
+    const timer = window.setTimeout(() => {
+      void loadServerConversation(active.id).catch(() => undefined);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [active?.id, active?.messages, busy]);
 
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
   const filtered = useMemo(() => conversations.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())), [conversations, query]);
