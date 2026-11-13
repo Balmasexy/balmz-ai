@@ -273,6 +273,7 @@ const AI_MODEL_ENDPOINTS: Record<AIProviderId, string> = {
   mistral: "https://api.mistral.ai/v1/models",
   together: "https://api.together.xyz/v1/models",
   fireworks: "https://api.fireworks.ai/inference/v1/models",
+  general: "",
 };
 
 /**
