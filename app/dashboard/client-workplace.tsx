@@ -342,6 +342,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     void refreshModels();
   }, []);
 
+  const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
+
   useEffect(() => {
     if (!active?.id || busy) return;
     const queued = active.messages.filter((message) =>
@@ -357,8 +359,6 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     }, delay);
     return () => window.clearTimeout(timer);
   }, [active?.id, active?.messages, busy]);
-
-  const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
   const filtered = useMemo(() => conversations.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())), [conversations, query]);
 
   function newChat() {
