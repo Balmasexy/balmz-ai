@@ -14,8 +14,22 @@ The Super Admin can manage external model providers from /admin → **AI connect
 - Mistral
 - Together AI
 - Fireworks AI
+- General Language API (any public HTTPS OpenAI-compatible chat endpoint)
 
 OpenAI-compatible providers use their provider-specific HTTPS API endpoints. Anthropic and Gemini use their native Messages and generateContent APIs. Model names are entered exactly as provided by the model vendor; BALMZ AI does not invent a provider's available model list.
+
+### General Language API
+
+The General Language API connector supports vendors exposing an OpenAI-compatible `GET /models` catalogue and `POST /chat/completions` endpoint. Configure these three server-only Render environment variables:
+
+- `GENERAL_LANGUAGE_API_KEY`
+- `GENERAL_LANGUAGE_API_BASE_URL` (public HTTPS base URL, such as `https://api.vendor.com/v1`)
+- `GENERAL_LANGUAGE_API_MODEL` (exact provider model identifier)
+
+The Super Admin can then choose **General Language API**, load the available models using the existing server credential, and connect the selected model without pasting a key into the browser. The endpoint is validated as HTTPS and private/reserved IP destinations are rejected. Redirects are disabled for provider requests.
+
+Migration `0007_general_language_api.sql` adds the provider ID and endpoint URL column. Apply it using the Neon migration/owner role before connecting this provider. Existing provider records are preserved.
+
 
 ## Database migration
 
