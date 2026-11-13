@@ -9,6 +9,7 @@ type Connection = {
   id: string;
   providerId: string;
   providerName: string;
+  endpointUrl: string | null;
   displayName: string;
   modelId: string;
   enabled: boolean;
@@ -28,6 +29,7 @@ const providers: Provider[] = [
   { id: "mistral", name: "Mistral" },
   { id: "together", name: "Together AI" },
   { id: "fireworks", name: "Fireworks AI" },
+  { id: "general", name: "General Language API · OpenAI-compatible" },
 ];
 
 function date(value: string | null) {
@@ -47,6 +49,7 @@ export function AIConnectionsSection() {
   const [displayName, setDisplayName] = useState("OpenAI primary");
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [endpointUrl, setEndpointUrl] = useState("https://api.example.com/v1");
   const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [customModelMode, setCustomModelMode] = useState(false);
@@ -82,7 +85,7 @@ export function AIConnectionsSection() {
       const response = await fetch("/api/admin/ai-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list-models", providerId, apiKey }),
+        body: JSON.stringify({ action: "list-models", providerId, apiKey, ...(providerId === "general" ? { endpointUrl } : {}) }),
       });
       const result = await response.json() as { models?: ProviderModel[]; message?: string };
       if (!response.ok || !Array.isArray(result.models)) {
@@ -116,7 +119,7 @@ export function AIConnectionsSection() {
       const response = await fetch("/api/admin/ai-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerId, displayName, modelId, apiKey }),
+        body: JSON.stringify({ providerId, displayName, modelId, apiKey, ...(providerId === "general" ? { endpointUrl } : {}) }),
       });
       const result = await response.json() as { connection?: Connection; message?: string };
       if (!response.ok || !result.connection) throw new Error(result.message || "Provider connection failed.");
@@ -197,6 +200,7 @@ export function AIConnectionsSection() {
           <form onSubmit={connect} className="space-y-4 p-5 sm:p-6">
             <label className="block"><span className="text-[11px] font-medium text-slate-400">AI provider</span><select value={providerId} onChange={(event) => { setProviderId(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); setNotice(""); setError(""); }} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
             <label className="block"><span className="text-[11px] font-medium text-slate-400">Connection name</span><input required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="e.g. Claude production" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
+            {providerId === "general" ? <label className="block"><span className="text-[11px] font-medium text-slate-400">OpenAI-compatible API base URL</span><input required type="url" value={endpointUrl} onChange={(event) => { setEndpointUrl(event.target.value); setAvailableModels([]); setModelId(""); }} placeholder="https://api.provider.com/v1" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /><span className="mt-1 block text-[10px] leading-5 text-slate-500">Use the provider's HTTPS base URL. BALMZ AI will request /models and /chat/completions from this host. Private-network URLs and redirects are blocked.</span></label> : null}
             
             <div className="space-y-2">
               <label className="block"><span className="text-[11px] font-medium text-slate-400">Provider API key</span><input required type="password" autoComplete="new-password" minLength={10} maxLength={4096} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); }} placeholder="Paste the provider API key here" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
