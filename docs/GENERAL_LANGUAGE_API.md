@@ -6,11 +6,13 @@ The General Language API is a provider-neutral AI connection for services that i
 
 Open `/admin?section=ai-connections` and select **General Language API**.
 
-Supply:
-- A connection name.
-- The provider's public HTTPS base URL.
-- The provider API key.
-- The exact model ID.
+Supply a connection name and a public HTTPS base URL in the endpoint field. The credential and model can be loaded automatically from server configuration:
+
+- `GENERAL_LANGUAGE_API_KEY`: provider key in Render.
+- `GENERAL_LANGUAGE_API_BASE_URL`: optional default base URL in Render.
+- `GENERAL_LANGUAGE_API_MODEL`: optional default model ID in Render.
+
+When the provider key is already configured in Render or saved in an encrypted provider connection, the form does not require you to paste it again. A one-time key field remains available only as a fallback when no server credential exists. When the base URL is saved in a previous connection or configured in Render, the endpoint field can be left blank. The model can be selected from the catalogue or entered manually.
 
 Use **Load available models** when the provider exposes an OpenAI-compatible `/models` endpoint. If it does not, select the manual model option and enter the exact model ID supplied by the provider. **Connect & test** sends a small test prompt before the connection is saved.
 
