@@ -209,7 +209,7 @@ export async function POST(request: Request) {
     const retryIn = retryAfterSeconds(error);
     const status = rateLimited ? 429 : code.startsWith("AI_PROVIDER_") ? 502 : 503;
     const message = rateLimited
-      ? rateLimitMessage(retryIn, body.action === "test" ? "test" : "catalogue")
+      ? rateLimitMessage(retryIn, body.action === "list-models" ? "catalogue" : "test")
       : code === "AI_PROVIDER_AUTH_FAILED"
         ? "The provider rejected this API key. Check that the key is active and belongs to this provider."
         : code === "AI_PROVIDER_REQUEST_REJECTED"
