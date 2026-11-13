@@ -11,10 +11,12 @@ import { StorageSection } from "./storage-section";
 import { AIConnectionsSection } from "./ai-connections-section";
 import { ServiceConnectorsSection } from "./service-connectors-section";
 import { ApiKeysSection } from "./api-keys-section";
+import { FamilyAccessSection } from "./family-access-section";
 
 type Section =
   | "overview"
   | "accounts"
+  | "family-access"
   | "plans"
   | "subscriptions"
   | "payments"
@@ -41,6 +43,7 @@ const navigation: { title: string; items: NavigationItem[] }[] = [
     items: [
       { id: "overview", label: "Overview", icon: "◫", detail: "Live platform overview" },
       { id: "accounts", label: "User accounts", icon: "◎", detail: "Identity and access" },
+      { id: "family-access", label: "Family access", icon: "♡", detail: "Grant complimentary access to selected users" },
       { id: "plans", label: "Plan catalog", icon: "◇", detail: "Configured subscription plans" },
       { id: "subscriptions", label: "Subscriptions", icon: "▤", detail: "Account entitlements" },
     ],
@@ -75,6 +78,7 @@ const navigation: { title: string; items: NavigationItem[] }[] = [
 const titles: Record<Section, { eyebrow: string; title: string; description: string }> = {
   overview: { eyebrow: "COMMAND CENTER", title: "Platform overview", description: "A live view of your BALMZ AI operations and account activity." },
   accounts: { eyebrow: "IDENTITY", title: "User accounts", description: "Review registered accounts, account roles and verification status." },
+  "family-access": { eyebrow: "COMPLIMENTARY ACCESS", title: "Family access", description: "Filter registered users and grant time-limited or lifetime free access with a shared AI prompt." },
   plans: { eyebrow: "BILLING CONFIGURATION", title: "Plan catalog", description: "Inspect the plans currently stored in the BALMZ AI database." },
   subscriptions: { eyebrow: "CUSTOMER ENTITLEMENTS", title: "Subscriptions", description: "Review subscription assignments and their current lifecycle state." },
   payments: { eyebrow: "FINANCIAL RECORDS", title: "Payment records", description: "Inspect recorded transactions. Payment initiation and settlement controls are not enabled." },
@@ -572,7 +576,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("section");
     const allowed: Section[] = [
-      "overview", "accounts", "plans", "subscriptions", "payments", "usage",
+      "overview", "accounts", "family-access", "plans", "subscriptions", "payments", "usage",
       "webhooks", "audit", "terminal", "storage", "ai-connections",
       "service-connectors", "api-keys", "settings",
     ];
@@ -679,6 +683,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
 
             {active === "overview" ? <OverviewSection data={data} onNavigate={navigate} /> : null}
             {active === "accounts" ? <AccountsSection data={filteredData} /> : null}
+            {active === "family-access" ? <FamilyAccessSection /> : null}
             {active === "plans" ? <PlansSection data={filteredData} /> : null}
             {active === "subscriptions" ? <SubscriptionsSection data={filteredData} /> : null}
             {active === "payments" ? <PaymentsSection data={filteredData} /> : null}

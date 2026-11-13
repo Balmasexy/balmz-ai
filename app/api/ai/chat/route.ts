@@ -28,6 +28,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const candidate = (body as { messages?: unknown } | null)?.messages;
+  const requestedRequestId = (body as { requestId?: unknown } | null)?.requestId;
+  const requestId = typeof requestedRequestId === "string" && /^[0-9a-f-]{36}$/i.test(requestedRequestId)
+    ? requestedRequestId
+    : randomUUID();
   if (!Array.isArray(candidate) || candidate.length < 1 || candidate.length > 20) {
     return safeError("INVALID_MESSAGES", 400, "Send between 1 and 20 recent messages.");
   }
@@ -80,13 +84,31 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("ACTIVE_PLAN_REQUIRED", 402, "An active BALMZ AI plan is required before sending AI requests.");
   }
 
+  let providerMessages: AIMessage[] = messages;
+  try {
+    const familyAccess = subscription.plan_code === "family_complimentary"
+      ? await getActiveComplimentaryAccess(session.user.id)
+      : null;
+    if (familyAccess) {
+      providerMessages = [
+        {
+          role: "system",
+          content: "BALMZ AI shared family workspace instruction. Prompt tag: " + familyAccess.promptTag + ". Follow this shared instruction in addition to the user's latest request, subject to all safety and privacy rules:\n\n" + familyAccess.sharedPrompt,
+        },
+        ...messages,
+      ];
+    }
+  } catch {
+    return safeError("FAMILY_ACCESS_UNAVAILABLE", 503, "Your shared workspace instructions could not be verified. No AI request was sent.");
+  }
+
   try {
     await consumeUsage({
       userId: session.user.id,
       metric: "ai_messages",
       units: 1,
       source: "client_chat",
-      idempotencyKey: randomUUID(),
+      idempotencyKey: requestId,
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : "USAGE_UNAVAILABLE";
@@ -108,7 +130,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
       const connection = await findAIProviderConnection(connectionId);
       if (!connection) return safeError("AI_MODEL_UNAVAILABLE", 503, "This AI connection is no longer available. Refresh the model list and select another provider.");
-      const reply = await sendAIProviderMessage(connection, messages);
+      const reply = await sendAIProviderMessage(connection, providerMessages);
       return NextResponse.json({
         reply,
         model: connection.model_id,

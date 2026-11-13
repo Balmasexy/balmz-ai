@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from "@capacitor/cli";
+import { KeyboardResize, KeyboardStyle } from "@capacitor/keyboard";
 
 const config: CapacitorConfig = {
   appId: "com.balmz.ai",
@@ -21,6 +22,10 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: "DARK",
       backgroundColor: "#080D15",
+    },    Keyboard: {
+      resize: KeyboardResize.Native,
+      resizeOnFullScreen: true,
+      style: KeyboardStyle.Dark,
     },
   },
 };

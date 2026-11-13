@@ -151,7 +151,10 @@ async function requestProvider(
           "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
-          contents: messages.map((message) => ({
+          systemInstruction: messages.some((message) => message.role === "system")
+            ? { parts: [{ text: messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n") }] }
+            : undefined,
+          contents: messages.filter((message) => message.role !== "system").map((message) => ({
             role: message.role === "assistant" ? "model" : "user",
             parts: [
               ...(message.content ? [{ text: message.content }] : []),

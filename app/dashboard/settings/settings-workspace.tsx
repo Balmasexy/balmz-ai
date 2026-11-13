@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { NativeCapabilitiesSection } from "./native-capabilities";
 
 type Props = { name: string; email: string; planName: string | null; isAdmin: boolean };
 type SettingRow = { id: string; icon: string; label: string; value: string; href?: string; muted?: boolean };
@@ -70,6 +71,7 @@ export function SettingsWorkspace({ name, email, planName, isAdmin }: Props) {
           <p className="px-1 text-sm text-white/60">Account</p>
           <SettingGroup items={accountRows} />
           <SettingGroup items={identityRows} />
+          <NativeCapabilitiesSection />
           <p className="px-1 pt-5 text-sm text-white/60">Preferences</p>
           <SettingGroup items={appearanceRows} />
           {isAdmin ? <>

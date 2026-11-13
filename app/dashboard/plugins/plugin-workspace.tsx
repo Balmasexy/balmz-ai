@@ -13,6 +13,7 @@ type Plugin = {
   route: string;
   access: "admin" | "billing" | "info";
   provider: string;
+  externalUrl?: string;
 };
 
 const plugins: Plugin[] = [
@@ -23,9 +24,9 @@ const plugins: Plugin[] = [
   { id: "chartgpt", name: "ChartGPT", category: "Work", description: "Generate charts from prompts and your structured data using the shared administrator-tested ChartGPT connection. Export your results; chart history is not retained by ChartGPT.", capabilities: ["Chart generation", "SVG / PNG / JSON export"], route: "/dashboard/charts", access: "info", provider: "ChartGPT" },
   { id: "notion", name: "Notion", category: "Work", description: "Add a Notion integration credential for the workspace. Actual actions depend on the connected Notion API and granted permissions.", capabilities: ["Knowledge workspace", "Pages and databases"], route: "/admin?section=service-connectors", access: "admin", provider: "Notion" },
   { id: "agentic", name: "Agentic AI directory", category: "AI", description: "Search the Agentic.ai public directory for compatible AI agents and services.", capabilities: ["Agent discovery", "Directory search"], route: "/admin?section=service-connectors", access: "admin", provider: "Agentic.ai" },
-  { id: "paystack", name: "Paystack", category: "Finance", description: "Workspace-managed payment integration. Demo and Live modes remain separate and Live requires verified credentials and explicit activation.", capabilities: ["Checkout", "Transaction verification", "Webhooks"], route: "/dashboard/billing", access: "billing", provider: "Paystack" },
-  { id: "render", name: "Render deployments", category: "Infrastructure", description: "Inspect Render services and deployment status from the protected deployment workplace.", capabilities: ["Deployments", "Service status", "Logs"], route: "/dashboard/deployments", access: "admin", provider: "Render" },
-  { id: "neon", name: "Neon database", category: "Infrastructure", description: "The BALMZ AI application database is managed through Neon. Database administration remains protected.", capabilities: ["PostgreSQL", "Branch-aware migrations"], route: "/admin?section=storage", access: "admin", provider: "Neon" },
+  { id: "paystack", name: "Paystack", category: "Finance", description: "Workspace-managed payment integration. Demo and Live modes remain separate and Live requires verified credentials and explicit activation.", capabilities: ["Checkout", "Transaction verification", "Webhooks"], route: "/dashboard/billing", access: "billing", provider: "Paystack", externalUrl: "https://paystack.com/docs" },
+  { id: "render", name: "Render deployments", category: "Infrastructure", description: "Inspect Render services and deployment status from the protected deployment workplace.", capabilities: ["Deployments", "Service status", "Logs"], route: "/dashboard/deployments", access: "admin", provider: "Render", externalUrl: "https://render.com/docs" },
+  { id: "neon", name: "Neon database", category: "Infrastructure", description: "The BALMZ AI application database is managed through Neon. Database administration remains protected.", capabilities: ["PostgreSQL", "Branch-aware migrations"], route: "/admin?section=storage", access: "admin", provider: "Neon", externalUrl: "https://neon.tech/docs" },
   { id: "mcp", name: "MCP tool endpoint", category: "Developer", description: "BALMZ AI exposes an MCP endpoint for compatible clients. Only tools registered by the server are callable.", capabilities: ["MCP", "Structured tool contracts"], route: "/mcp", access: "info", provider: "BALMZ AI" },
 ];
 
@@ -80,9 +81,12 @@ export function PluginWorkspace({ isAdmin, planName }: { isAdmin: boolean; planN
               <div className="mt-3 flex flex-wrap gap-1.5">{plugin.capabilities.map((capability) => <span key={capability} className="rounded-lg bg-white/[0.045] px-2 py-1 text-[9px] text-slate-400">{capability}</span>)}</div>
               <div className="mt-5 flex items-center justify-between gap-2 border-t border-white/[0.07] pt-4">
                 <span className="text-[10px] text-slate-500">{plugin.access === "admin" ? "Admin-managed" : plugin.access === "billing" ? "Billing workspace" : "Workspace feature"}</span>
-                {plugin.access === "admin" && !isAdmin
-                  ? <span className="rounded-lg border border-white/[0.08] px-3 py-2 text-[10px] text-slate-500">Ask administrator</span>
-                  : <Link href={plugin.route} className="rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110">{plugin.access === "admin" ? "Manage" : plugin.access === "billing" ? "Open" : "Open tool"}</Link>}
+                <div className="flex items-center gap-2">
+                  {plugin.externalUrl ? <button type="button" onClick={() => void openNativeBrowser(plugin.externalUrl!).catch(() => showNativeToast("Could not open the provider website."))} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-slate-400 hover:text-white">Docs</button> : null}
+                  {plugin.access === "admin" && !isAdmin
+                    ? <span className="rounded-lg border border-white/[0.08] px-3 py-2 text-[10px] text-slate-500">Ask administrator</span>
+                    : <Link href={plugin.route} className="rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110">{plugin.access === "admin" ? "Manage" : plugin.access === "billing" ? "Open" : "Open tool"}</Link>}
+                </div>
               </div>
             </article>
           ))}
