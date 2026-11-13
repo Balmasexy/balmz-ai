@@ -37,6 +37,7 @@ function publicConnection(connection: AIProviderConnection) {
     status: connection.last_test_status,
     lastTestedAt: connection.last_tested_at,
     lastErrorCode: connection.last_error_code,
+    endpointUrl: connection.endpoint_url,
   };
 }
 
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
     displayName?: unknown;
     modelId?: unknown;
     apiKey?: unknown;
+    endpointUrl?: unknown;
   };
   try {
     body = await request.json();
@@ -88,10 +90,13 @@ export async function POST(request: Request) {
       if (!isAIProviderId(body.providerId)) {
         return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
       }
+      if (body.providerId === "general" && typeof body.endpointUrl !== "string") {
+        return NextResponse.json({ error: "INVALID_ENDPOINT", message: "Enter the public HTTPS OpenAI-compatible API base URL." }, { status: 400 });
+      }
       if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
         return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter the provider API key before loading its models." }, { status: 400 });
       }
-      const models = await listAIProviderModels(body.providerId, body.apiKey.trim());
+      const models = await listAIProviderModels(body.providerId, body.apiKey.trim(), typeof body.endpointUrl === "string" ? body.endpointUrl.trim() : null);
       return NextResponse.json({
         success: true,
         models,
@@ -108,7 +113,7 @@ export async function POST(request: Request) {
       if (!connection) return NextResponse.json({ error: "CONNECTION_NOT_FOUND" }, { status: 404 });
       try {
         const { decryptProviderKey } = await import("@/lib/ai/providers");
-        await testAIProvider(connection.provider_id, decryptProviderKey(connection.encrypted_api_key), connection.model_id);
+        await testAIProvider(connection.provider_id, decryptProviderKey(connection.encrypted_api_key), connection.model_id, connection.endpoint_url);
         await getDbPool().query(
           `UPDATE public.balmz_ai_provider_connections
               SET last_test_status = 'connected', last_tested_at = now(), last_error_code = NULL, updated_at = now()
@@ -141,31 +146,35 @@ export async function POST(request: Request) {
     if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
       return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter a valid provider API key." }, { status: 400 });
     }
+    if (body.providerId === "general" && typeof body.endpointUrl !== "string") {
+      return NextResponse.json({ error: "INVALID_ENDPOINT", message: "Enter a public HTTPS OpenAI-compatible API base URL." }, { status: 400 });
+    }
 
     const providerId = body.providerId;
+    const endpointUrl = providerId === "general" ? (body.endpointUrl as string).trim() : null;
     const displayName = body.displayName.trim();
     const modelId = body.modelId.trim();
     const apiKey = body.apiKey.trim();
 
     // Verify the key/model pair before storing the encrypted credential.
-    await testAIProvider(providerId, apiKey, modelId);
+    await testAIProvider(providerId, apiKey, modelId, endpointUrl);
 
     const id = randomUUID();
     const encrypted = encryptProviderKey(apiKey);
     const inserted = await getDbPool().query<AIProviderConnection>(
       `INSERT INTO public.balmz_ai_provider_connections
-         (id, provider_id, display_name, model_id, encrypted_api_key, enabled,
+         (id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url, enabled,
           last_test_status, last_tested_at, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, true, 'connected', now(), $6)
-       RETURNING id, provider_id, display_name, model_id, encrypted_api_key,
+       VALUES ($1, $2, $3, $4, $5, $6, true, 'connected', now(), $7)
+       RETURNING id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url,
                  enabled, last_test_status, last_tested_at, last_error_code`,
-      [id, providerId, displayName, modelId, encrypted, auth.session.user.id],
+      [id, providerId, displayName, modelId, encrypted, endpointUrl, auth.session.user.id],
     );
 
     await getDbPool().query(
       `INSERT INTO public.balmz_admin_audit_log (id, actor_user_id, action, metadata)
        VALUES ($1, $2, 'ai_provider_connected', $3::jsonb)`,
-      [randomUUID(), auth.session.user.id, JSON.stringify({ providerId, displayName, modelId })],
+      [randomUUID(), auth.session.user.id, JSON.stringify({ providerId, displayName, modelId, ...(endpointUrl ? { endpointUrl } : {}) })],
     ).catch(() => undefined);
 
     return NextResponse.json({ success: true, connection: publicConnection(inserted.rows[0]) }, {
