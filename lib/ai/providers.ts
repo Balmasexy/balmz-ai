@@ -47,10 +47,11 @@ export function getAIProviderEnvironmentSource(provider: AIProviderId): string |
 }
 
 export function getGeneralLanguageEnvironmentConfig() {
-  const apiKey = process.env.GENERAL_LANGUAGE_API_KEY?.trim() ?? "";
-  const baseUrl = process.env.GENERAL_LANGUAGE_API_BASE_URL?.trim() ?? "";
-  const modelId = process.env.GENERAL_LANGUAGE_API_MODEL?.trim() ?? "";
-  return apiKey && baseUrl && modelId ? { apiKey, baseUrl, modelId } : null;
+  return {
+    apiKey: process.env.GENERAL_LANGUAGE_API_KEY?.trim() || null,
+    baseUrl: process.env.GENERAL_LANGUAGE_API_BASE_URL?.trim() || null,
+    modelId: process.env.GENERAL_LANGUAGE_API_MODEL?.trim() || null,
+  };
 }
 
 export function listAIProviderEnvironmentStatus() {
@@ -365,6 +366,7 @@ const AI_MODEL_ENDPOINTS: Record<AIProviderId, string> = {
   mistral: "https://api.mistral.ai/v1/models",
   together: "https://api.together.xyz/v1/models",
   fireworks: "https://api.fireworks.ai/inference/v1/models",
+  general: "",
 };
 
 /**
