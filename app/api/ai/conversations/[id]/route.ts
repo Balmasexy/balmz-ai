@@ -33,12 +33,13 @@ export async function GET(_request: Request, context: RouteContext) {
       role: "user" | "assistant";
       content: string;
       created_at: Date;
+      request_id: string | null;
       model: string | null;
       provider_id: string | null;
       has_attachments: boolean;
       status: "queued" | "completed" | "failed";
     }>(
-      `SELECT id, role, content, created_at, model, provider_id, has_attachments, status
+      `SELECT id, role, content, created_at, request_id, model, provider_id, has_attachments, status
          FROM public.balmz_messages
         WHERE conversation_id = $1 AND user_id = $2
         ORDER BY created_at ASC, id ASC
@@ -53,6 +54,7 @@ export async function GET(_request: Request, context: RouteContext) {
         role: item.role,
         content: item.content,
         createdAt: item.created_at,
+        requestId: item.request_id,
         model: item.model,
         provider: item.provider_id,
         hasAttachments: item.has_attachments,
