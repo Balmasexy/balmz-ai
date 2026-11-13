@@ -3,19 +3,8 @@ BEGIN;
 ALTER TABLE public.balmz_ai_provider_connections
   ADD COLUMN IF NOT EXISTS endpoint_url text;
 
-DO $$
-DECLARE
-  existing_check text;
-BEGIN
-  SELECT conname INTO existing_check
-    FROM pg_constraint
-   WHERE conrelid = 'public.balmz_ai_provider_connections'::regclass
-     AND contype = 'c'
-     AND pg_get_constraintdef(oid) ILIKE '%provider_id%';
-  IF existing_check IS NOT NULL THEN
-    EXECUTE format('ALTER TABLE public.balmz_ai_provider_connections DROP CONSTRAINT %I', existing_check);
-  END IF;
-END $$;
+ALTER TABLE public.balmz_ai_provider_connections
+  DROP CONSTRAINT IF EXISTS balmz_ai_provider_connections_provider_id_check;
 
 ALTER TABLE public.balmz_ai_provider_connections
   ADD CONSTRAINT balmz_ai_provider_connections_provider_id_check
