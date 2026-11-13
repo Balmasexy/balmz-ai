@@ -7,6 +7,7 @@ import { isAdminUser } from "@/lib/admin";
 import { getOAuthAppCredentials, refreshOAuthCredentials, type OAuthServiceId } from "@/lib/service-oauth";
 import {
   checkStoredServiceCredential,
+  decryptServiceCredentials,
   encryptServiceCredentials,
   getServiceSecretStatus,
   serviceCredentialsFromEnvironment,
@@ -206,7 +207,7 @@ export async function POST(request: Request) {
       );
       const row = result.rows[0];
       if (!row) return NextResponse.json({ error: "CONNECTION_NOT_FOUND" }, { status: 404 });
-      let storedCredentials = await import("@/lib/service-connectors").then((module) => module.decryptServiceCredentials(row.encrypted_credentials));
+      let storedCredentials = decryptServiceCredentials(row.encrypted_credentials);
       if (row.service_id === "github" || row.service_id === "notion") {
         storedCredentials = await refreshOAuthCredentials(row.service_id as OAuthServiceId, storedCredentials);
       }
