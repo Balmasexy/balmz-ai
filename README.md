@@ -99,7 +99,7 @@ See [docs/AUTH_EMAIL_DELIVERY.md](docs/AUTH_EMAIL_DELIVERY.md).
 
 ## AI providers, ChartGPT and usage
 
-The Super Admin can connect OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI and Fireworks AI from `/admin?section=ai-connections`. Connections are tested before saving, and credentials are encrypted server-side. The client receives safe provider/model metadata, not the original keys.
+The Super Admin can connect OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI, Fireworks AI and General Language API from `/admin?section=ai-connections`. Connections are tested before saving, and credentials are encrypted server-side. The client receives safe provider/model metadata, not the original keys.
 
 Provider connections are not created merely because a provider appears in the plugin directory. A real provider key and a valid model must be configured. Image understanding depends on the selected model supporting vision.
 
