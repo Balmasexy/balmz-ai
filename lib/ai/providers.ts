@@ -12,6 +12,7 @@ export const AI_PROVIDERS = {
   mistral: { label: "Mistral", protocol: "openai", endpoint: "https://api.mistral.ai/v1/chat/completions" },
   together: { label: "Together AI", protocol: "openai", endpoint: "https://api.together.xyz/v1/chat/completions" },
   fireworks: { label: "Fireworks AI", protocol: "openai", endpoint: "https://api.fireworks.ai/inference/v1/chat/completions" },
+  general: { label: "General Language API", protocol: "openai", endpoint: "" },
 } as const;
 
 export type AIProviderId = keyof typeof AI_PROVIDERS;
@@ -48,6 +49,7 @@ export type AIProviderConnection = {
   last_test_status: "untested" | "connected" | "failed";
   last_tested_at: string | null;
   last_error_code: string | null;
+  endpoint_url: string | null;
 };
 
 export function isAIProviderId(value: unknown): value is AIProviderId {
@@ -82,6 +84,37 @@ export function decryptProviderKey(value: string): string {
   ]).toString("utf8");
 }
 
+function validateGeneralLanguageEndpoint(value: string): string {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error("AI_PROVIDER_ENDPOINT_INVALID"); }
+  const host = url.hostname.toLowerCase();
+  if (
+    url.protocol !== "https:" ||
+    !host ||
+    url.username ||
+    url.password ||
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    url.search ||
+    url.hash
+  ) throw new Error("AI_PROVIDER_ENDPOINT_INVALID");
+  return url.toString().replace(/\/$/, "");
+}
+
+function generalChatEndpoint(baseUrl: string): string {
+  const base = validateGeneralLanguageEndpoint(baseUrl);
+  if (base.endsWith("/chat/completions")) return base;
+  if (base.endsWith("/v1")) return base + "/chat/completions";
+  return base + "/v1/chat/completions";
+}
+
 function errorCode(status: number): string {
   if (status === 401 || status === 403) return "AI_PROVIDER_AUTH_FAILED";
   if (status === 429) return "AI_PROVIDER_RATE_LIMITED";
@@ -106,13 +139,17 @@ async function requestProvider(
   model: string,
   messages: AIMessage[],
   maxTokens: number,
+  endpointOverride?: string | null,
 ): Promise<string> {
   const definition = AI_PROVIDERS[provider];
+  const chatEndpoint = provider === "general"
+    ? generalChatEndpoint(endpointOverride ?? "")
+    : definition.endpoint;
   let response: Response;
 
   try {
     if (definition.protocol === "anthropic") {
-      response = await fetch(definition.endpoint, {
+      response = await fetch(chatEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -217,10 +254,10 @@ async function requestProvider(
   return reply.slice(0, 40_000);
 }
 
-export async function testAIProvider(provider: AIProviderId, apiKey: string, model: string): Promise<void> {
+export async function testAIProvider(provider: AIProviderId, apiKey: string, model: string, endpointUrl?: string | null): Promise<void> {
   await requestProvider(provider, apiKey, model, [
     { role: "user", content: "Reply with the single word: OK" },
-  ], 12);
+  ], 12, endpointUrl);
 }
 
 export type AIProviderModelOption = { id: string; label: string };
@@ -246,6 +283,7 @@ const AI_MODEL_ENDPOINTS: Record<AIProviderId, string> = {
 export async function listAIProviderModels(
   provider: AIProviderId,
   apiKey: string,
+  endpointUrl?: string | null,
 ): Promise<AIProviderModelOption[]> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (provider === "anthropic") {
@@ -259,7 +297,10 @@ export async function listAIProviderModels(
 
   let response: Response;
   try {
-    response = await fetch(AI_MODEL_ENDPOINTS[provider], {
+    const modelEndpoint = provider === "general"
+      ? generalChatEndpoint(endpointUrl ?? "").replace(/\/chat\/completions$/, "/models")
+      : AI_MODEL_ENDPOINTS[provider];
+    response = await fetch(modelEndpoint, {
       method: "GET",
       headers,
       cache: "no-store",
@@ -321,13 +362,13 @@ export async function listAIProviderModels(
 export async function sendAIProviderMessage(connection: AIProviderConnection, messages: AIMessage[]): Promise<string> {
   if (!connection.enabled) throw new Error("AI_PROVIDER_DISABLED");
   const apiKey = decryptProviderKey(connection.encrypted_api_key);
-  return requestProvider(connection.provider_id, apiKey, connection.model_id, messages, 1800);
+  return requestProvider(connection.provider_id, apiKey, connection.model_id, messages, 1800, connection.endpoint_url);
 }
 
 export async function listAIProviderConnections(): Promise<AIProviderConnection[]> {
   const result = await getDbPool().query<AIProviderConnection>(
     `SELECT id, provider_id, display_name, model_id, encrypted_api_key,
-            enabled, last_test_status, last_tested_at, last_error_code
+            enabled, last_test_status, last_tested_at, last_error_code, endpoint_url
        FROM public.balmz_ai_provider_connections
       WHERE enabled = true
       ORDER BY provider_id ASC, display_name ASC`,
