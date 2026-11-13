@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
-import { findAIProviderConnection, sendAIProviderMessage, toOpenAIChatMessages, type AIImageAttachment, type AIProviderConnection } from "@/lib/ai/providers";
+import { findAIProviderConnection, sendAIProviderMessage, toOpenAIChatMessages, type AIImageAttachment, type AIMessage, type AIProviderConnection } from "@/lib/ai/providers";
+import { getActiveComplimentaryAccess } from "@/lib/family-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -168,7 +169,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
       body: JSON.stringify({
         model,
-        messages: toOpenAIChatMessages(messages),
+        messages: toOpenAIChatMessages(providerMessages),
         max_tokens: 1800,
       }),
       signal: AbortSignal.timeout(45_000),
