@@ -14,7 +14,7 @@ type ImageAttachment = {
   dataBase64: string;
   previewUrl: string;
 };
-type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[] };
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[]; hasAttachments?: boolean; status?: "queued" | "completed" | "failed" };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
 type PendingChatMessage = { conversationId: string; messageId: string; model: string; requestId: string };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
@@ -166,6 +166,95 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       localStorage.setItem(conversationStorageKey, JSON.stringify(textOnly));
     }
   }, [conversations]);
+
+  async function loadServerConversation(id: string) {
+    const response = await fetch("/api/ai/conversations/" + encodeURIComponent(id), { cache: "no-store" });
+    if (!response.ok) throw new Error("This saved conversation could not be loaded.");
+    const result = await response.json() as {
+      conversation?: { id: string; title: string; updated_at?: string; updatedAt?: string };
+      messages?: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string; hasAttachments?: boolean; status?: "queued" | "completed" | "failed" }>;
+    };
+    const messages: Message[] = Array.isArray(result.messages) ? result.messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      hasAttachments: message.hasAttachments === true,
+      status: message.status,
+    })) : [];
+    conversationMessagesRef.current.set(id, messages);
+    setConversations((current) => {
+      const existing = current.find((item) => item.id === id);
+      const title = result.conversation?.title || existing?.title || "New chat";
+      const updatedAt = result.conversation?.updatedAt || result.conversation?.updated_at || existing?.updatedAt || new Date().toISOString();
+      const item: Conversation = { id, title, updatedAt, messages };
+      return [item, ...current.filter((entry) => entry.id !== id)].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    });
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function syncHistory() {
+      try {
+        const raw = localStorage.getItem(conversationStorageKey);
+        const local = raw ? JSON.parse(raw) as Conversation[] : [];
+        const localItems = Array.isArray(local) ? local.filter((item) => item && typeof item.id === "string" && Array.isArray(item.messages)) : [];
+        if (localItems.length) {
+          const safeImport = localItems.map((conversation) => ({
+            ...conversation,
+            messages: conversation.messages.map((message) => ({
+              id: message.id,
+              role: message.role,
+              content: message.content,
+              createdAt: message.createdAt,
+              hasAttachments: Boolean(message.hasAttachments || message.images?.length),
+            })),
+          }));
+          await fetch("/api/ai/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conversations: safeImport }),
+          });
+        }
+        const response = await fetch("/api/ai/conversations", { cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json() as { storage?: string; conversations?: Array<{ id: string; title: string; updatedAt: string }> };
+        if (cancelled || result.storage !== "database" || !Array.isArray(result.conversations)) return;
+        const remote = result.conversations;
+        setConversations((current) => {
+          const localById = new Map(current.map((item) => [item.id, item]));
+          const merged = remote.map((item) => {
+            const existing = localById.get(item.id);
+            return existing
+              ? { ...existing, title: item.title || existing.title, updatedAt: item.updatedAt || existing.updatedAt }
+              : { id: item.id, title: item.title, updatedAt: item.updatedAt, messages: [] };
+          });
+          const remoteIds = new Set(remote.map((item) => item.id));
+          return [...merged, ...current.filter((item) => !remoteIds.has(item.id))]
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+        });
+        const selected = localItems[0]?.id && remote.some((item) => item.id === localItems[0].id)
+          ? localItems[0].id
+          : localItems.length
+            ? null
+            : remote[0]?.id ?? null;
+        if (selected) {
+          if (!localItems.some((item) => item.id === selected && item.messages.length)) {
+            setActiveId(selected);
+            await loadServerConversation(selected);
+          } else if (remote.some((item) => item.id === selected)) {
+            await loadServerConversation(selected);
+          }
+        }
+      } catch {
+        // Local, account-scoped history remains available when durable storage is offline.
+      }
+    }
+    void syncHistory();
+    return () => { cancelled = true; };
+  }, []);
+
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -395,6 +484,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               messages: requestMessages,
               model: pending.model,
               requestId: pending.requestId,
+              conversationId: pending.conversationId,
+              userMessageId: pending.messageId,
             }),
           });
         } catch {
@@ -563,7 +654,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
           <p className="px-2 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Recent</p>
-          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setPrompt(""); setSelectedImages([]); setUploadMenuOpen(false); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
+          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => {
+            setActiveId(item.id); setPrompt(""); setSelectedImages([]); setUploadMenuOpen(false); setMobileSidebar(false); setNotice("");
+            void loadServerConversation(item.id).catch(() => undefined);
+          }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
           <p className="px-2 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Explore</p>
           <div className="space-y-1">
             <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
@@ -642,6 +736,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <div className={message.role === "user" ? "max-w-[88%] rounded-3xl bg-[#182232] px-5 py-3.5 text-sm leading-7 text-slate-100" : "min-w-0 flex-1 pt-1 text-sm leading-7 text-slate-200"}>
                 <div className="whitespace-pre-wrap break-words">{message.content}</div>
                 {message.images?.length ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{message.images.map((image) => <img key={image.id} src={image.previewUrl} alt={image.name} className="max-h-52 w-full rounded-xl border border-white/10 object-cover" />)}</div> : null}
+                {!message.images?.length && message.hasAttachments ? <p className="mt-2 text-[10px] leading-5 text-slate-500">Photo attachment was not retained in permanent chat history. Reattach the image to send it again.</p> : null}
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
               </div>
             </article>)}
