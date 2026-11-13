@@ -250,7 +250,13 @@ export async function POST(request: Request) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    if (providerId === "general" && error && typeof error === "object" && "code" in error && error.code === "42703") return generalLanguageMigrationRequired();
+    if (body.providerId === "general" && error && typeof error === "object" && "code" in error && error.code === "42703") return generalLanguageMigrationRequired();
+    if (error instanceof Error && error.message === "AI_PROVIDER_ENDPOINT_NOT_CONFIGURED") {
+      return NextResponse.json({
+        error: error.message,
+        message: "Configure GENERAL_LANGUAGE_API_BASE_URL in Render with a public HTTPS OpenAI-compatible endpoint.",
+      }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
     if (error instanceof Error && ["AI_PROVIDER_ENDPOINT_INVALID", "AI_PROVIDER_ENDPOINT_PRIVATE", "AI_PROVIDER_ENDPOINT_UNAVAILABLE"].includes(error.message)) {
       return NextResponse.json({
         error: error.message,
