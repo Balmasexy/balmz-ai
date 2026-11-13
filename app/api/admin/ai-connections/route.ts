@@ -6,9 +6,14 @@ import { getDbPool } from "@/lib/db";
 import { isAdminUser } from "@/lib/admin";
 import {
   AI_PROVIDERS,
+  decryptProviderKey,
   encryptProviderKey,
+  getAIProviderEnvironmentKey,
+  getGeneralLanguageEnvironmentConfig,
   isAIProviderId,
+  normalizeGeneralLanguageBaseUrl,
   listAIProviderConnections,
+  listAIProviderEnvironmentStatus,
   listAIProviderModels,
   testAIProvider,
   type AIProviderConnection,
@@ -37,6 +42,7 @@ function publicConnection(connection: AIProviderConnection) {
     status: connection.last_test_status,
     lastTestedAt: connection.last_tested_at,
     lastErrorCode: connection.last_error_code,
+    endpointConfigured: Boolean(connection.endpoint_url),
   };
 }
 
@@ -47,6 +53,61 @@ function migrationRequired() {
   }, { status: 503, headers: { "Cache-Control": "no-store" } });
 }
 
+function generalLanguageMigrationRequired() {
+  return NextResponse.json({
+    error: "GENERAL_LANGUAGE_SCHEMA_REQUIRED",
+    message: "Apply db/migrations/0008_general_language_api_provider.sql before saving a General Language API connection.",
+  }, { status: 503, headers: { "Cache-Control": "no-store" } });
+}
+
+async function resolveProviderCredential(
+  providerId: keyof typeof AI_PROVIDERS,
+  supplied?: unknown,
+  suppliedEndpoint?: unknown,
+): Promise<{ apiKey: string; source: "request" | "Render environment" | "saved connection"; endpointUrl: string | null } | null> {
+  const saved = await listAIProviderConnections();
+  const existing = saved.find((connection) => connection.provider_id === providerId && connection.last_test_status === "connected");
+  const suppliedKey = typeof supplied === "string" && supplied.trim().length >= 10 && supplied.length <= 4096
+    ? supplied.trim()
+    : null;
+  const environmentKey = getAIProviderEnvironmentKey(providerId);
+  const apiKey = suppliedKey ?? environmentKey ?? (existing ? decryptProviderKey(existing.encrypted_api_key) : null);
+  if (!apiKey) return null;
+
+  let endpointUrl: string | null = null;
+  if (providerId === "general") {
+    const environment = getGeneralLanguageEnvironmentConfig();
+    const requestedEndpoint = typeof suppliedEndpoint === "string" && suppliedEndpoint.trim().length <= 500
+      ? suppliedEndpoint.trim()
+      : null;
+    const rawEndpoint = requestedEndpoint || environment.baseUrl || existing?.endpoint_url || null;
+    if (!rawEndpoint) throw new Error("AI_PROVIDER_ENDPOINT_NOT_CONFIGURED");
+    endpointUrl = await normalizeGeneralLanguageBaseUrl(rawEndpoint);
+  }
+  return {
+    apiKey,
+    source: suppliedKey ? "request" : environmentKey ? "Render environment" : "saved connection",
+    endpointUrl,
+  };
+}
+
+function retryAfterSeconds(error: unknown): number | undefined {
+  if (!error || typeof error !== "object" || !("retryAfterSeconds" in error)) return undefined;
+  const value = error.retryAfterSeconds;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.min(86_400, Math.ceil(value))
+    : undefined;
+}
+
+function rateLimitMessage(retryIn?: number, operation: "catalogue" | "test" = "catalogue"): string {
+  const wait = retryIn
+    ? ` Retry after approximately ${retryIn} second${retryIn === 1 ? "" : "s"}.`
+    : " Wait for the provider's rate-limit window to reset before trying again.";
+  return operation === "catalogue"
+    ? "The provider is temporarily rate-limiting model catalogue requests for this key or account." + wait + " You can enter the exact model ID manually instead of repeatedly loading the catalogue."
+    : "The provider is temporarily rate-limiting test requests for this key or account." + wait + " BALMZ AI has not saved a new connection or changed the last successful connection status.";
+}
+
 export async function GET() {
   const auth = await authorize();
   if (auth.response) return auth.response;
@@ -54,6 +115,7 @@ export async function GET() {
     const connections = await listAIProviderConnections();
     return NextResponse.json({
       providers: Object.entries(AI_PROVIDERS).map(([id, provider]) => ({ id, name: provider.label })),
+      environmentProviders: listAIProviderEnvironmentStatus(),
       connections: connections.map(publicConnection),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -76,6 +138,7 @@ export async function POST(request: Request) {
     displayName?: unknown;
     modelId?: unknown;
     apiKey?: unknown;
+    endpointUrl?: unknown;
   };
   try {
     body = await request.json();
@@ -88,12 +151,17 @@ export async function POST(request: Request) {
       if (!isAIProviderId(body.providerId)) {
         return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
       }
-      if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
-        return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter the provider API key before loading its models." }, { status: 400 });
+      const credential = await resolveProviderCredential(body.providerId, body.apiKey, body.endpointUrl);
+      if (!credential) {
+        return NextResponse.json({
+          error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
+          message: "No server-side or saved credential is configured for this provider. Add its secret once in the Render environment, or enter a key here for this connection.",
+        }, { status: 409, headers: { "Cache-Control": "no-store" } });
       }
-      const models = await listAIProviderModels(body.providerId, body.apiKey.trim());
+      const models = await listAIProviderModels(body.providerId, credential.apiKey, credential.endpointUrl);
       return NextResponse.json({
         success: true,
+        credentialSource: credential.source,
         models,
         message: models.length ? null : "The provider returned no chat models for this key or account.",
       }, { headers: { "Cache-Control": "no-store" } });
@@ -108,7 +176,7 @@ export async function POST(request: Request) {
       if (!connection) return NextResponse.json({ error: "CONNECTION_NOT_FOUND" }, { status: 404 });
       try {
         const { decryptProviderKey } = await import("@/lib/ai/providers");
-        await testAIProvider(connection.provider_id, decryptProviderKey(connection.encrypted_api_key), connection.model_id);
+        await testAIProvider(connection.provider_id, decryptProviderKey(connection.encrypted_api_key), connection.model_id, connection.endpoint_url);
         await getDbPool().query(
           `UPDATE public.balmz_ai_provider_connections
               SET last_test_status = 'connected', last_tested_at = now(), last_error_code = NULL, updated_at = now()
@@ -118,16 +186,26 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, status: "connected" }, { headers: { "Cache-Control": "no-store" } });
       } catch (error) {
         const code = error instanceof Error ? error.message : "AI_PROVIDER_TEST_FAILED";
+        const rateLimited = code === "AI_PROVIDER_RATE_LIMITED";
+        const retryIn = retryAfterSeconds(error);
         await getDbPool().query(
           `UPDATE public.balmz_ai_provider_connections
-              SET last_test_status = 'failed', last_tested_at = now(), last_error_code = $2, updated_at = now()
+              SET last_test_status = CASE WHEN $2 THEN last_test_status ELSE 'failed' END,
+                  last_tested_at = CASE WHEN $2 THEN last_tested_at ELSE now() END,
+                  last_error_code = $3,
+                  updated_at = now()
             WHERE id = $1`,
-          [connection.id, code.slice(0, 80)],
+          [connection.id, rateLimited, code.slice(0, 80)],
         );
+        const responseHeaders = new Headers({ "Cache-Control": "no-store" });
+        if (retryIn) responseHeaders.set("Retry-After", String(retryIn));
         return NextResponse.json({
           error: code,
-          message: "The saved provider could not complete a test request. Check the provider key, model ID, and provider account limits.",
-        }, { status: 502 });
+          retryAfterSeconds: retryIn,
+          message: rateLimited
+            ? rateLimitMessage(retryIn, "test")
+            : "The saved provider could not complete a test request. Check the provider key, model ID, and provider account limits.",
+        }, { status: rateLimited ? 429 : 502, headers: responseHeaders });
       }
     }
 
@@ -135,31 +213,36 @@ export async function POST(request: Request) {
     if (typeof body.displayName !== "string" || body.displayName.trim().length < 2 || body.displayName.trim().length > 60) {
       return NextResponse.json({ error: "INVALID_DISPLAY_NAME", message: "Connection name must be 2–60 characters." }, { status: 400 });
     }
-    if (typeof body.modelId !== "string" || body.modelId.trim().length < 2 || body.modelId.trim().length > 180) {
-      return NextResponse.json({ error: "INVALID_MODEL_ID", message: "Enter the model ID exactly as shown by the provider." }, { status: 400 });
-    }
-    if (typeof body.apiKey !== "string" || body.apiKey.trim().length < 10 || body.apiKey.length > 4096) {
-      return NextResponse.json({ error: "INVALID_API_KEY", message: "Enter a valid provider API key." }, { status: 400 });
-    }
-
     const providerId = body.providerId;
     const displayName = body.displayName.trim();
-    const modelId = body.modelId.trim();
-    const apiKey = body.apiKey.trim();
+    const generalEnvironment = providerId === "general" ? getGeneralLanguageEnvironmentConfig() : null;
+    const requestedModelId = typeof body.modelId === "string" ? body.modelId.trim() : "";
+    const modelId = requestedModelId || generalEnvironment?.modelId || "";
+    if (modelId.length < 2 || modelId.length > 180) {
+      return NextResponse.json({ error: "INVALID_MODEL_ID", message: "Select a model or configure GENERAL_LANGUAGE_API_MODEL in Render." }, { status: 400 });
+    }
+    const credential = await resolveProviderCredential(providerId, body.apiKey, body.endpointUrl);
+    if (!credential) {
+      return NextResponse.json({
+        error: "AI_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
+        message: "No server-side or saved credential is configured for this provider. Add its secret once in the Render environment, or enter a key here for this connection.",
+      }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
+    const apiKey = credential.apiKey;
 
-    // Verify the key/model pair before storing the encrypted credential.
-    await testAIProvider(providerId, apiKey, modelId);
+    // Verify the resolved provider credential before saving it encrypted.
+    await testAIProvider(providerId, apiKey, modelId, credential.endpointUrl);
 
     const id = randomUUID();
     const encrypted = encryptProviderKey(apiKey);
     const inserted = await getDbPool().query<AIProviderConnection>(
       `INSERT INTO public.balmz_ai_provider_connections
-         (id, provider_id, display_name, model_id, encrypted_api_key, enabled,
+         (id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url, enabled,
           last_test_status, last_tested_at, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, true, 'connected', now(), $6)
-       RETURNING id, provider_id, display_name, model_id, encrypted_api_key,
+       VALUES ($1, $2, $3, $4, $5, $6, true, 'connected', now(), $7)
+       RETURNING id, provider_id, display_name, model_id, encrypted_api_key, endpoint_url,
                  enabled, last_test_status, last_tested_at, last_error_code`,
-      [id, providerId, displayName, modelId, encrypted, auth.session.user.id],
+      [id, providerId, displayName, modelId, encrypted, credential.endpointUrl, auth.session.user.id],
     );
 
     await getDbPool().query(
@@ -173,24 +256,45 @@ export async function POST(request: Request) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (body.providerId === "general" && error && typeof error === "object" && "code" in error && error.code === "42703") return generalLanguageMigrationRequired();
+    if (error instanceof Error && error.message === "AI_PROVIDER_ENDPOINT_NOT_CONFIGURED") {
+      return NextResponse.json({
+        error: error.message,
+        message: "Configure GENERAL_LANGUAGE_API_BASE_URL in Render with a public HTTPS OpenAI-compatible endpoint.",
+      }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
+    if (error instanceof Error && ["AI_PROVIDER_ENDPOINT_INVALID", "AI_PROVIDER_ENDPOINT_PRIVATE", "AI_PROVIDER_ENDPOINT_UNAVAILABLE"].includes(error.message)) {
+      return NextResponse.json({
+        error: error.message,
+        message: error.message === "AI_PROVIDER_ENDPOINT_PRIVATE"
+          ? "The General Language API endpoint resolved to a private or reserved network address and was blocked."
+          : "The General Language API base URL must be a reachable public HTTPS endpoint without credentials, query parameters or fragments.",
+      }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
     if (error && typeof error === "object" && "code" in error && error.code === "42P01") return migrationRequired();
     if (error && typeof error === "object" && "code" in error && error.code === "23505") {
       return NextResponse.json({ error: "CONNECTION_ALREADY_EXISTS", message: "A connection with this provider and name already exists." }, { status: 409 });
     }
     const code = error instanceof Error ? error.message : "AI_CONNECTION_FAILED";
-    const status = code.startsWith("AI_PROVIDER_") ? 502 : 503;
+    const rateLimited = code === "AI_PROVIDER_RATE_LIMITED";
+    const retryIn = retryAfterSeconds(error);
+    const status = rateLimited ? 429 : code.startsWith("AI_PROVIDER_") ? 502 : 503;
+    const message = rateLimited
+      ? rateLimitMessage(retryIn, body.action === "list-models" ? "catalogue" : "test")
+      : code === "AI_PROVIDER_AUTH_FAILED"
+        ? "The provider rejected this API key. Check that the key is active and belongs to this provider."
+        : code === "AI_PROVIDER_REQUEST_REJECTED"
+          ? "The provider rejected the request. Check key permissions, the exact model ID, and provider account access."
+          : code === "AI_PROVIDER_UNAVAILABLE"
+            ? "The provider could not be reached right now. Check the provider status and try again."
+            : "The provider operation could not be completed. Check the server and provider configuration.";
+    const responseHeaders = new Headers({ "Cache-Control": "no-store" });
+    if (retryIn) responseHeaders.set("Retry-After", String(retryIn));
     return NextResponse.json({
       error: code,
-      message: code === "AI_PROVIDER_AUTH_FAILED"
-        ? "The provider rejected this API key. Check that the key is active and belongs to this provider."
-        : code === "AI_PROVIDER_RATE_LIMITED"
-          ? "The provider rate-limited the model catalogue request or test. Wait and try again."
-          : code === "AI_PROVIDER_REQUEST_REJECTED"
-            ? "The provider rejected the model catalogue request. Check key permissions and provider account access."
-            : code === "AI_PROVIDER_UNAVAILABLE"
-              ? "The provider could not be reached right now. Check the provider status and try again."
-              : "The provider operation could not be completed. Check the server and provider configuration.",
-    }, { status, headers: { "Cache-Control": "no-store" } });
+      retryAfterSeconds: retryIn,
+      message,
+    }, { status, headers: responseHeaders });
   }
 }
 

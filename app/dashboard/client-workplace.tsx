@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { QuickChatHelper } from "@/app/components/quick-chat-helper";
+import { copyNativeText, getNetworkState, hapticTap, isNativeApp, listenToNetworkChanges, saveTextExport, shareNativeContent, showNativeToast } from "@/lib/capacitor/native-helpers";
 
 type ImageAttachment = {
   id: string;
@@ -13,12 +14,13 @@ type ImageAttachment = {
   dataBase64: string;
   previewUrl: string;
 };
-type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[] };
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[]; hasAttachments?: boolean; status?: "queued" | "completed" | "failed"; requestId?: string | null; model?: string | null };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
-type PendingChatMessage = { conversationId: string; messageId: string; model: string };
+type PendingChatMessage = { conversationId: string; messageId: string; model: string; requestId: string };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
 
 const STORAGE_KEY = "balmz-ai-client-workplace-v1";
+const NEW_CHAT_AFTER_AUTH_KEY = "balmz-ai-open-new-chat-after-auth";
 async function prepareImageFile(file: File): Promise<ImageAttachment> {
   if (!file.type.startsWith("image/")) throw new Error(file.name + " is not an image.");
   if (file.size > 15_000_000) throw new Error(file.name + " is too large. Choose an image under 15 MB.");
@@ -161,9 +163,131 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           id: message.id, role: message.role, content: message.content, createdAt: message.createdAt,
         })),
       }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(textOnly));
+      localStorage.setItem(conversationStorageKey, JSON.stringify(textOnly));
     }
   }, [conversations]);
+
+  async function loadServerConversation(id: string) {
+    const response = await fetch("/api/ai/conversations/" + encodeURIComponent(id), { cache: "no-store" });
+    if (!response.ok) throw new Error("This saved conversation could not be loaded.");
+    const result = await response.json() as {
+      conversation?: { id: string; title: string; updated_at?: string; updatedAt?: string };
+      messages?: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string; hasAttachments?: boolean; status?: "queued" | "completed" | "failed"; requestId?: string | null; model?: string | null }>;
+    };
+    const messages: Message[] = Array.isArray(result.messages) ? result.messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      hasAttachments: message.hasAttachments === true,
+      status: message.status,
+      requestId: message.requestId ?? null,
+      model: message.model ?? null,
+    })) : [];
+    conversationMessagesRef.current.set(id, messages);
+
+    const now = Date.now();
+    let recoveredTextTurns = 0;
+    for (const message of messages) {
+      if (message.role !== "user" || message.status !== "queued" ||
+          now - new Date(message.createdAt).getTime() < 120_000) continue;
+      if (message.hasAttachments) {
+        const response = await fetch("/api/ai/conversations/" + encodeURIComponent(id), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "fail-unrecoverable-attachment", messageId: message.id }),
+        });
+        if (response.ok) message.status = "failed";
+        continue;
+      }
+      if (!message.requestId || !message.model) continue;
+      if (pendingMessagesRef.current.some((pending) => pending.messageId === message.id)) continue;
+      pendingMessagesRef.current.push({
+        conversationId: id,
+        messageId: message.id,
+        model: message.model,
+        requestId: message.requestId,
+      });
+      recoveredTextTurns += 1;
+    }
+    setConversations((current) => {
+      const existing = current.find((item) => item.id === id);
+      const title = result.conversation?.title || existing?.title || "New chat";
+      const updatedAt = result.conversation?.updatedAt || result.conversation?.updated_at || existing?.updatedAt || new Date().toISOString();
+      const item: Conversation = { id, title, updatedAt, messages };
+      return [item, ...current.filter((entry) => entry.id !== id)].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    });
+    if (recoveredTextTurns > 0) {
+      setNotice(recoveredTextTurns === 1
+        ? "Recovered a queued text message from your saved chat. Resuming it now."
+        : `Recovered ${recoveredTextTurns} queued text messages from your saved chat. Resuming them now.`);
+      void processPendingMessages();
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function syncHistory() {
+      try {
+        const raw = localStorage.getItem(conversationStorageKey);
+        const local = raw ? JSON.parse(raw) as Conversation[] : [];
+        const localItems = Array.isArray(local) ? local.filter((item) => item && typeof item.id === "string" && Array.isArray(item.messages)) : [];
+        if (localItems.length) {
+          const safeImport = localItems.map((conversation) => ({
+            ...conversation,
+            messages: conversation.messages.map((message) => ({
+              id: message.id,
+              role: message.role,
+              content: message.content,
+              createdAt: message.createdAt,
+              hasAttachments: Boolean(message.hasAttachments || message.images?.length),
+            })),
+          }));
+          await fetch("/api/ai/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conversations: safeImport }),
+          });
+        }
+        const response = await fetch("/api/ai/conversations", { cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json() as { storage?: string; conversations?: Array<{ id: string; title: string; updatedAt: string }> };
+        if (cancelled || result.storage !== "database" || !Array.isArray(result.conversations)) return;
+        const remote = result.conversations;
+        setConversations((current) => {
+          const localById = new Map(current.map((item) => [item.id, item]));
+          const merged = remote.map((item) => {
+            const existing = localById.get(item.id);
+            return existing
+              ? { ...existing, title: item.title || existing.title, updatedAt: item.updatedAt || existing.updatedAt }
+              : { id: item.id, title: item.title, updatedAt: item.updatedAt, messages: [] };
+          });
+          const remoteIds = new Set(remote.map((item) => item.id));
+          return [...merged, ...current.filter((item) => !remoteIds.has(item.id))]
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+        });
+        const selected = localItems[0]?.id && remote.some((item) => item.id === localItems[0].id)
+          ? localItems[0].id
+          : localItems.length
+            ? null
+            : remote[0]?.id ?? null;
+        if (selected) {
+          if (!localItems.some((item) => item.id === selected && item.messages.length)) {
+            setActiveId(selected);
+            await loadServerConversation(selected);
+          } else if (remote.some((item) => item.id === selected)) {
+            await loadServerConversation(selected);
+          }
+        }
+      } catch {
+        // Local, account-scoped history remains available when durable storage is offline.
+      }
+    }
+    void syncHistory();
+    return () => { cancelled = true; };
+  }, []);
+
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -219,6 +343,22 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   }, []);
 
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
+
+  useEffect(() => {
+    if (!active?.id || busy) return;
+    const queued = active.messages.filter((message) =>
+      message.role === "user" && message.status === "queued" &&
+      Date.now() - new Date(message.createdAt).getTime() < 120_000 &&
+      !pendingMessagesRef.current.some((pending) => pending.messageId === message.id),
+    );
+    if (!queued.length) return;
+    const nextRecoveryAt = Math.min(...queued.map((message) => new Date(message.createdAt).getTime() + 120_000));
+    const delay = Math.max(1_000, nextRecoveryAt - Date.now());
+    const timer = window.setTimeout(() => {
+      void loadServerConversation(active.id).catch(() => undefined);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [active?.id, active?.messages, busy]);
   const filtered = useMemo(() => conversations.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())), [conversations, query]);
 
   function newChat() {
@@ -311,7 +451,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   async function sendMessage(value = prompt) {
     const text = value.trim();
     const attachments = selectedImages;
-    if ((!text && !attachments.length) || busy) return;
+    if (!text && !attachments.length) return;
     const messageText = text || "Please analyze the attached image(s).";
     if (planCheck !== "active") {
       setNotice(planCheck === "unavailable"
@@ -323,6 +463,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setNotice(modelsMessage || "No AI model is connected yet. Ask the Super Admin to connect and test a provider in AI connections.");
       return;
     }
+
     let conversation = active;
     if (!conversation) {
       conversation = makeConversation();
@@ -330,43 +471,174 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setConversations((current) => [conversation!, ...current]);
       setActiveId(conversation.id);
     }
-    const userMessage: Message = { id: crypto.randomUUID(), role: "user", content: messageText, createdAt: new Date().toISOString(), ...(attachments.length ? { images: attachments } : {}) };
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: messageText,
+      createdAt: new Date().toISOString(),
+      ...(attachments.length ? { images: attachments } : {}),
+    };
     const next = [...conversation.messages, userMessage];
     updateMessages(conversation.id, next);
+    pendingMessagesRef.current.push({
+      conversationId: conversation.id,
+      messageId: userMessage.id,
+      model,
+      requestId: crypto.randomUUID(),
+    });
     setPrompt("");
+    setSelectedImages([]);
     setNotice("");
     setMobileSidebar(false);
     void processPendingMessages();
   }
 
-  async function pasteFromClipboard() {
+  async function processPendingMessages() {
+    if (processingQueueRef.current || queueBlockedRef.current) return;
+    processingQueueRef.current = true;
+    setBusy(true);
+    setQueueBlocked(false);
     try {
-      const response = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next.map(({ role, content, images }) => ({ role, content, ...(images?.length ? { images: images.map(({ mimeType, dataBase64 }) => ({ mimeType, dataBase64 })) } : {}) })), model }),
-      });
-      const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
-      if (!response.ok || !payload.reply) {
-        const message = payload.message || (response.status === 402
-          ? "AI chat requires an active subscription with an ai_messages allowance."
-          : response.status === 503
-            ? "AI chat is not configured yet. The workspace is ready, but the server-side provider key or plan allowance is missing."
-            : "The assistant could not complete this request. Please try again.");
-        updateMessages(conversation.id, conversation.messages);
-        setPrompt(text);
-        setNotice(message);
-        return;
+      while (pendingMessagesRef.current.length > 0) {
+        const pending = pendingMessagesRef.current[0];
+        if (!networkConnected) {
+          queueBlockedRef.current = true;
+          setQueueBlocked(true);
+          setNotice("You appear to be offline. Your message is queued and will remain here until you reconnect and retry.");
+          break;
+        }
+
+        const currentMessages = conversationMessagesRef.current.get(pending.conversationId) ?? [];
+        const messageIndex = currentMessages.findIndex((message) => message.id === pending.messageId && message.role === "user");
+        if (messageIndex < 0) {
+          pendingMessagesRef.current.shift();
+          continue;
+        }
+
+        const requestMessages = currentMessages.slice(0, messageIndex + 1).map((message) => ({
+          role: message.role,
+          content: message.content,
+          ...(message.images?.length
+            ? { images: message.images.map(({ mimeType, dataBase64 }) => ({ mimeType, dataBase64 })) }
+            : {}),
+        }));
+
+        let response: Response;
+        try {
+          response = await fetch("/api/ai/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: requestMessages,
+              model: pending.model,
+              requestId: pending.requestId,
+              conversationId: pending.conversationId,
+              userMessageId: pending.messageId,
+            }),
+          });
+        } catch {
+          queueBlockedRef.current = true;
+          setQueueBlocked(true);
+          setNotice("Could not reach BALMZ AI. Your message is safely queued; check your connection and retry.");
+          break;
+        }
+
+        const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
+        if (!response.ok || !payload.reply) {
+          const message = payload.message || (response.status === 402
+            ? "Your plan does not have an available ai_messages allowance."
+            : response.status === 503
+              ? "The selected AI provider is unavailable or not configured. Your message remains queued."
+              : "The assistant could not complete this request. Your message remains queued.");
+          queueBlockedRef.current = true;
+          setQueueBlocked(true);
+          setNotice(message);
+          break;
+        }
+
+        const latestMessages = conversationMessagesRef.current.get(pending.conversationId) ?? [];
+        const latestIndex = latestMessages.findIndex((message) => message.id === pending.messageId);
+        if (latestIndex >= 0) {
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: payload.reply,
+            createdAt: new Date().toISOString(),
+          };
+          const updated = [
+            ...latestMessages.slice(0, latestIndex + 1),
+            assistantMessage,
+            ...latestMessages.slice(latestIndex + 1),
+          ];
+          updateMessages(pending.conversationId, updated);
+        }
+        pendingMessagesRef.current.shift();
+        setNotice("");
       }
-      updateMessages(conversation.id, [...next, { id: crypto.randomUUID(), role: "assistant", content: payload.reply, createdAt: new Date().toISOString() }]);
-      setSelectedImages([]);
-    } catch {
-      updateMessages(conversation.id, conversation.messages);
-      setPrompt(text);
-      setNotice("Could not reach BALMZ AI. Your draft and photo attachments are still available; try again.");
     } finally {
+      processingQueueRef.current = false;
       setBusy(false);
-      setMobileSidebar(false);
+      if (pendingMessagesRef.current.length === 0) {
+        queueBlockedRef.current = false;
+        setQueueBlocked(false);
+      }
+    }
+  }
+
+  function retryQueuedMessages() {
+    if (!pendingMessagesRef.current.length) {
+      queueBlockedRef.current = false;
+      setQueueBlocked(false);
+      return;
+    }
+    if (!networkConnected) {
+      setNotice("You are still offline. Reconnect before retrying queued messages.");
+      return;
+    }
+    queueBlockedRef.current = false;
+    setQueueBlocked(false);
+    setNotice("");
+    void processPendingMessages();
+  }
+
+  async function shareActiveConversation() {
+    if (!active?.messages.length) return;
+    const content = active.messages.map((message) =>
+      (message.role === "user" ? "You" : "BALMZ AI") + "\n" + message.content,
+    ).join("\n\n");
+    try {
+      await shareNativeContent({
+        title: active.title || "BALMZ AI conversation",
+        text: content.slice(0, 100_000),
+        url: window.location.href,
+      });
+      void showNativeToast("Conversation ready to share.");
+    } catch {
+      setNotice("The conversation could not be shared from this device.");
+    }
+  }
+
+  async function exportActiveConversation() {
+    if (!active?.messages.length) return;
+    const content = [
+      "BALMZ AI conversation export",
+      "Title: " + active.title,
+      "Exported: " + new Date().toISOString(),
+      "",
+      ...active.messages.flatMap((message) => [
+        (message.role === "user" ? "You" : "BALMZ AI") + " · " + message.createdAt,
+        message.content,
+        "",
+      ]),
+    ].join("\n");
+    try {
+      const safeTitle = (active.title || "conversation").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 48);
+      const uri = await saveTextExport("balmz-" + safeTitle + ".txt", content);
+      await shareNativeContent({ title: "Export BALMZ AI conversation", text: "Your BALMZ AI conversation export is ready.", url: uri });
+      void showNativeToast("Conversation export prepared.");
+    } catch {
+      setNotice("The conversation export could not be prepared on this device.");
     }
   }
 
@@ -384,7 +656,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
 
   const attachmentPicker = (
     <div className="relative flex items-center gap-2">
-      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={busy || imageBusy || selectedImages.length + (active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0) >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
+      <button type="button" onClick={() => setUploadMenuOpen((open) => !open)} aria-label="Add photos" aria-haspopup="menu" aria-expanded={uploadMenuOpen} disabled={imageBusy || selectedImages.length + (active?.messages.reduce((total, message) => total + (message.images?.length ?? 0), 0) ?? 0) >= 4} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:border-[var(--balmz-orange)]/50 hover:bg-white/[0.07] disabled:opacity-40">
         <span aria-hidden="true">+</span>
       </button>
       {uploadMenuOpen ? (
@@ -431,7 +703,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
           <p className="px-2 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Recent</p>
-          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => { setActiveId(item.id); setPrompt(""); setSelectedImages([]); setUploadMenuOpen(false); setMobileSidebar(false); setNotice(""); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
+          {filtered.length ? <div className="space-y-1">{filtered.map((item) => <button key={item.id} onClick={() => {
+            setActiveId(item.id); setPrompt(""); setSelectedImages([]); setUploadMenuOpen(false); setMobileSidebar(false); setNotice("");
+            void loadServerConversation(item.id).catch(() => undefined);
+          }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
           <p className="px-2 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Explore</p>
           <div className="space-y-1">
             <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
@@ -496,7 +771,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
                 <div className="flex items-center gap-2">{attachmentPicker}<span className="text-[10px] text-slate-600">Drop images here · Up to 4 photos · Vision support depends on the selected model</span></div>
                 <div className="flex items-center gap-3"><span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
+                <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
@@ -510,6 +785,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <div className={message.role === "user" ? "max-w-[88%] rounded-3xl bg-[#182232] px-5 py-3.5 text-sm leading-7 text-slate-100" : "min-w-0 flex-1 pt-1 text-sm leading-7 text-slate-200"}>
                 <div className="whitespace-pre-wrap break-words">{message.content}</div>
                 {message.images?.length ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{message.images.map((image) => <img key={image.id} src={image.previewUrl} alt={image.name} className="max-h-52 w-full rounded-xl border border-white/10 object-cover" />)}</div> : null}
+                {!message.images?.length && message.hasAttachments ? <p className="mt-2 text-[10px] leading-5 text-slate-500">Photo attachment was not retained in permanent chat history. Reattach the image to send it again.</p> : null}
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
               </div>
             </article>)}

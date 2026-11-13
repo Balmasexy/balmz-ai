@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 
 type Provider = { id: string; name: string };
 type ProviderModel = { id: string; label: string };
+type EnvironmentProvider = { providerId: string; providerName: string; configured: boolean; endpointConfigured?: boolean | null; source: string | null; defaultModelId?: string | null };
 type Connection = {
   id: string;
   providerId: string;
@@ -15,6 +16,7 @@ type Connection = {
   status: "untested" | "connected" | "failed";
   lastTestedAt: string | null;
   lastErrorCode: string | null;
+  endpointConfigured?: boolean;
 };
 
 const providers: Provider[] = [
@@ -28,6 +30,7 @@ const providers: Provider[] = [
   { id: "mistral", name: "Mistral" },
   { id: "together", name: "Together AI" },
   { id: "fireworks", name: "Fireworks AI" },
+  { id: "general", name: "General Language API · OpenAI-compatible" },
 ];
 
 function date(value: string | null) {
@@ -38,6 +41,7 @@ function date(value: string | null) {
 
 export function AIConnectionsSection() {
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [environmentProviders, setEnvironmentProviders] = useState<EnvironmentProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState("");
@@ -47,6 +51,7 @@ export function AIConnectionsSection() {
   const [displayName, setDisplayName] = useState("OpenAI primary");
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [endpointUrl, setEndpointUrl] = useState("");
   const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [customModelMode, setCustomModelMode] = useState(false);
@@ -56,9 +61,10 @@ export function AIConnectionsSection() {
     setError("");
     try {
       const response = await fetch("/api/admin/ai-connections", { cache: "no-store" });
-      const result = await response.json() as { connections?: Connection[]; message?: string };
+      const result = await response.json() as { connections?: Connection[]; environmentProviders?: EnvironmentProvider[]; message?: string };
       if (!response.ok) throw new Error(result.message || "AI connections could not be loaded.");
       setConnections(result.connections ?? []);
+      setEnvironmentProviders(result.environmentProviders ?? []);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "AI connections are unavailable.");
     } finally {
@@ -70,8 +76,18 @@ export function AIConnectionsSection() {
 
   async function loadModels() {
     if (loadingModels) return;
-    if (!apiKey.trim()) {
-      setError("Enter the provider API key first, then load its live model list.");
+    const serverCredential = environmentProviders.some((item) => item.providerId === providerId && item.configured);
+    const saved = connections.find((item) => item.providerId === providerId && item.status === "connected");
+    const endpointAvailable = providerId !== "general"
+      || Boolean(endpointUrl.trim())
+      || environmentProviders.some((item) => item.providerId === providerId && item.endpointConfigured)
+      || Boolean(saved?.endpointConfigured);
+    if (!apiKey.trim() && !serverCredential && !saved) {
+      setError("No credential is configured for this provider yet. Configure its server environment secret, or enter an API key once below.");
+      return;
+    }
+    if (!endpointAvailable) {
+      setError("Enter a public HTTPS base URL for the General Language API, or configure GENERAL_LANGUAGE_API_BASE_URL in Render.");
       return;
     }
     setLoadingModels(true);
@@ -82,10 +98,16 @@ export function AIConnectionsSection() {
       const response = await fetch("/api/admin/ai-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list-models", providerId, apiKey }),
+        body: JSON.stringify({ action: "list-models", providerId, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}), ...(endpointUrl.trim() ? { endpointUrl: endpointUrl.trim() } : {}) }),
       });
-      const result = await response.json() as { models?: ProviderModel[]; message?: string };
+      const result = await response.json() as { error?: string; models?: ProviderModel[]; message?: string; retryAfterSeconds?: number };
       if (!response.ok || !Array.isArray(result.models)) {
+        if (result.error === "AI_PROVIDER_RATE_LIMITED") {
+          // The live catalogue may be rate-limited. Allow manual model ID entry
+          // so the administrator does not repeatedly call the same endpoint.
+          setCustomModelMode(true);
+          setModelId("");
+        }
         throw new Error(result.message || "The provider model list could not be loaded.");
       }
       setAvailableModels(result.models);
@@ -116,13 +138,14 @@ export function AIConnectionsSection() {
       const response = await fetch("/api/admin/ai-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerId, displayName, modelId, apiKey }),
+        body: JSON.stringify({ providerId, displayName, modelId, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}), ...(endpointUrl.trim() ? { endpointUrl: endpointUrl.trim() } : {}) }),
       });
       const result = await response.json() as { connection?: Connection; message?: string };
       if (!response.ok || !result.connection) throw new Error(result.message || "Provider connection failed.");
       setConnections((current) => [...current, result.connection!].sort((a, b) => a.providerName.localeCompare(b.providerName)));
       setApiKey("");
-      setNotice(`${result.connection.providerName} connected and tested successfully. The API key is encrypted and will not be shown again.`);
+      const credentialSource = apiKey.trim() ? "the key supplied for this connection" : "the server-side/saved credential";
+      setNotice(`${result.connection.providerName} connected and tested successfully using ${credentialSource}. No API key was needed in this form.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The provider could not be connected.");
     } finally {
@@ -141,13 +164,14 @@ export function AIConnectionsSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "test", id: connection.id }),
       });
-      const result = await response.json() as { message?: string };
+      const result = await response.json() as { error?: string; message?: string; retryAfterSeconds?: number };
       if (!response.ok) throw new Error(result.message || "Provider test failed.");
       setNotice(`${connection.providerName} connection test passed.`);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Connection test failed.");
+      const message = cause instanceof Error ? cause.message : "Connection test failed.";
       await refresh();
+      setError(message);
     } finally {
       setBusyId("");
     }
@@ -183,6 +207,7 @@ export function AIConnectionsSection() {
             <span className="inline-flex rounded-full border border-[var(--balmz-orange)]/25 bg-[var(--balmz-orange)]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--balmz-orange)]">AI provider control</span>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Connect the AI models you use.</h2>
             <p className="mt-3 text-sm leading-6 text-slate-400">Connect providers once from Super Admin. Their tested models then appear in the ChatGPT-style model selector for your signed-in users. BALMZ AI sends requests server-side and keeps provider credentials out of the browser.</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">General Language API supports public HTTPS endpoints implementing the OpenAI chat-completions format. Configure its endpoint, model ID and key once in Render.</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><p className="text-[10px] uppercase tracking-wider text-slate-500">Connected models</p><p className="mt-1 text-2xl font-semibold tabular-nums text-white">{connections.length}</p><p className="mt-1 text-[10px] text-slate-500">Verified provider entries</p></div>
         </div>
@@ -193,20 +218,21 @@ export function AIConnectionsSection() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
-          <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6"><h3 className="text-sm font-semibold text-white">Add a provider connection</h3><p className="mt-1 text-xs text-slate-500">Each provider key is tested before it is saved.</p></div>
+          <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6"><h3 className="text-sm font-semibold text-white">Add a provider connection</h3><p className="mt-1 text-xs text-slate-500">Uses the server-configured credential automatically; no API key needs to be pasted when one is already available.</p></div>
           <form onSubmit={connect} className="space-y-4 p-5 sm:p-6">
-            <label className="block"><span className="text-[11px] font-medium text-slate-400">AI provider</span><select value={providerId} onChange={(event) => { setProviderId(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); setNotice(""); setError(""); }} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
+            <label className="block"><span className="text-[11px] font-medium text-slate-400">AI provider</span><select value={providerId} onChange={(event) => { const nextProvider = event.target.value; setProviderId(nextProvider); setAvailableModels([]); setModelId(environmentProviders.find((item) => item.providerId === nextProvider)?.defaultModelId ?? ""); setEndpointUrl(""); setCustomModelMode(false); setNotice(""); setError(""); }} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
             <label className="block"><span className="text-[11px] font-medium text-slate-400">Connection name</span><input required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="e.g. Claude production" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
+            {providerId === "general" ? <label className="block"><span className="text-[11px] font-medium text-slate-400">General Language API base URL</span><input type="url" maxLength={500} value={endpointUrl} onChange={(event) => { setEndpointUrl(event.target.value); setAvailableModels([]); setModelId(""); }} placeholder="https://api.vendor.com/v1 · leave blank to use Render setting" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /><p className="mt-1 text-[10px] leading-5 text-slate-500">Must be a public HTTPS endpoint implementing OpenAI-compatible /models and /chat/completions. A configured Render endpoint is used when this field is blank.</p></label> : null}
             
             <div className="space-y-2">
-              <label className="block"><span className="text-[11px] font-medium text-slate-400">Provider API key</span><input required type="password" autoComplete="new-password" minLength={10} maxLength={4096} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); }} placeholder="Paste the provider API key here" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label>
-              <button type="button" onClick={() => void loadModels()} disabled={loadingModels || apiKey.trim().length < 10} className="min-h-10 rounded-xl border border-[var(--balmz-orange)]/30 bg-[var(--balmz-orange)]/[0.08] px-4 text-xs font-semibold text-[var(--balmz-orange)] transition hover:bg-[var(--balmz-orange)]/[0.14] disabled:cursor-not-allowed disabled:opacity-40">{loadingModels ? "Loading provider models…" : "Load available models"}</button>
-              <p className="text-[10px] leading-5 text-slate-500">Loads the live model catalogue using this key. The key is not saved by this step.</p>
+              <label className="block"><span className="text-[11px] font-medium text-slate-400">Optional provider API key</span><input type="password" autoComplete="new-password" minLength={10} maxLength={4096} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setAvailableModels([]); setModelId(""); setCustomModelMode(false); }} placeholder="Not required when a server/saved credential is available" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /><p className="mt-1 text-[10px] text-slate-500">{environmentProviders.find((item) => item.providerId === providerId && item.configured)?.source ?? (connections.some((item) => item.providerId === providerId && item.status === "connected") ? "Saved encrypted connection" : "No server-side credential detected")}{providerId === "general" ? " · GENERAL_LANGUAGE_API_BASE_URL and GENERAL_LANGUAGE_API_MODEL are also required" : ""}</p></label>
+              <button type="button" onClick={() => void loadModels()} disabled={loadingModels || (!apiKey.trim() && !environmentProviders.some((item) => item.providerId === providerId && item.configured) && !connections.some((item) => item.providerId === providerId && item.status === "connected")) || (providerId === "general" && !endpointUrl.trim() && !environmentProviders.some((item) => item.providerId === providerId && item.endpointConfigured) && !connections.some((item) => item.providerId === providerId && item.status === "connected" && item.endpointConfigured))} className="min-h-10 rounded-xl border border-[var(--balmz-orange)]/30 bg-[var(--balmz-orange)]/[0.08] px-4 text-xs font-semibold text-[var(--balmz-orange)] transition hover:bg-[var(--balmz-orange)]/[0.14] disabled:cursor-not-allowed disabled:opacity-40">{loadingModels ? "Loading provider models…" : "Load available models"}</button>
+              <p className="text-[10px] leading-5 text-slate-500">Uses a saved connection or Render environment secret automatically. A key is only needed once when no server credential exists.</p>
             </div>
             <label className="block"><span className="text-[11px] font-medium text-slate-400">Select model</span><select value={customModelMode ? "__custom__" : modelId} onChange={(event) => { const value = event.target.value; setCustomModelMode(value === "__custom__"); setModelId(value === "__custom__" ? "" : value); }} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50"><option value="">{availableModels.length ? "Choose a model" : "Load available models first"}</option>{availableModels.map((model) => <option key={model.id} value={model.id}>{model.label === model.id ? model.id : `${model.label} · ${model.id}`}</option>)}<option value="__custom__">Enter a custom model ID…</option></select></label>
             {customModelMode ? <label className="block"><span className="text-[11px] font-medium text-slate-400">Custom model ID</span><input required minLength={2} maxLength={180} value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="Enter the exact model ID from the provider" className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[var(--balmz-orange)]/50" /></label> : null}
             <div className="rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4"><p className="text-xs font-semibold text-amber-100">Provider test request</p><p className="mt-1 text-[11px] leading-5 text-slate-400">Connect & test sends one tiny “reply OK” request to the selected model. The provider may charge a small amount for that request. No key is saved if the test fails.</p></div>
-            <button type="submit" disabled={saving || loadingModels || !apiKey.trim() || !modelId.trim()} className="min-h-11 w-full rounded-xl bg-[var(--balmz-orange)] px-5 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">{saving ? "Testing and saving…" : "Connect & test provider"}</button>
+            <button type="submit" disabled={saving || loadingModels || !modelId.trim() || (!apiKey.trim() && !environmentProviders.some((item) => item.providerId === providerId && item.configured) && !connections.some((item) => item.providerId === providerId && item.status === "connected")) || (providerId === "general" && !endpointUrl.trim() && !environmentProviders.some((item) => item.providerId === providerId && item.endpointConfigured) && !connections.some((item) => item.providerId === providerId && item.status === "connected" && item.endpointConfigured))} className="min-h-11 w-full rounded-xl bg-[var(--balmz-orange)] px-5 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">{saving ? "Testing and saving…" : "Connect using available credential"}</button>
           </form>
         </div>
 

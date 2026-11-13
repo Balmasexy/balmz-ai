@@ -9,7 +9,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -18,9 +18,6 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,26 +26,12 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
 
-      - name: Resolve dependencies and synchronize lockfiles
-        run: |
-          pnpm install --no-frozen-lockfile
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Commit regenerated lockfiles to the current branch
-        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-        run: |
-          git add pnpm-lock.yaml package-lock.json
-          if ! git diff --cached --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "chore: synchronize dependency lockfiles"
-            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-              git push origin "HEAD:$GITHUB_HEAD_REF"
-            else
-              git push
-            fi
-          fi
       - name: Type-check
         run: pnpm exec tsc --noEmit
 

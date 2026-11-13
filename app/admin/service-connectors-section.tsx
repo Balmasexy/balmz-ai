@@ -157,6 +157,29 @@ export function ServiceConnectorsSection() {
     } finally { setBusyId(""); }
   }
 
+  async function connectEnvironment() {
+    if (!selected || !selectedEnvironmentStatus?.configured || saving) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/service-connectors", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "connect-environment",
+          serviceId: selected.id,
+          environment,
+          displayName,
+        }),
+      });
+      const result = await response.json() as { connection?: Connection; message?: string; source?: string };
+      if (!response.ok || !result.connection) throw new Error(result.message || "The server-side integration could not be connected.");
+      setConnections((current) => [...current.filter((item) => item.id !== result.connection!.id), result.connection!]);
+      setNotice(`${selected.name} connected, tested and saved using the Render environment secret. No API key was entered in this form.`);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The server-side integration could not be connected.");
+    } finally { setSaving(false); }
+  }
+
   async function testSaved(connection: Connection) {
     if (busyId) return;
     setBusyId(connection.id); setError(""); setNotice("");
@@ -280,9 +303,9 @@ export function ServiceConnectorsSection() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
-              <div className="border-b border-white/[0.07] px-5 py-4"><h4 className="text-sm font-semibold text-white">Connect or test credentials</h4><p className="mt-1 text-xs text-slate-500">Use Render secrets or save an encrypted key.</p></div>
+              <div className="border-b border-white/[0.07] px-5 py-4"><h4 className="text-sm font-semibold text-white">Connect integration</h4><p className="mt-1 text-xs text-slate-500">Use the existing server-side secret automatically, or enter a credential once only when none is configured.</p></div>
               <div className="space-y-4 p-5">
-                <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-slate-200">Render environment</p><p className="mt-1 text-[10px] text-slate-500">{selectedEnvironmentStatus?.configured ? "A matching secret is present on the Render service." : "No matching environment variable detected."}</p></div><Status value={selectedEnvironmentStatus?.configured ? "configured" : "not configured"} /></div><button type="button" onClick={() => void testEnvironment()} disabled={busyId === "environment" || !selectedEnvironmentStatus?.configured} className="mt-3 min-h-9 w-full rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/40 disabled:opacity-40">{busyId === "environment" ? "Testing Render secret…" : "Test Render environment key"}</button></div>
+                <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-slate-200">Server-side integration</p><p className="mt-1 text-[10px] text-slate-500">{selectedEnvironmentStatus?.configured ? "A matching secret is present on Render. BALMZ AI can test and save it without asking you to paste the key." : "No matching environment variable detected. Configure the server secret once in Render to connect without manual key entry."}</p></div><Status value={selectedEnvironmentStatus?.configured ? "configured" : "not configured"} /></div><button type="button" onClick={() => void connectEnvironment()} disabled={saving || !selectedEnvironmentStatus?.configured} className="mt-3 min-h-9 w-full rounded-lg border border-[var(--balmz-orange)]/30 bg-[var(--balmz-orange)]/[0.08] px-3 text-[10px] font-semibold text-[var(--balmz-orange)] hover:bg-[var(--balmz-orange)]/[0.14] disabled:opacity-40">{saving ? "Connecting from Render secret…" : "Connect & save using Render secret"}</button></div>
                 <div className="relative flex items-center gap-3"><div className="h-px flex-1 bg-white/[0.08]" /><span className="text-[9px] uppercase tracking-wider text-slate-600">or add a connector secret</span><div className="h-px flex-1 bg-white/[0.08]" /></div>
                 <form onSubmit={connect} className="space-y-3">
                   <label className="block"><span className="text-[10px] text-slate-400">Connection label</span><input required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1.5 min-h-10 w-full rounded-xl border border-white/10 bg-[#080d15] px-3 text-xs text-white outline-none focus:border-[var(--balmz-orange)]/40" /></label>

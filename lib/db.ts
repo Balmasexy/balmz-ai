@@ -40,7 +40,9 @@ export function getDbPool(): Pool {
       connectionString,
       max: 5,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
+      // Render and Neon can both cold-start on free plans. Allow the managed compute
+      // to resume before failing the first authenticated request.
+      connectionTimeoutMillis: 15_000,
       keepAlive: true,
       application_name: "balmz-ai",
     });

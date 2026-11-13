@@ -135,6 +135,51 @@ export async function POST(request: Request) {
       }, { headers: { "Cache-Control": "no-store" } });
     }
 
+    if (body.action === "connect-environment") {
+      const service = SERVICE_CATALOG.find((item) => item.id === body.serviceId);
+      if (!service) return NextResponse.json({ error: "UNKNOWN_SERVICE" }, { status: 400 });
+      const environment: ServiceEnvironment = service.demoLive && body.environment === "demo" ? "demo" : "live";
+      const credentials = serviceCredentialsFromEnvironment(service.id, environment) ?? (service.keyRequired ? null : {});
+      if (!credentials) {
+        return NextResponse.json({
+          error: "ENVIRONMENT_SECRET_NOT_FOUND",
+          message: "No matching server-side environment secret is configured for this service. Add it once in Render, then refresh this connector list.",
+        }, { status: 409, headers: { "Cache-Control": "no-store" } });
+      }
+      if (typeof body.displayName !== "string" || body.displayName.trim().length < 2 || body.displayName.trim().length > 60) {
+        return NextResponse.json({ error: "INVALID_DISPLAY_NAME" }, { status: 400 });
+      }
+
+      const testDetails = await testServiceConnection(service.id, credentials, environment);
+      const id = randomUUID();
+      const encrypted = encryptServiceCredentials(credentials);
+      const result = await getDbPool().query<{
+        id: string; service_id: ServiceId; display_name: string; environment: ServiceEnvironment;
+        status: string; last_tested_at: string | null; last_error_code: string | null;
+      }>(
+        `INSERT INTO public.balmz_service_credentials
+           (id, service_id, display_name, environment, encrypted_credentials, status, last_tested_at, created_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, 'connected', now(), $6)
+         ON CONFLICT (service_id, environment, display_name)
+         DO UPDATE SET encrypted_credentials = EXCLUDED.encrypted_credentials,
+                       status = 'connected', last_tested_at = now(), last_error_code = NULL, updated_at = now()
+         RETURNING id, service_id, display_name, environment, status, last_tested_at, last_error_code`,
+        [id, service.id, body.displayName.trim(), environment, encrypted, auth.session.user.id],
+      );
+      await getDbPool().query(
+        `INSERT INTO public.balmz_admin_audit_log (id, actor_user_id, action, metadata)
+         VALUES ($1, $2, 'service_connector_connected_from_environment', $3::jsonb)`,
+        [randomUUID(), auth.session.user.id, JSON.stringify({ serviceId: service.id, environment, source: "Render environment" })],
+      ).catch(() => undefined);
+
+      return NextResponse.json({
+        success: true,
+        source: "Render environment",
+        testDetails,
+        connection: publicEntry(result.rows[0]),
+      }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    }
+
     if (body.action === "test") {
       if (typeof body.id !== "string" || !/^[a-zA-Z0-9-]{16,64}$/.test(body.id)) {
         return NextResponse.json({ error: "INVALID_CONNECTION" }, { status: 400 });
