@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 
 type Variant = { channel: string; headline: string; body: string; callToAction: string };
@@ -32,7 +32,7 @@ type HistoryItem = Omit<Campaign, "imageDataUrl" | "imageError"> & { title?: str
 
 const channelOptions = ["Instagram", "Facebook", "TikTok", "LinkedIn", "Email", "Website", "X", "WhatsApp"];
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; children: ReactNode }) {
   return <section className="rounded-2xl border border-white/[0.08] bg-[#111a27] p-5 sm:p-6"><h2 className="text-sm font-semibold text-white">{title}</h2><div className="mt-4">{children}</div></section>;
 }
 function Field({ label, value, onChange, placeholder, rows = 3 }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; rows?: number }) {
@@ -73,7 +73,7 @@ export function CampaignStudioWorkspace() {
     setChannels((current) => current.includes(channel) ? current.filter((item) => item !== channel) : [...current, channel].slice(0, 8));
   }
 
-  async function generate(event: React.FormEvent<HTMLFormElement>) {
+  async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loading) return;
     setLoading(true);
