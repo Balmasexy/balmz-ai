@@ -352,6 +352,19 @@ async function requestProvider(
   return reply.slice(0, 40_000);
 }
 
+/** Send chat messages through a configured provider without exposing its credential to the client. */
+export async function sendAIProviderMessages(
+  provider: AIProviderId,
+  apiKey: string,
+  model: string,
+  messages: AIMessage[],
+  maxTokens = 1800,
+  baseUrl?: string | null,
+): Promise<string> {
+  if (!apiKey.trim() || !model.trim() || !messages.length) throw new Error("AI_PROVIDER_CONFIGURATION_INVALID");
+  return requestProvider(provider, apiKey, model, messages, maxTokens, baseUrl);
+}
+
 export async function testAIProvider(provider: AIProviderId, apiKey: string, model: string, baseUrl?: string | null): Promise<void> {
   await requestProvider(provider, apiKey, model, [
     { role: "user", content: "Reply with the single word: OK" },
