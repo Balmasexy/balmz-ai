@@ -7,7 +7,7 @@ import Image from "next/image";
 import { QuickChatHelper } from "@/app/components/quick-chat-helper";
 
 type ChartRow = Record<string, string | number | boolean | null>;
-type ChartResult = { requestId: string; spec: unknown; file: string | null; format: "svg" | "png" | "json" };
+type ChartResult = { requestId: string; spec: unknown; file: string | null; format: "svg" | "png" | "json"; provider?: string; model?: string; requestedFormat?: "svg" | "png" | "json"; rasterizeToPng?: boolean };
 
 const exampleData = [
   { quarter: "Q1", revenue: 42 },
@@ -15,6 +15,30 @@ const exampleData = [
   { quarter: "Q3", revenue: 47 },
   { quarter: "Q4", revenue: 68 },
 ];
+
+async function svgToPngBase64(svg: string): Promise<string> {
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    const loaded = new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("The SVG chart could not be rasterized for PNG export."));
+    });
+    image.src = url;
+    await loaded;
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || 1000;
+    canvas.height = image.naturalHeight || 620;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("PNG export is unavailable in this browser.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/png");
+    return dataUrl.slice(dataUrl.indexOf(",") + 1);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter();
@@ -52,10 +76,14 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
       });
       const payload = await response.json() as ChartResult & { message?: string; error?: string };
       if (!response.ok || !payload.requestId || !payload.spec) {
-        throw new Error(payload.message || payload.error || "ChartGPT could not generate a chart.");
+        throw new Error(payload.message || payload.error || "No connected AI provider could generate this chart.");
+      }
+      if (payload.rasterizeToPng && payload.format === "svg" && payload.file) {
+        payload.file = await svgToPngBase64(payload.file);
+        payload.format = "png";
       }
       setResult(payload);
-      setNotice("Chart generated successfully. Export it before leaving this page; ChartGPT does not keep a chart history.");
+      setNotice(`Chart generated successfully using ${payload.provider ?? "the connected chart provider"}. Export it before leaving this page.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Chart generation failed.");
     } finally { setBusy(false); }
@@ -64,7 +92,9 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
   async function downloadFile() {
     if (!result?.file) return;
     const mime = result.format === "png" ? "image/png" : result.format === "svg" ? "image/svg+xml" : "application/json";
-    const blob = new Blob([result.file], { type: mime });
+    const blob = result.format === "png"
+      ? new Blob([Uint8Array.from(atob(result.file.replace(/^data:image\\/png;base64,/, "")), (character) => character.charCodeAt(0))], { type: mime })
+      : new Blob([result.file], { type: mime });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -77,14 +107,14 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
     <main className="min-h-[100dvh] bg-[#080c14] text-slate-100">
       <header className="sticky top-0 z-20 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#080c14]/95 px-4 backdrop-blur-xl sm:px-8">
         <div className="flex min-w-0 items-center gap-3"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={38} height={38} priority className="h-[38px] w-[38px] shrink-0 rounded-xl object-contain" /><div><p className="text-sm font-semibold text-white">ChartGPT workspace</p><p className="mt-0.5 text-[10px] text-slate-500">Generate charts from your own data and prompts</p></div></div>
-        <div className="flex shrink-0 items-center gap-2">{isAdmin ? <Link href="/admin?section=service-connectors" className="hidden min-h-10 items-center rounded-xl border border-[var(--balmz-orange)]/30 px-3 py-2 text-xs font-semibold text-[var(--balmz-orange)] transition hover:bg-[var(--balmz-orange)]/10 sm:inline-flex">Manage connectors</Link> : <Link href="/dashboard/plugins" className="hidden min-h-10 items-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-[var(--balmz-orange)]/40 sm:inline-flex">Plugins</Link>}<button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push("/dashboard"); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-[var(--balmz-orange)]/40 hover:text-white"><span aria-hidden="true">←</span> Back</button></div>
+        <div className="flex shrink-0 items-center gap-2">{isAdmin ? <Link href="/admin?section=ai-connections" className="hidden min-h-10 items-center rounded-xl border border-[var(--balmz-orange)]/30 px-3 py-2 text-xs font-semibold text-[var(--balmz-orange)] transition hover:bg-[var(--balmz-orange)]/10 sm:inline-flex">Manage AI connections</Link> : <Link href="/dashboard/plugins" className="hidden min-h-10 items-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-[var(--balmz-orange)]/40 sm:inline-flex">Plugins</Link>}<button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push("/dashboard"); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-[var(--balmz-orange)]/40 hover:text-white"><span aria-hidden="true">←</span> Back</button></div>
       </header>
       <div className="mx-auto grid max-w-[1440px] gap-5 px-4 py-5 sm:px-7 lg:grid-cols-[minmax(320px,0.85fr)_minmax(0,1.15fr)] lg:py-8">
         <section className="space-y-4">
           <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#111b2b] to-[#0b111c] p-5">
             <span className="inline-flex rounded-full border border-[var(--balmz-orange)]/25 bg-[var(--balmz-orange)]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--balmz-orange)]">Chart generation</span>
             <h1 className="mt-4 text-2xl font-semibold tracking-tight text-white">Turn your data into a chart.</h1>
-            <p className="mt-2 text-xs leading-6 text-slate-400">Describe the chart, paste structured data, and choose an export format. BALMZ AI sends the request to ChartGPT from the server; your API key never reaches the browser.</p>
+            <p className="mt-2 text-xs leading-6 text-slate-400">Describe the chart, paste structured data, and choose an export format. Charts use your connected OpenAI or General Language chat provider first, with the dedicated ChartGPT connector as an alternative. API keys stay on the server.</p>
           </div>
           {notice ? <div role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-4 py-3 text-xs text-emerald-200">{notice}</div> : null}
           {error ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-xs leading-5 text-rose-200">{error}</div> : null}
@@ -100,12 +130,12 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
             </div>
             {thinkHarder ? <p className="mt-3 text-[10px] leading-5 text-slate-500">Think harder adds a structured review of data quality, chart selection, scales, labels, and visual clarity to the ChartGPT request. It is an enhanced prompt mode, not a separate reasoning model.</p> : null}
           </section>
-          <p className="px-1 text-[10px] leading-5 text-slate-600">ChartGPT API access is shown as a Team-plan feature in its documentation. Requests may be billed by ChartGPT and also use one BALMZ AI ai_messages allowance. ChartGPT does not retain chart history, so export results you need to keep.</p>
+          <p className="px-1 text-[10px] leading-5 text-slate-600">Connect OpenAI or General Language in Super Admin → AI Connections to power this workspace. ChartGPT remains an optional dedicated provider. Each generation uses one BALMZ AI ai_messages allowance; export results you need to keep.</p>
         </section>
 
         <section className="min-w-0 space-y-4">
           <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4"><div><h2 className="text-sm font-semibold text-white">Chart preview</h2><p className="mt-1 text-[10px] text-slate-500">{result ? `Request ${result.requestId}` : "Your generated chart will appear here."}</p></div>{result?.file ? <button type="button" onClick={() => void downloadFile()} className="rounded-lg border border-[var(--balmz-orange)]/30 px-3 py-2 text-[10px] font-semibold text-[var(--balmz-orange)]">Download {result.format.toUpperCase()}</button> : null}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4"><div><h2 className="text-sm font-semibold text-white">Chart preview</h2><p className="mt-1 text-[10px] text-slate-500">{result ? `Request ${result.requestId}${result.provider ? ` · ${result.provider}` : ""}${result.model ? ` · ${result.model}` : ""}` : "Your generated chart will appear here."}</p></div>{result?.file ? <button type="button" onClick={() => void downloadFile()} className="rounded-lg border border-[var(--balmz-orange)]/30 px-3 py-2 text-[10px] font-semibold text-[var(--balmz-orange)]">Download {result.format.toUpperCase()}</button> : null}</div>
             {result ? <div className="space-y-4 p-4 sm:p-6">
               {result.format === "svg" && result.file ? <iframe title="Generated chart preview" sandbox="" srcDoc={result.file} className="h-[520px] w-full rounded-xl border border-white/[0.07] bg-white" /> : null}
               {result.format === "png" && result.file ? <img alt="ChartGPT generated chart" src={`data:image/png;base64,${result.file.replace(/^data:image\/png;base64,/, "")}`} className="mx-auto max-h-[600px] max-w-full rounded-xl bg-white object-contain" /> : null}
