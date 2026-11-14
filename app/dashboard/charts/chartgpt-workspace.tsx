@@ -36,7 +36,7 @@ async function svgToPngBase64(svg: string): Promise<string> {
     const dataUrl = canvas.toDataURL("image/png");
     return dataUrl.slice(dataUrl.indexOf(",") + 1);
   } finally {
-    URL.revokeObjectURL(url);
+    if (blob) URL.revokeObjectURL(url);
   }
 }
 
@@ -95,13 +95,12 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
     const pngBase64 = result.file.startsWith("data:image/png;base64,")
       ? result.file.slice("data:image/png;base64,".length)
       : result.file;
-    const blob = result.format === "png"
-      ? new Blob([Uint8Array.from(atob(pngBase64), (character) => character.charCodeAt(0))], { type: mime })
-      : new Blob([result.file], { type: mime });
-    const url = URL.createObjectURL(blob);
+    const pngDataUrl = result.format === "png" ? "data:image/png;base64," + pngBase64 : null;
+    const blob = result.format === "png" ? null : new Blob([result.file], { type: mime });
+    const url = pngDataUrl ?? URL.createObjectURL(blob!);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `balmz-chart-${result.requestId}.${result.format}`;
+    link.download = "balmz-chart-" + result.requestId + "." + result.format;
     link.click();
     URL.revokeObjectURL(url);
   }
