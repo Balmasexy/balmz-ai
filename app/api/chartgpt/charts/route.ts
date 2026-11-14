@@ -135,7 +135,7 @@ export async function POST(request: Request) {
             : code === "AI_PROVIDER_RATE_LIMITED"
               ? "The connected chat provider is rate-limited. Try the other configured provider or wait for its limit to reset."
               : "The connected chat provider could not generate the chart. Check its key, model ID and provider access.";
-    return NextResponse.json({ error: code, message }, { status }, { headers: { "Cache-Control": "no-store" } } as never);
+    return NextResponse.json({ error: code, message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 
   let response: Response;
