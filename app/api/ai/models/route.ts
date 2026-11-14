@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
-import { listAIProviderConnections, AI_PROVIDERS } from "@/lib/ai/providers";
+import { listAIProviderConnections, AI_PROVIDERS, getGeneralLanguageEnvironmentConfig } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,13 +27,23 @@ export async function GET() {
     connectionsAvailable = false;
   }
 
-  if (process.env.OPENAI_API_KEY) {
-    if (!models.some((item) => item.provider === "OpenAI")) {
-      models.push(
-        { value: "env:gpt-4.1-mini", label: "GPT-4.1 mini · server key", provider: "OpenAI", modelId: "gpt-4.1-mini" },
-        { value: "env:gpt-4.1", label: "GPT-4.1 · server key", provider: "OpenAI", modelId: "gpt-4.1" },
-      );
-    }
+  const hasConnectedOpenAI = models.some((item) => item.provider === AI_PROVIDERS.openai.label);
+  if (process.env.OPENAI_API_KEY && !hasConnectedOpenAI) {
+    models.push(
+      { value: "env:gpt-4.1-mini", label: "GPT-4.1 mini · OpenAI server key", provider: AI_PROVIDERS.openai.label, modelId: "gpt-4.1-mini" },
+      { value: "env:gpt-4.1", label: "GPT-4.1 · OpenAI server key", provider: AI_PROVIDERS.openai.label, modelId: "gpt-4.1" },
+    );
+  }
+
+  const general = getGeneralLanguageEnvironmentConfig();
+  const hasConnectedGeneral = models.some((item) => item.provider === AI_PROVIDERS.general.label);
+  if (general.apiKey && general.baseUrl && general.modelId && !hasConnectedGeneral) {
+    models.push({
+      value: "env:general",
+      label: `${general.modelId} · General Language server key`,
+      provider: AI_PROVIDERS.general.label,
+      modelId: general.modelId,
+    });
   }
 
   return NextResponse.json({
