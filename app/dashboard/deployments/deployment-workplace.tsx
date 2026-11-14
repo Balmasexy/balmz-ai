@@ -106,13 +106,13 @@ function Sparkline({ series }: { series?: MetricSeries[] }) {
   const maximum = Math.max(...points.map((point) => point.value), 0.000001);
   return (
     <div className="mt-4 flex h-14 items-end gap-1" aria-label="Recent metric samples">
-      {points.map((point, index) => <div key={point.timestamp + index} title={`${point.value} · ${date(point.timestamp)}`} className="min-w-0 flex-1 rounded-t-sm bg-[var(--balmz-orange)]/80" style={{ height: `${Math.max(4, (point.value / maximum) * 100)}%` }} />)}
+      {points.map((point, index) => <div key={point.timestamp + index} title={`${point.value} · ${date(point.timestamp)}`} className="min-w-0 flex-1 rounded-t-sm bg-[#7c6cff]/80" style={{ height: `${Math.max(4, (point.value / maximum) * 100)}%` }} />)}
     </div>
   );
 }
 function Panel({ title, subtitle, children, action }: { title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1420]/90">
+    <section className="overflow-hidden rounded-xl border border-white/[0.09] bg-[#151b23]/90">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4 sm:px-6">
         <div><h2 className="text-sm font-semibold text-white">{title}</h2>{subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}</div>
         {action}
@@ -257,23 +257,23 @@ export function DeploymentWorkplace() {
     : "https://dashboard.render.com";
 
   return (
-    <main className="min-h-[100dvh] bg-[#080c14] text-slate-100">
-      <header className="sticky top-0 z-30 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#080c14]/95 px-4 backdrop-blur-xl sm:px-8">
-        <div><p className="text-sm font-semibold text-white">Deployment workplace</p><p className="mt-0.5 text-[10px] text-slate-500">Render-style project controls · protected Super Admin workspace</p></div>
+    <main className="min-h-[100dvh] bg-[#0b0f14] text-slate-100">
+      <header className="sticky top-0 z-30 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0b0f14]/95 px-4 backdrop-blur-xl sm:px-8">
+        <div><p className="text-sm font-semibold text-white">Render</p><p className="mt-0.5 text-[10px] text-slate-500">Workspace / Services / Deployment workplace</p></div>
         <div className="flex items-center gap-2">
-          <a href="/admin" aria-label="Back to Super Admin" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--balmz-orange)]/35 bg-[var(--balmz-orange)]/10 px-3 py-2 text-xs font-semibold text-[var(--balmz-orange)] transition hover:bg-[var(--balmz-orange)]/15"><span aria-hidden="true">←</span><span>Back to Admin</span></a>
-          <button onClick={() => void refresh()} disabled={loading} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:border-[var(--balmz-orange)]/50 disabled:opacity-50">{loading ? "Refreshing…" : "Refresh"}</button>
+          <a href="/admin" aria-label="Back to Super Admin" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#7c6cff]/35 bg-[#7c6cff]/10 px-3 py-2 text-xs font-semibold text-[#7c6cff] transition hover:bg-[#7c6cff]/15"><span aria-hidden="true">←</span><span>Back to Admin</span></a>
+          <button onClick={() => void refresh()} disabled={loading} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:border-[#7c6cff]/50 disabled:opacity-50">{loading ? "Refreshing…" : "Refresh"}</button>
           <a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="hidden rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white sm:inline-flex">Open Render ↗</a>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1600px] gap-5 px-3 py-5 sm:px-6 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-6 lg:px-8 lg:py-7">
-        <aside className="min-w-0 space-y-3">
+      <div className="mx-auto grid max-w-[1800px] gap-0 px-0 py-0 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-3 border-b border-white/[0.08] bg-[#10151c] p-4 lg:min-h-[calc(100dvh-68px)] lg:border-b-0 lg:border-r lg:p-4">
           <div className="flex items-center justify-between px-2"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace</p><h2 className="mt-1 text-sm font-semibold text-white">Projects & services</h2></div><span className="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-slate-500">{payload?.services.length ?? "—"}</span></div>
           <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible">
             {loading && !payload ? <div className="min-w-64 rounded-xl border border-white/[0.08] p-5 text-xs text-slate-500 lg:min-w-0">Loading services…</div> : null}
             {payload?.services.map((service) => (
-              <button key={service.id} type="button" onClick={() => { setSelectedServiceId(service.id); setView("overview"); setInspect(null); setNotice(""); }} aria-current={selectedServiceId === service.id ? "page" : undefined} className={`min-w-64 rounded-xl border p-3 text-left transition lg:min-w-0 lg:w-full ${selectedServiceId === service.id ? "border-[var(--balmz-orange)]/35 bg-[var(--balmz-orange)]/[0.075]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"}`}>
+              <button key={service.id} type="button" onClick={() => { setSelectedServiceId(service.id); setView("overview"); setInspect(null); setNotice(""); }} aria-current={selectedServiceId === service.id ? "page" : undefined} className={`min-w-64 rounded-xl border p-3 text-left transition lg:min-w-0 lg:w-full ${selectedServiceId === service.id ? "border-[#7c6cff]/35 bg-[#7c6cff]/[0.075]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"}`}>
                 <div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-semibold text-slate-100">{service.name}</span><span className={`h-2 w-2 shrink-0 rounded-full ${["live", "succeeded", "success"].includes(service.latestDeploy?.status?.toLowerCase() ?? "") ? "bg-emerald-400" : ["failed", "canceled"].includes(service.latestDeploy?.status?.toLowerCase() ?? "") ? "bg-rose-400" : "bg-amber-300"}`} /></div>
                 <p className="mt-1 truncate text-[10px] text-slate-500">{service.repo?.split("/").slice(-1)[0] || service.type.replaceAll("_", " ")}</p>
                 <div className="mt-2 flex items-center justify-between gap-2"><span className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wider ${statusTone(service.latestDeploy?.status)}`}>{service.latestDeploy?.status ?? "No deploy"}</span><span className="truncate text-[9px] text-slate-600">{service.region ?? service.serviceDetails?.region ?? ""}</span></div>
@@ -284,7 +284,7 @@ export function DeploymentWorkplace() {
           <div className="hidden rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-[10px] leading-5 text-slate-500 lg:block">Choose a service, then use its Overview, Deploys, Logs, Metrics, Storage and Settings pages.</div>
         </aside>
 
-        <section className="min-w-0 space-y-5">
+        <section className="min-w-0 space-y-5 bg-[#0b0f14] p-4 sm:p-6 lg:p-7">
           {error ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-xs text-rose-200">{error}</div> : null}
           {!loading && payload && !payload.configured ? (
             <Panel title="Connect Render securely" subtitle="This workspace uses the Render REST API from the server only.">
@@ -302,7 +302,7 @@ export function DeploymentWorkplace() {
 
           {selectedService ? (
             <>
-              <section className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#111b2b] to-[#0b111c] p-5 sm:p-6">
+              <section className="rounded-xl border border-white/[0.09] bg-[#151b23] p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2"><h1 className="break-all text-xl font-semibold tracking-tight text-white">{selectedService.name}</h1><span className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wider ${statusTone(selectedService.latestDeploy?.status)}`}>{selectedService.latestDeploy?.status ?? "No deploy data"}</span></div>
@@ -310,33 +310,33 @@ export function DeploymentWorkplace() {
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500"><span>{selectedService.type.replaceAll("_", " ")}</span><span>{selectedService.region ?? selectedService.serviceDetails?.region ?? "Region not reported"}</span><span>{selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Plan not reported"}</span><span>{selectedService.runtime ?? selectedService.serviceDetails?.runtime ?? "Runtime not reported"}</span></div>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
-                    <button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open this service in Render."))} className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/40">Open on Render ↗</button>
-                    <button onClick={() => void deploy(selectedService)} disabled={Boolean(busyId)} className="min-h-10 rounded-xl bg-[var(--balmz-orange)] px-4 py-2.5 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">{busyId === selectedService.id ? "Starting…" : "Deploy latest"}</button>
+                    <button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open this service in Render."))} className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-[10px] font-semibold text-slate-300 hover:border-[#7c6cff]/40">Open on Render ↗</button>
+                    <button onClick={() => void deploy(selectedService)} disabled={Boolean(busyId)} className="min-h-10 rounded-xl bg-[#7c6cff] px-4 py-2.5 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">{busyId === selectedService.id ? "Starting…" : "Deploy latest"}</button>
                   </div>
                 </div>
-                {selectedService.serviceDetails?.url ? <a href={selectedService.serviceDetails.url} target="_blank" rel="noreferrer" className="mt-4 inline-block text-[10px] font-semibold text-[var(--balmz-orange)] hover:underline">Open live application ↗</a> : null}
+                {selectedService.serviceDetails?.url ? <a href={selectedService.serviceDetails.url} target="_blank" rel="noreferrer" className="mt-4 inline-block text-[10px] font-semibold text-[#7c6cff] hover:underline">Open live application ↗</a> : null}
               </section>
 
-              <nav aria-label="Selected service sections" className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.07] bg-[#0a111c] p-1">
-                {views.map((item) => <button key={item.id} type="button" onClick={() => setView(item.id)} aria-current={view === item.id ? "page" : undefined} className={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-[10px] font-semibold transition ${view === item.id ? "bg-[var(--balmz-orange)] text-[#17100a]" : "text-slate-400 hover:bg-white/[0.045] hover:text-white"}`}><span>{item.icon}</span>{item.label}</button>)}
+              <nav aria-label="Selected service sections" className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.07] bg-[#10151c] p-1">
+                {views.map((item) => <button key={item.id} type="button" onClick={() => setView(item.id)} aria-current={view === item.id ? "page" : undefined} className={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-[10px] font-semibold transition ${view === item.id ? "bg-[#7c6cff] text-[#17100a]" : "text-slate-400 hover:bg-white/[0.045] hover:text-white"}`}><span>{item.icon}</span>{item.label}</button>)}
               </nav>
 
-              {notice ? <div role="status" className="rounded-xl border border-[var(--balmz-orange)]/20 bg-[var(--balmz-orange)]/[0.07] px-4 py-3 text-xs leading-5 text-slate-200">{notice}</div> : null}
+              {notice ? <div role="status" className="rounded-xl border border-[#7c6cff]/20 bg-[#7c6cff]/[0.07] px-4 py-3 text-xs leading-5 text-slate-200">{notice}</div> : null}
 
               {view === "overview" ? (
                 <div className="space-y-5">
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-4"><p className="text-xs text-slate-500">Latest deployment</p><p className="mt-2 text-sm font-semibold text-white">{selectedService.latestDeploy?.status ?? "Not available"}</p><p className="mt-1 text-[10px] text-slate-600">{date(selectedService.latestDeploy?.updatedAt)}</p></article>
-                    <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-4"><p className="text-xs text-slate-500">Connected branch</p><p className="mt-2 truncate text-sm font-semibold text-white">{selectedService.branch ?? "Not reported"}</p><p className="mt-1 text-[10px] text-slate-600">{selectedService.repo ?? "Repository not reported"}</p></article>
-                    <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-4"><p className="text-xs text-slate-500">Hosting plan</p><p className="mt-2 text-sm font-semibold text-white">{selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Not reported"}</p><p className="mt-1 text-[10px] text-slate-600">Region: {selectedService.region ?? selectedService.serviceDetails?.region ?? "Not reported"}</p></article>
+                    <article className="rounded-2xl border border-white/[0.08] bg-[#151b23] p-4"><p className="text-xs text-slate-500">Latest deployment</p><p className="mt-2 text-sm font-semibold text-white">{selectedService.latestDeploy?.status ?? "Not available"}</p><p className="mt-1 text-[10px] text-slate-600">{date(selectedService.latestDeploy?.updatedAt)}</p></article>
+                    <article className="rounded-2xl border border-white/[0.08] bg-[#151b23] p-4"><p className="text-xs text-slate-500">Connected branch</p><p className="mt-2 truncate text-sm font-semibold text-white">{selectedService.branch ?? "Not reported"}</p><p className="mt-1 text-[10px] text-slate-600">{selectedService.repo ?? "Repository not reported"}</p></article>
+                    <article className="rounded-2xl border border-white/[0.08] bg-[#151b23] p-4"><p className="text-xs text-slate-500">Hosting plan</p><p className="mt-2 text-sm font-semibold text-white">{selectedService.plan ?? selectedService.serviceDetails?.plan ?? "Not reported"}</p><p className="mt-1 text-[10px] text-slate-600">Region: {selectedService.region ?? selectedService.serviceDetails?.region ?? "Not reported"}</p></article>
                   </div>
                   <Panel title="Server requests" subtitle="Run approved service actions directly from BALMZ AI">
                     <div className="grid gap-3 p-5 sm:grid-cols-3">
-                      <button type="button" disabled={Boolean(busyId) || !["web_service", "private_service", "background_worker"].includes(selectedService.type)} onClick={() => void serverAction(selectedService, "restart")} className="min-h-12 rounded-xl border border-white/10 px-3 text-xs font-semibold text-slate-200 transition hover:border-[var(--balmz-orange)]/40 disabled:opacity-40">{busyId === selectedService.id ? "Working…" : "↻ Restart service"}</button>
+                      <button type="button" disabled={Boolean(busyId) || !["web_service", "private_service", "background_worker"].includes(selectedService.type)} onClick={() => void serverAction(selectedService, "restart")} className="min-h-12 rounded-xl border border-white/10 px-3 text-xs font-semibold text-slate-200 transition hover:border-[#7c6cff]/40 disabled:opacity-40">{busyId === selectedService.id ? "Working…" : "↻ Restart service"}</button>
                       {selectedService.suspended === "suspended"
                         ? <button type="button" disabled={Boolean(busyId)} onClick={() => void serverAction(selectedService, "resume")} className="min-h-12 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 text-xs font-semibold text-emerald-200 disabled:opacity-40">▶ Resume service</button>
                         : <button type="button" disabled={Boolean(busyId) || selectedService.suspended === "suspended"} onClick={() => void serverAction(selectedService, "suspend")} className="min-h-12 rounded-xl border border-rose-400/20 px-3 text-xs font-semibold text-rose-200 disabled:opacity-40">Ⅱ Suspend service</button>}
-                      <button type="button" onClick={() => setView("events")} className="min-h-12 rounded-xl border border-white/10 px-3 text-xs font-semibold text-slate-200 hover:border-[var(--balmz-orange)]/40">◷ Service events</button>
+                      <button type="button" onClick={() => setView("events")} className="min-h-12 rounded-xl border border-white/10 px-3 text-xs font-semibold text-slate-200 hover:border-[#7c6cff]/40">◷ Service events</button>
                     </div>
                     <p className="px-5 pb-4 text-[10px] leading-5 text-slate-500">Actions require a Super Admin session and a confirmation prompt. Suspending takes the selected service offline. Plan upgrades and paid resource changes are not performed here.</p>
                   </Panel>
@@ -348,7 +348,7 @@ export function DeploymentWorkplace() {
                   </Panel>
                   <Panel title="Quick navigation" subtitle="Select a service area to investigate it">
                     <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {views.filter((item) => item.id !== "overview").map((item) => <button key={item.id} type="button" onClick={() => setView(item.id)} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition hover:border-[var(--balmz-orange)]/30 hover:bg-white/[0.04]"><p className="text-sm font-semibold text-slate-200">{item.icon} {item.label}</p><p className="mt-1 text-[10px] text-slate-500">{item.description}</p></button>)}
+                      {views.filter((item) => item.id !== "overview").map((item) => <button key={item.id} type="button" onClick={() => setView(item.id)} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition hover:border-[#7c6cff]/30 hover:bg-white/[0.04]"><p className="text-sm font-semibold text-slate-200">{item.icon} {item.label}</p><p className="mt-1 text-[10px] text-slate-500">{item.description}</p></button>)}
                     </div>
                   </Panel>
                 </div>
@@ -364,7 +364,7 @@ export function DeploymentWorkplace() {
               ) : null}
 
               {view === "logs" ? (
-                <Panel title="Service logs" subtitle="Recent build and runtime messages from Render" action={<select aria-label="Filter logs" value={logFilter} onChange={(event) => setLogFilter(event.target.value)} className="rounded-lg border border-white/10 bg-[#080d15] px-2 py-2 text-[10px] text-slate-300"><option value="all">All logs</option><option value="errors">Errors only</option><option value="build">Build logs</option></select>}>
+                <Panel title="Service logs" subtitle="Recent build and runtime messages from Render" action={<select aria-label="Filter logs" value={logFilter} onChange={(event) => setLogFilter(event.target.value)} className="rounded-lg border border-white/10 bg-[#0b0f14] px-2 py-2 text-[10px] text-slate-300"><option value="all">All logs</option><option value="errors">Errors only</option><option value="build">Build logs</option></select>}>
                   {inspectLoading ? <div className="p-8 text-center text-xs text-slate-500">Loading service logs…</div>
                     : inspectError ? <div role="alert" className="p-6 text-xs text-rose-300">{inspectError}</div>
                     : filteredLogs.length ? <div className="max-h-[680px] overflow-auto divide-y divide-white/[0.045]">{filteredLogs.map((entry) => { const type = entry.labels?.find((label) => label.name === "type")?.value ?? "app"; const level = entry.labels?.find((label) => label.name === "level")?.value ?? "info"; return <div key={entry.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[150px_75px_70px_minmax(0,1fr)] sm:items-start sm:px-5"><time className="text-[9px] text-slate-600">{date(entry.timestamp)}</time><span className="text-[9px] uppercase text-slate-500">{type}</span><span className={`text-[9px] uppercase ${["error", "critical", "alert", "emergency"].includes(level) ? "text-rose-300" : "text-slate-500"}`}>{level}</span><p className="break-words whitespace-pre-wrap font-mono text-[10px] leading-5 text-slate-300">{entry.message}</p></div>; })}</div>
@@ -376,7 +376,7 @@ export function DeploymentWorkplace() {
                 <Panel title="Service events" subtitle="Recent Render lifecycle events for this service">
                   {inspectLoading ? <div className="p-8 text-center text-xs text-slate-500">Loading service events…</div>
                     : inspectError ? <div role="alert" className="p-6 text-xs text-rose-300">{inspectError}</div>
-                    : inspect?.events?.length ? <div className="divide-y divide-white/[0.055]">{inspect.events.map((event) => <div key={event.id} className="flex flex-wrap items-start gap-3 px-5 py-4 sm:px-6"><span className="mt-1 text-[var(--balmz-orange)]">◷</span><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-slate-200">{event.type.replaceAll("_", " ")}</p><p className="mt-1 break-all font-mono text-[9px] text-slate-600">{event.id}</p>{event.details ? <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-5 text-slate-500">{JSON.stringify(event.details, null, 2)}</pre> : null}</div><time className="text-[10px] text-slate-500">{date(event.timestamp)}</time></div>)}</div>
+                    : inspect?.events?.length ? <div className="divide-y divide-white/[0.055]">{inspect.events.map((event) => <div key={event.id} className="flex flex-wrap items-start gap-3 px-5 py-4 sm:px-6"><span className="mt-1 text-[#7c6cff]">◷</span><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-slate-200">{event.type.replaceAll("_", " ")}</p><p className="mt-1 break-all font-mono text-[9px] text-slate-600">{event.id}</p>{event.details ? <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-5 text-slate-500">{JSON.stringify(event.details, null, 2)}</pre> : null}</div><time className="text-[10px] text-slate-500">{date(event.timestamp)}</time></div>)}</div>
                     : <div className="p-8 text-center text-xs text-slate-500">No recent events were returned by Render.</div>}
                 </Panel>
               ) : null}
@@ -386,8 +386,8 @@ export function DeploymentWorkplace() {
                     : inspectError ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] p-5 text-xs text-rose-200">{inspectError}</div>
                     : <>
                       <div className="grid gap-3 md:grid-cols-2">
-                        <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-5"><p className="text-xs text-slate-500">CPU usage · latest sample</p><p className="mt-2 text-2xl font-semibold text-white">{metricValue(inspect?.cpu)}</p><Sparkline series={inspect?.cpu} /></article>
-                        <article className="rounded-2xl border border-white/[0.08] bg-[#0d1420] p-5"><p className="text-xs text-slate-500">Memory usage · latest sample</p><p className="mt-2 text-2xl font-semibold text-white">{metricValue(inspect?.memory)}</p><Sparkline series={inspect?.memory} /></article>
+                        <article className="rounded-2xl border border-white/[0.08] bg-[#151b23] p-5"><p className="text-xs text-slate-500">CPU usage · latest sample</p><p className="mt-2 text-2xl font-semibold text-white">{metricValue(inspect?.cpu)}</p><Sparkline series={inspect?.cpu} /></article>
+                        <article className="rounded-2xl border border-white/[0.08] bg-[#151b23] p-5"><p className="text-xs text-slate-500">Memory usage · latest sample</p><p className="mt-2 text-2xl font-semibold text-white">{metricValue(inspect?.memory)}</p><Sparkline series={inspect?.memory} /></article>
                       </div>
                       <Panel title="Instance metrics" subtitle="Instance count over the most recent hour">
                         <div className="p-5"><p className="text-xl font-semibold text-white">{metricValue(inspect?.instanceCount)}</p><Sparkline series={inspect?.instanceCount} /></div>
@@ -419,7 +419,7 @@ export function DeploymentWorkplace() {
                     <div className="divide-y divide-white/[0.055]">
                       {[[ "Free", "$0", "Free tier · reduced resources and sleep/ephemeral storage limits" ], [ "0.1 CPU / 256 MB", "$6", "Small paid compute" ], [ "0.5 CPU / 1 GB", "$19", "Entry standard compute" ], [ "1 CPU / 2 GB", "$40", "Higher memory and CPU" ], [ "1 CPU / 4 GB", "$55", "Higher memory" ]].map(([name, price, detail]) => <div key={name} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"><div><p className="text-xs font-semibold text-slate-200">{name}</p><p className="mt-1 text-[10px] text-slate-500">{detail}</p></div><p className="text-sm font-semibold tabular-nums text-white">{price}<span className="text-[10px] font-normal text-slate-500"> / month</span></p></div>)}
                     </div>
-                    <div className="border-t border-white/[0.06] p-5"><p className="text-[10px] leading-5 text-slate-500">Prices are published examples, not a quote or a charge to your account. Bandwidth and build pipeline overages may be billed separately depending on workspace settings and payment method.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => void openNativeBrowser("https://render.com/pricing").catch(() => showNativeToast("Could not open Render pricing."))} className="min-h-10 rounded-xl border border-white/10 px-4 text-[10px] font-semibold text-slate-300">View Render pricing ↗</button><button type="button" onClick={() => void openNativeBrowser("https://dashboard.render.com").catch(() => showNativeToast("Could not open Render Dashboard."))} className="min-h-10 rounded-xl bg-[var(--balmz-orange)] px-4 text-[10px] font-semibold text-[#17100a]">Open Render Billing ↗</button></div></div>
+                    <div className="border-t border-white/[0.06] p-5"><p className="text-[10px] leading-5 text-slate-500">Prices are published examples, not a quote or a charge to your account. Bandwidth and build pipeline overages may be billed separately depending on workspace settings and payment method.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => void openNativeBrowser("https://render.com/pricing").catch(() => showNativeToast("Could not open Render pricing."))} className="min-h-10 rounded-xl border border-white/10 px-4 text-[10px] font-semibold text-slate-300">View Render pricing ↗</button><button type="button" onClick={() => void openNativeBrowser("https://dashboard.render.com").catch(() => showNativeToast("Could not open Render Dashboard."))} className="min-h-10 rounded-xl bg-[#7c6cff] px-4 text-[10px] font-semibold text-[#17100a]">Open Render Billing ↗</button></div></div>
                   </Panel>
                   <p className="px-1 text-[10px] leading-5 text-slate-600">BALMZ AI has not upgraded or changed this service plan. No billing method, spend limit, or paid resource was changed by this workplace.</p>
                 </div>
@@ -430,7 +430,7 @@ export function DeploymentWorkplace() {
                     <div className="space-y-3 p-5 sm:p-6">
                       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">{selectedService.disk || selectedService.serviceDetails?.disk ? "Persistent disk reported" : "No persistent disk reported"}</p><p className="mt-1 text-xs text-slate-500">Service: {selectedService.name}</p></div><span className="rounded-full border border-white/10 px-3 py-1 text-[10px] text-slate-400">{selectedService.disk || selectedService.serviceDetails?.disk ? "Provider disk" : "No disk data"}</span></div>
                       <p className="text-xs leading-6 text-slate-400">A Render disk is local to one service instance and is not available during builds. BALMZ AI keeps deployment archives and shared administrator files in the separate private object-storage workspace.</p>
-                      <a href="/admin" className="inline-flex min-h-10 items-center rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] hover:brightness-110">Open Super Admin storage ↗</a>
+                      <a href="/admin" className="inline-flex min-h-10 items-center rounded-xl bg-[#7c6cff] px-4 text-xs font-semibold text-[#17100a] hover:brightness-110">Open Super Admin storage ↗</a>
                     </div>
                   </Panel>
                   <Panel title="Storage architecture" subtitle="Choose the storage type that matches the workload">
@@ -456,15 +456,15 @@ export function DeploymentWorkplace() {
                       ["Auto deploy", "Managed in Render"],
                     ].map(([label, value]) => <div key={label} className="grid gap-1 px-5 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4"><p className="text-[10px] text-slate-500">{label}</p><p className="break-all text-xs text-slate-200">{typeof value === "string" && value ? value : "Not reported"}</p></div>)}
                   </div>
-                  <div className="border-t border-white/[0.06] p-5"><button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open Render settings."))} className="text-[10px] font-semibold text-[var(--balmz-orange)] hover:underline">Open editable settings in Render Dashboard ↗</button></div>
+                  <div className="border-t border-white/[0.06] p-5"><button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open Render settings."))} className="text-[10px] font-semibold text-[#7c6cff] hover:underline">Open editable settings in Render Dashboard ↗</button></div>
                 </Panel>
               ) : null}
             </>
           ) : null}
 
-          {!selectedService && payload?.configured && !loading ? <div className="rounded-2xl border border-white/[0.08] p-10 text-center"><p className="text-sm font-semibold text-white">No service selected</p><p className="mt-2 text-xs text-slate-500">Connect a Render API key with access to your projects, then refresh this page.</p></div> : null}
+          {!selectedService && payload?.configured && !loading ? <div className="rounded-xl border border-white/[0.09] p-10 text-center"><p className="text-sm font-semibold text-white">No service selected</p><p className="mt-2 text-xs text-slate-500">Connect a Render API key with access to your projects, then refresh this page.</p></div> : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-4 text-[10px] text-slate-600"><p>Super Admin · Server-side Render API · no API secrets in the browser</p><label className="flex items-center gap-2 text-[10px] text-slate-500"><input type="checkbox" checked={clearCache} onChange={(event) => setClearCache(event.target.checked)} className="accent-[var(--balmz-orange)]" /> Clear build cache on next deploy</label></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-4 text-[10px] text-slate-600"><p>Super Admin · Server-side Render API · no API secrets in the browser</p><label className="flex items-center gap-2 text-[10px] text-slate-500"><input type="checkbox" checked={clearCache} onChange={(event) => setClearCache(event.target.checked)} className="accent-[#7c6cff]" /> Clear build cache on next deploy</label></div>
         </section>
       </div>
     </main>

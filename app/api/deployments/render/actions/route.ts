@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
+import { getRenderApiToken } from "@/lib/render-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +18,7 @@ async function authorize() {
 }
 
 async function renderRequest(path: string, init?: RequestInit) {
-  const key = process.env.RENDER_API_KEY;
-  if (!key) throw new Error("RENDER_NOT_CONFIGURED");
+  const key = await getRenderApiToken();
   const response = await fetch("https://api.render.com/v1" + path, {
     ...init,
     headers: { Accept: "application/json", Authorization: "Bearer " + key, ...(init?.headers ?? {}) },
