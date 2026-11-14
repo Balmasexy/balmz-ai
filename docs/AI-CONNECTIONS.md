@@ -44,6 +44,10 @@ Campaign Studio is available at `/dashboard/campaign-studio`. It accepts the bri
 
 Campaign generation and optional image generation are each metered against the user's server-side `ai_messages` allowance. OpenAI API usage may be billed separately. The generator instructs the model not to invent product features, pricing, performance statistics, testimonials, guarantees or legal claims.
 
+## Video generation status
+
+Video generation is not included in this release. OpenAI discontinued the Sora API on 24 September 2026; BALMZ AI does not call that retired endpoint. A separate supported video provider and its credentials are required before adding video generation or resumable long-form video jobs.
+
 ## Credential protection and usage
 
 Only server routes decrypt saved provider keys. AI connection management and provider selection are protected by an authenticated session and the database-confirmed Super Admin role. User AI features require an active BALMZ AI subscription and reserve server-side usage against `ai_messages` with idempotency keys.
