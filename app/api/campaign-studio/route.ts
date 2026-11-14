@@ -286,7 +286,7 @@ export async function POST(request: Request) {
         store: false,
         safety_identifier: createHash("sha256").update("balmz-campaign:" + session.user.id).digest("hex"),
       }) as { output?: Array<{ type?: string; result?: string; status?: string }> };
-      const generated = (raw.output ?? []).find((item) => item.type === "image_generation_call" && typeof item.result === "string" && item.result.length > 100);
+      const generated = (rawImage.output ?? []).find((item) => item.type === "image_generation_call" && typeof item.result === "string" && item.result.length > 100);
       if (!generated?.result) throw new Error("IMAGE_NOT_RETURNED");
       imageDataUrl = "data:image/png;base64," + generated.result;
     } catch (error) {
