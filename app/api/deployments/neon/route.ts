@@ -15,6 +15,8 @@ type NeonDatabase = { name: string; owner_name?: string };
 type NeonRole = { name: string; protected?: boolean };
 type RenderService = { id: string; name: string; type: string };
 
+const NEON_ORG_ID = process.env.NEON_ORG_ID?.trim() || "org-mute-hall-53918235";
+
 async function auth() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
@@ -77,7 +79,7 @@ export async function GET(request: Request) {
       else throw new Error("RENDER_ENV_LOOKUP_FAILED");
     }
     if (!projectId) {
-      const data = await neonApiRequest<{ projects?: NeonProject[] }>(token, "/projects?limit=100");
+      const data = await neonApiRequest<{ projects?: NeonProject[] }>(token, "/projects?limit=100&org_id=" + encodeURIComponent(NEON_ORG_ID));
       return NextResponse.json({ configured: true, databaseUrlConfigured, projects: unwrap<NeonProject>(data, "projects").map((item) => ({ id: item.id, name: item.name, region: item.region_id ?? null, postgresVersion: item.pg_version ?? null })) }, { headers: { "Cache-Control": "no-store" } });
     }
     const projectData = await neonApiRequest<{ project?: NeonProject }>(token, "/projects/" + encodeURIComponent(projectId));
