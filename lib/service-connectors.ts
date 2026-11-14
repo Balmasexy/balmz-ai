@@ -269,7 +269,7 @@ async function testNeon(credentials: ServiceCredentials) {
   const token = credentials.token?.trim();
   if (!token) throw new Error("NEON_API_KEY_REQUIRED");
   const endpoint = new URL("https://console.neon.tech/api/v2/projects");
-  endpoint.searchParams.set("limit", "1");
+  endpoint.searchParams.set("limit", "100");
   endpoint.searchParams.set("org_id", NEON_ORG_ID);
   const response = await checkedFetch(endpoint.toString(), {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
