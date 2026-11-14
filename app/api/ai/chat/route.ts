@@ -33,6 +33,21 @@ async function findSavedAssistantReply(userId: string, identity: ChatTurnIdentit
   }
 }
 
+async function checkConversationOwnership(userId: string, conversationId: string): Promise<"available" | "not-owned" | "unavailable"> {
+  try {
+    const result = await getDbPool().query<{ user_id: string }>(
+      "SELECT user_id FROM public.balmz_conversations WHERE id = $1 LIMIT 1",
+      [conversationId],
+    );
+    const ownerId = result.rows[0]?.user_id;
+    return ownerId && ownerId !== userId ? "not-owned" : "available";
+  } catch (error) {
+    // Keep compatibility with older deployments where migration 0007 is not installed.
+    if (error && typeof error === "object" && "code" in error && error.code === "42P01") return "available";
+    return "unavailable";
+  }
+}
+
 async function saveUserTurn(input: {
   userId: string;
   identity: ChatTurnIdentity;
@@ -245,6 +260,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (savedReply) {
       return NextResponse.json({ ...savedReply, historySaved: true, duplicate: true }, { headers: { "Cache-Control": "no-store" } });
     }
+
+    // Reject IDs owned by another account before reserving a billable usage unit.
+    const ownership = await checkConversationOwnership(session.user.id, turnIdentity.conversationId);
+    if (ownership === "not-owned") {
+      return safeError("CONVERSATION_NOT_FOUND", 404, "This conversation was not found.");
+    }
+    if (ownership === "unavailable") {
+      return safeError("WORKSPACE_STORAGE_UNAVAILABLE", 503, "Your conversation could not be verified. No AI request was sent.");
+    }
   }
 
   try {
@@ -294,7 +318,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       if (!connection) return safeError("AI_MODEL_UNAVAILABLE", 503, "This AI connection is no longer available. Refresh the model list and select another provider.");
       const reply = await sendAIProviderMessage(connection, providerMessages);
       if (turnIdentity && historySaved) {
-        await saveAssistantTurn({
+        historySaved = await saveAssistantTurn({
           userId: session.user.id,
           identity: turnIdentity,
           requestId,
@@ -327,7 +351,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
       const reply = await sendAIProviderMessages("general", general.apiKey, general.modelId, providerMessages, 1800, general.baseUrl);
       if (turnIdentity && historySaved) {
-        await saveAssistantTurn({
+        historySaved = await saveAssistantTurn({
           userId: session.user.id,
           identity: turnIdentity,
           requestId,
@@ -397,7 +421,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const reply = result.choices?.[0]?.message?.content?.trim();
     if (!reply) return safeError("EMPTY_AI_RESPONSE", 502, "The AI provider returned an empty response.");
     if (turnIdentity && historySaved) {
-      await saveAssistantTurn({
+      historySaved = await saveAssistantTurn({
         userId: session.user.id,
         identity: turnIdentity,
         requestId,
