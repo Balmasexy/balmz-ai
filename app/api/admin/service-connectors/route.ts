@@ -244,11 +244,13 @@ export async function POST(request: Request) {
       error: code,
       message: code === "CREDENTIAL_REJECTED"
         ? "The service rejected this credential. Check the key and its permissions."
-        : code === "PAYSTACK_DEMO_KEY_REQUIRED" || code === "PAYSTACK_LIVE_KEY_REQUIRED"
-          ? "The Paystack key prefix does not match the selected Demo/Live environment."
-          : code === "PRIVATE_ENDPOINT_NOT_ALLOWED" || code === "INVALID_HTTPS_ENDPOINT"
-            ? "Custom endpoints must use a public HTTPS address."
-            : "The connection test failed. Confirm the API key, endpoint, model ID and service permissions.",
+        : code === "NEON_PROJECT_NOT_VISIBLE"
+          ? "The Neon key authenticated, but it cannot see the configured BALMZ AI project. Check the key scope and organization access."
+          : code === "PAYSTACK_DEMO_KEY_REQUIRED" || code === "PAYSTACK_LIVE_KEY_REQUIRED"
+            ? "The Paystack key prefix does not match the selected Demo/Live environment."
+            : code === "PRIVATE_ENDPOINT_NOT_ALLOWED" || code === "INVALID_HTTPS_ENDPOINT"
+              ? "Custom endpoints must use a public HTTPS address."
+              : "The connection test failed. Check the provider credential and required access.",
     }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
 }
