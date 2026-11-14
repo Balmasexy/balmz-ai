@@ -20,7 +20,7 @@ async function svgToPngBase64(svg: string): Promise<string> {
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   try {
-    const image = new Image();
+    const image = document.createElement("img");
     const loaded = new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
       image.onerror = () => reject(new Error("The SVG chart could not be rasterized for PNG export."));
