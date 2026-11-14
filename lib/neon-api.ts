@@ -8,13 +8,9 @@ import {
 export async function getNeonApiToken(): Promise<string> {
   try {
     const result = await getDbPool().query<{ encrypted_credentials: string }>(
-      \`SELECT encrypted_credentials
-         FROM public.balmz_service_credentials
-        WHERE service_id = 'neon'
-          AND environment = 'live'
-          AND status = 'connected'
-        ORDER BY last_tested_at DESC NULLS LAST, created_at DESC
-        LIMIT 1\`,
+      "SELECT encrypted_credentials FROM public.balmz_service_credentials " +
+      "WHERE service_id = 'neon' AND environment = 'live' AND status = 'connected' " +
+      "ORDER BY last_tested_at DESC NULLS LAST, created_at DESC LIMIT 1",
     );
     const stored = result.rows[0]
       ? decryptServiceCredentials(result.rows[0].encrypted_credentials).token?.trim()
