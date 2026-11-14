@@ -544,7 +544,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           break;
         }
 
-        const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string };
+        const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string; historySaved?: boolean };
         if (!response.ok || !payload.reply) {
           const message = payload.message || (response.status === 402
             ? "Your plan does not have an available ai_messages allowance."
@@ -574,7 +574,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           updateMessages(pending.conversationId, updated);
         }
         pendingMessagesRef.current.shift();
-        setNotice("");
+        setNotice(payload.historySaved === false
+          ? "Reply received, but cloud history could not be confirmed. This conversation remains saved on this device."
+          : "");
       }
     } finally {
       processingQueueRef.current = false;
