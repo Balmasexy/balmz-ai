@@ -711,6 +711,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           <div className="space-y-1">
             <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
             <Link href="/dashboard/charts" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▥ ChartGPT workspace</Link>
+            <Link href="/dashboard/campaign-studio" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">✳ Campaign Studio</Link>
             <Link href="/dashboard/usage" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▤ Usage and limits</Link>
             <Link href="/dashboard/billing" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">₦ Plans & billing</Link>
             {isAdmin ? <>
