@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { getDbPool } from "@/lib/db";
 import { getCurrentSubscription, consumeUsage } from "@/lib/subscriptions";
+import { generateChartWithAI } from "@/lib/ai/chart-generator";
 import {
   decryptServiceCredentials,
   serviceCredentialsFromEnvironment,
@@ -91,15 +92,51 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "42P01") {
-      return NextResponse.json({ error: "SERVICE_CONNECTOR_SCHEMA_REQUIRED", message: "Apply migration 0003 to enable ChartGPT." }, { status: 503 });
+      // AI provider connections are independent of the ChartGPT service connector schema.
+      apiKey = serviceCredentialsFromEnvironment("chartgpt", "live")?.apiKey ?? "";
+    } else {
+      return NextResponse.json({ error: "CHARTGPT_CREDENTIALS_UNAVAILABLE" }, { status: 503 });
     }
-    return NextResponse.json({ error: "CHARTGPT_CREDENTIALS_UNAVAILABLE" }, { status: 503 });
   }
 
-  if (!apiKey) return NextResponse.json({
-    error: "CHARTGPT_NOT_CONNECTED",
-    message: "Connect a ChartGPT Team API key in Super Admin → Service connectors first.",
-  }, { status: 503 });
+  // Prefer the same tested OpenAI / General Language connectors used by Chat.
+  // ChartGPT remains available as a dedicated fallback when no chat provider is configured.
+  let aiGenerationError: unknown = null;
+  try {
+    const generated = await generateChartWithAI(chartPrompt, data ?? []);
+    return NextResponse.json({
+      requestId: randomUUID(),
+      spec: generated.spec,
+      file: format === "json" ? null : generated.file,
+      format: format === "png" ? "svg" : format,
+      requestedFormat: format,
+      rasterizeToPng: format === "png",
+      provider: generated.provider,
+      model: generated.model,
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    aiGenerationError = error;
+  }
+
+  if (!apiKey) {
+    const code = aiGenerationError instanceof Error ? aiGenerationError.message : "CHART_AI_NOT_CONFIGURED";
+    const status = code === "CHART_DATA_REQUIRED" || code === "CHART_NUMERIC_DATA_REQUIRED" ? 400
+      : code === "AI_PROVIDER_RATE_LIMITED" ? 429
+      : code === "AI_PROVIDER_AUTH_FAILED" ? 503
+      : code === "CHART_AI_NOT_CONFIGURED" ? 503 : 502;
+    const message = code === "CHART_AI_NOT_CONFIGURED"
+      ? "No chart provider is connected. In Super Admin → AI Connections, connect OpenAI with its API key or General Language with its key, HTTPS base URL and model ID. ChartGPT Team API remains an optional alternative."
+      : code === "CHART_DATA_REQUIRED"
+        ? "Add a data table before using an OpenAI or General Language chart connector."
+        : code === "CHART_NUMERIC_DATA_REQUIRED"
+          ? "The supplied data needs at least one numeric field to create a chart."
+          : code === "AI_PROVIDER_AUTH_FAILED"
+            ? "OpenAI or General Language rejected its saved key. Reconnect that provider in Super Admin → AI Connections."
+            : code === "AI_PROVIDER_RATE_LIMITED"
+              ? "The connected chat provider is rate-limited. Try the other configured provider or wait for its limit to reset."
+              : "The connected chat provider could not generate the chart. Check its key, model ID and provider access.";
+    return NextResponse.json({ error: code, message }, { status }, { headers: { "Cache-Control": "no-store" } } as never);
+  }
 
   let response: Response;
   try {
