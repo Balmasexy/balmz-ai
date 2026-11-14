@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
-import { findAIProviderConnection, sendAIProviderMessage, toOpenAIChatMessages, type AIImageAttachment, type AIMessage, type AIProviderConnection } from "@/lib/ai/providers";
+import { findAIProviderConnection, sendAIProviderMessage, sendAIProviderMessages, getGeneralLanguageEnvironmentConfig, toOpenAIChatMessages, type AIImageAttachment, type AIMessage, type AIProviderConnection } from "@/lib/ai/providers";
 import { getActiveComplimentaryAccess } from "@/lib/family-access";
 import { getDbPool } from "@/lib/db";
 
@@ -316,6 +316,38 @@ export async function POST(request: Request): Promise<NextResponse> {
       if (code === "AI_PROVIDER_UNAVAILABLE") return safeError(code, 502, "The selected provider could not be reached. Please try again later.");
       if (code === "AI_PROVIDER_DISABLED") return safeError(code, 503, "This AI connection has been disabled. Refresh the model list and choose another provider.");
       return safeError("AI_PROVIDER_ERROR", 502, "The selected AI provider could not complete this request.");
+    }
+  }
+
+  if (modelChoice === "env:general") {
+    const general = getGeneralLanguageEnvironmentConfig();
+    if (!general.apiKey || !general.baseUrl || !general.modelId) {
+      return safeError("AI_PROVIDER_NOT_CONFIGURED", 503, "The General Language API requires GENERAL_LANGUAGE_API_KEY, GENERAL_LANGUAGE_API_BASE_URL and GENERAL_LANGUAGE_API_MODEL in the server environment, or a saved General Language connection.");
+    }
+    try {
+      const reply = await sendAIProviderMessages("general", general.apiKey, general.modelId, providerMessages, 1800, general.baseUrl);
+      if (turnIdentity && historySaved) {
+        await saveAssistantTurn({
+          userId: session.user.id,
+          identity: turnIdentity,
+          requestId,
+          reply,
+          model: general.modelId,
+          providerId: "general",
+        });
+      }
+      return NextResponse.json({
+        reply,
+        model: general.modelId,
+        provider: "general",
+        historySaved,
+      }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "AI_PROVIDER_ERROR";
+      if (code === "AI_PROVIDER_AUTH_FAILED") return safeError(code, 503, "The General Language API rejected its saved key. Ask the Super Admin to reconnect it.");
+      if (code === "AI_PROVIDER_RATE_LIMITED") return safeError(code, 503, "The General Language API is temporarily rate-limited. Please try again later.");
+      if (code === "AI_PROVIDER_UNAVAILABLE") return safeError(code, 502, "The General Language API could not be reached. Check its HTTPS base URL and try again.");
+      return safeError("AI_PROVIDER_ERROR", 502, "The General Language API could not complete this request.");
     }
   }
 
