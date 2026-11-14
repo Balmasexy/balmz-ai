@@ -68,7 +68,8 @@ export async function GET(request: Request) {
       const servicesResponse = await fetch("https://api.render.com/v1/services?limit=100", { headers: { Authorization: "Bearer " + renderToken, Accept: "application/json" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20000) });
       if (!servicesResponse.ok) throw new Error(servicesResponse.status === 401 || servicesResponse.status === 403 ? "RENDER_AUTH_FAILED" : "RENDER_SERVICE_LOOKUP_FAILED");
       const rows = await servicesResponse.json() as Array<{ service?: { id: string } } | { id: string }>;
-      if (!rows.some((entry) => ("service" in entry && entry.service ? entry.service.id : entry.id) === serviceId)) return NextResponse.json({ error: "SERVICE_NOT_AVAILABLE" }, { status: 404 });
+      const serviceIds = rows.map((entry) => { const candidate = entry as { service?: { id?: string }; id?: string }; return candidate.service?.id ?? candidate.id ?? ""; });
+      if (!serviceIds.includes(serviceId)) return NextResponse.json({ error: "SERVICE_NOT_AVAILABLE" }, { status: 404 });
       const current = await fetch("https://api.render.com/v1/services/" + encodeURIComponent(serviceId) + "/env-vars/DATABASE_URL", { headers: { Authorization: "Bearer " + renderToken, Accept: "application/json" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000) });
       if (current.status === 404) databaseUrlConfigured = false;
       else if (current.ok) databaseUrlConfigured = true;
