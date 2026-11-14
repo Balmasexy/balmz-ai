@@ -61,6 +61,7 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/dashboard/billing`: plan catalogue and billing workspace
 - `/dashboard/settings`: profile and account settings
 - `/dashboard/deployments`: protected Render service/deployment workplace
+- `/dashboard/deployments` → Domains: Render public service URLs and custom-domain management; Neon: project/branch/database/role selection and tested DATABASE_URL wiring to a selected Render service
 - `/admin`: protected Super Admin workplace
 - `/api/subscription`: server-derived subscription status
 - `/api/health/db`: database connectivity probe

@@ -44,7 +44,12 @@ type Service = {
   latestDeploy?: { id: string; status: string; commitId: string | null; commitMessage: string | null; updatedAt: string | null } | null;
 };
 type Payload = { configured: boolean; services: Service[]; message?: string };
-type View = "overview" | "deploys" | "logs" | "metrics" | "events" | "storage" | "settings" | "billing";
+type CustomDomain = { id: string; name: string; domainType?: string; verificationStatus?: string; redirectForName?: string | null; createdAt?: string };
+type NeonProject = { id: string; name: string; region?: string | null; postgresVersion?: number | null };
+type NeonBranch = { id: string; name: string; isDefault: boolean };
+type NeonDatabase = { name: string; owner?: string | null };
+type NeonRole = { name: string; protected: boolean };
+type View = "overview" | "deploys" | "logs" | "metrics" | "events" | "domains" | "database" | "storage" | "settings" | "billing";
 type ServiceEvent = { id: string; type: string; timestamp: string; details?: Record<string, unknown> };
 type InspectPayload = {
   view: string;
@@ -63,6 +68,8 @@ const views: Array<{ id: View; label: string; description: string; icon: string 
   { id: "logs", label: "Logs", description: "Build and runtime output", icon: "≋" },
   { id: "metrics", label: "Metrics", description: "CPU, memory and instance data", icon: "⌁" },
   { id: "events", label: "Events", description: "Server lifecycle and operational events", icon: "◷" },
+  { id: "domains", label: "Domains", description: "Live deployment URL and custom domains", icon: "↗" },
+  { id: "database", label: "Neon", description: "Connect a Neon Postgres database to this service", icon: "▤" },
   { id: "storage", label: "Storage", description: "Persistent and object storage", icon: "▤" },
   { id: "settings", label: "Settings", description: "Runtime and build configuration", icon: "⚙" },
   { id: "billing", label: "Billing", description: "Compute plan and Render payment structure", icon: "₦" },
@@ -135,6 +142,26 @@ export function DeploymentWorkplace() {
   const [inspectLoading, setInspectLoading] = useState(false);
   const [inspectError, setInspectError] = useState("");
   const [logFilter, setLogFilter] = useState("all");
+  const [deploymentUrl, setDeploymentUrl] = useState("");
+  const [domains, setDomains] = useState<CustomDomain[]>([]);
+  const [domainDraft, setDomainDraft] = useState("");
+  const [domainsLoading, setDomainsLoading] = useState(false);
+  const [domainBusy, setDomainBusy] = useState(false);
+  const [domainError, setDomainError] = useState("");
+  const [neonProjects, setNeonProjects] = useState<NeonProject[]>([]);
+  const [neonBranches, setNeonBranches] = useState<NeonBranch[]>([]);
+  const [neonDatabases, setNeonDatabases] = useState<NeonDatabase[]>([]);
+  const [neonRoles, setNeonRoles] = useState<NeonRole[]>([]);
+  const [neonProjectId, setNeonProjectId] = useState("");
+  const [neonBranchId, setNeonBranchId] = useState("");
+  const [neonDatabaseName, setNeonDatabaseName] = useState("");
+  const [neonRoleName, setNeonRoleName] = useState("");
+  const [neonUrlExists, setNeonUrlExists] = useState<boolean | null>(null);
+  const [replaceDatabaseUrl, setReplaceDatabaseUrl] = useState(false);
+  const [neonLoading, setNeonLoading] = useState(false);
+  const [neonBusy, setNeonBusy] = useState(false);
+  const [neonError, setNeonError] = useState("");
+  const [neonNotice, setNeonNotice] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -183,6 +210,96 @@ export function DeploymentWorkplace() {
   }, []);
 
   useEffect(() => { void loadInspect(selectedServiceId, view); }, [selectedServiceId, view, loadInspect]);
+
+  useEffect(() => {
+    if (view !== "domains" || !selectedServiceId) return;
+    let active = true;
+    setDomainsLoading(true);
+    setDomainError("");
+    fetch("/api/deployments/render/domains?serviceId=" + encodeURIComponent(selectedServiceId), { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json() as { deploymentUrl?: string | null; domains?: CustomDomain[]; message?: string };
+        if (!response.ok) throw new Error(result.message || "Render domains could not be loaded.");
+        if (active) { setDeploymentUrl(result.deploymentUrl ?? ""); setDomains(result.domains ?? []); }
+      })
+      .catch((cause) => { if (active) setDomainError(cause instanceof Error ? cause.message : "Domain data could not be loaded."); })
+      .finally(() => { if (active) setDomainsLoading(false); });
+    return () => { active = false; };
+  }, [view, selectedServiceId]);
+
+  useEffect(() => {
+    if (view !== "database" || !selectedServiceId) return;
+    let active = true;
+    setNeonLoading(true); setNeonError(""); setNeonNotice("");
+    fetch("/api/deployments/neon?serviceId=" + encodeURIComponent(selectedServiceId), { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json() as { projects?: NeonProject[]; databaseUrlConfigured?: boolean; message?: string };
+        if (!response.ok) throw new Error(result.message || "Neon projects could not be loaded.");
+        if (active) { setNeonProjects(result.projects ?? []); setNeonUrlExists(result.databaseUrlConfigured ?? null); }
+      })
+      .catch((cause) => { if (active) setNeonError(cause instanceof Error ? cause.message : "Neon is unavailable. Connect the Neon service connector first."); })
+      .finally(() => { if (active) setNeonLoading(false); });
+    return () => { active = false; };
+  }, [view, selectedServiceId]);
+
+  useEffect(() => {
+    if (view !== "database" || !neonProjectId) { setNeonBranches([]); setNeonBranchId(""); setNeonDatabases([]); setNeonRoles([]); return; }
+    let active = true;
+    setNeonLoading(true);
+    fetch("/api/deployments/neon?serviceId=" + encodeURIComponent(selectedServiceId) + "&projectId=" + encodeURIComponent(neonProjectId), { cache: "no-store" })
+      .then(async (response) => { const result = await response.json() as { branches?: NeonBranch[]; message?: string }; if (!response.ok) throw new Error(result.message || "Neon branches could not be loaded."); if (active) { const items = result.branches ?? []; setNeonBranches(items); setNeonBranchId(items.find((item) => item.isDefault)?.id ?? items[0]?.id ?? ""); } })
+      .catch((cause) => { if (active) setNeonError(cause instanceof Error ? cause.message : "Neon branches could not be loaded."); })
+      .finally(() => { if (active) setNeonLoading(false); });
+    return () => { active = false; };
+  }, [view, selectedServiceId, neonProjectId]);
+
+  useEffect(() => {
+    if (view !== "database" || !neonProjectId || !neonBranchId) { setNeonDatabases([]); setNeonRoles([]); return; }
+    let active = true;
+    setNeonLoading(true);
+    fetch("/api/deployments/neon?serviceId=" + encodeURIComponent(selectedServiceId) + "&projectId=" + encodeURIComponent(neonProjectId) + "&branchId=" + encodeURIComponent(neonBranchId), { cache: "no-store" })
+      .then(async (response) => { const result = await response.json() as { databases?: NeonDatabase[]; roles?: NeonRole[]; message?: string }; if (!response.ok) throw new Error(result.message || "Neon database resources could not be loaded."); if (active) { const dbs = result.databases ?? []; const roles = result.roles ?? []; setNeonDatabases(dbs); setNeonRoles(roles); setNeonDatabaseName(dbs[0]?.name ?? ""); setNeonRoleName(roles.find((item) => !item.protected)?.name ?? roles[0]?.name ?? ""); } })
+      .catch((cause) => { if (active) setNeonError(cause instanceof Error ? cause.message : "Neon database resources could not be loaded."); })
+      .finally(() => { if (active) setNeonLoading(false); });
+    return () => { active = false; };
+  }, [view, selectedServiceId, neonProjectId, neonBranchId]);
+
+  async function addCustomDomain() {
+    if (!selectedService || !domainDraft.trim() || domainBusy) return;
+    const confirmed = await confirmNativeAction("Add custom domain", "Add " + domainDraft.trim() + " to " + selectedService.name + "? You must also configure the DNS records with your domain registrar and complete verification in Render.");
+    if (!confirmed) return;
+    setDomainBusy(true); setDomainError("");
+    try {
+      const response = await fetch("/api/deployments/render/domains", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: selectedService.id, domain: domainDraft.trim() }) });
+      const result = await response.json() as { domain?: CustomDomain; message?: string };
+      if (!response.ok) throw new Error(result.message || "Render could not add this domain.");
+      setDomainDraft("");
+      const refreshed = await fetch("/api/deployments/render/domains?serviceId=" + encodeURIComponent(selectedService.id), { cache: "no-store" });
+      const data = await refreshed.json() as { deploymentUrl?: string | null; domains?: CustomDomain[] };
+      if (refreshed.ok) { setDeploymentUrl(data.deploymentUrl ?? ""); setDomains(data.domains ?? []); }
+      setNotice("Custom domain added in Render. Complete its DNS configuration and verification before using it.");
+      void hapticNotice(true);
+    } catch (cause) { setDomainError(cause instanceof Error ? cause.message : "Domain could not be added."); void hapticNotice(false); }
+    finally { setDomainBusy(false); }
+  }
+
+  async function connectNeonDatabase() {
+    if (!selectedService || neonBusy || !neonProjectId || !neonBranchId || !neonDatabaseName || !neonRoleName) return;
+    const message = "Connect the selected Neon database to " + selectedService.name + " by setting DATABASE_URL? " + (neonUrlExists ? "This will REPLACE the existing DATABASE_URL value." : "A new DATABASE_URL variable will be created.") + " Other variables will not be removed. Render will not deploy automatically; you can deploy after the connection is saved.";
+    const confirmed = await confirmNativeAction("Connect Neon database", message);
+    if (!confirmed) return;
+    setNeonBusy(true); setNeonError(""); setNeonNotice("");
+    try {
+      const response = await fetch("/api/deployments/neon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: selectedService.id, projectId: neonProjectId, branchId: neonBranchId, databaseName: neonDatabaseName, roleName: neonRoleName, pooled: true, replaceExisting: replaceDatabaseUrl }) });
+      const result = await response.json() as { message?: string; database?: { project?: string; branch?: string; database?: string; role?: string } };
+      if (!response.ok) throw new Error(result.message || "Neon could not be connected to this Render service.");
+      setNeonUrlExists(true); setReplaceDatabaseUrl(false);
+      setNeonNotice(result.message || "Neon is connected. Deploy the service to activate the new DATABASE_URL.");
+      setNotice("Neon DATABASE_URL saved on " + selectedService.name + ". Deploy the service when ready to activate it.");
+      void hapticNotice(true);
+    } catch (cause) { setNeonError(cause instanceof Error ? cause.message : "Neon could not be connected."); void hapticNotice(false); }
+    finally { setNeonBusy(false); }
+  }
 
   async function deploy(service: Service) {
     if (busyId) return;
@@ -380,6 +497,87 @@ export function DeploymentWorkplace() {
                     : <div className="p-8 text-center text-xs text-slate-500">No recent events were returned by Render.</div>}
                 </Panel>
               ) : null}
+              {view === "domains" ? (
+                <div className="space-y-4">
+                  {domainError ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-xs text-rose-200">{domainError}</div> : null}
+                  <Panel title="Live deployment URL" subtitle="The public Render URL assigned to the selected service">
+                    <div className="space-y-3 p-5 sm:p-6">
+                      {domainsLoading ? <p className="text-xs text-slate-500">Loading deployment URL and domain settings…</p> : deploymentUrl ? <>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-[#0b0f14] p-4">
+                          <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Render public URL</p><a href={deploymentUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-sm font-semibold text-[#a69cff] hover:underline">{deploymentUrl}</a></div>
+                          <div className="flex shrink-0 gap-2">
+                            <button type="button" onClick={() => void navigator.clipboard.writeText(deploymentUrl).then(() => setNotice("Deployment URL copied.")).catch(() => setDomainError("Clipboard access is not available."))} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] font-semibold text-slate-300">Copy URL</button>
+                            <a href={deploymentUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-[#7c6cff] px-3 py-2 text-[10px] font-semibold text-white">Open ↗</a>
+                          </div>
+                        </div>
+                      </> : <p className="text-xs text-slate-500">Render did not return a public URL for this service. Private services and some job types do not have a public browser URL.</p>}
+                      <p className="text-[10px] leading-5 text-slate-500">This is the service URL reported by Render, not a fabricated preview link. A new deploy normally updates the same service URL.</p>
+                    </div>
+                  </Panel>
+                  <Panel title="Custom domains" subtitle="Add a domain you own and connect it to this Render service">
+                    <div className="space-y-4 p-5 sm:p-6">
+                      {["web_service", "static_site"].includes(selectedService?.type ?? "") ? (
+                        <>
+                          <form onSubmit={(event) => { event.preventDefault(); void addCustomDomain(); }} className="flex flex-col gap-2 sm:flex-row">
+                            <input value={domainDraft} onChange={(event) => setDomainDraft(event.target.value)} placeholder="app.example.com" maxLength={300} autoComplete="off" className="min-h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none focus:border-[#7c6cff]/50" />
+                            <button type="submit" disabled={!domainDraft.trim() || domainBusy} className="min-h-11 rounded-lg bg-[#7c6cff] px-4 text-xs font-semibold text-white disabled:opacity-40">{domainBusy ? "Adding domain…" : "Add custom domain"}</button>
+                          </form>
+                          {domainsLoading ? <p className="text-xs text-slate-500">Loading domains…</p> : domains.length ? <div className="divide-y divide-white/[0.07] rounded-xl border border-white/[0.08]">
+                            {domains.map((domain) => <div key={domain.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                              <div className="min-w-0"><p className="break-all text-xs font-semibold text-slate-200">{domain.name}</p><p className="mt-1 text-[10px] text-slate-600">{domain.domainType ?? "Custom domain"}{domain.redirectForName ? " · redirects to " + domain.redirectForName : ""}</p></div>
+                              <span className={"rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-wider " + (domain.verificationStatus === "verified" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-amber-400/20 bg-amber-400/10 text-amber-200")}>{domain.verificationStatus ?? "pending"}</span>
+                            </div>)}
+                          </div> : <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-slate-500">No custom domains have been added to this service.</p>}
+                          <div className="rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4">
+                            <p className="text-xs font-semibold text-amber-100">DNS and verification</p>
+                            <p className="mt-2 text-[11px] leading-5 text-slate-400">Adding the domain in Render does not change your registrar's DNS. Open the service in Render → Settings → Custom Domains to see the exact CNAME or apex records, add them with your DNS provider, then refresh here until Render reports the domain as verified. HTTPS certificates are managed by Render after verification.</p>
+                            <button type="button" onClick={() => void openNativeBrowser(dashboardUrl).catch(() => showNativeToast("Could not open the Render service."))} className="mt-3 text-[10px] font-semibold text-[#a69cff] hover:underline">Open Render service settings ↗</button>
+                          </div>
+                        </>
+                      ) : <p className="text-xs leading-6 text-slate-500">Render custom domains are supported for web services and static sites. This selected service type does not support them.</p>}
+                    </div>
+                  </Panel>
+                </div>
+              ) : null}
+
+              {view === "database" ? (
+                <div className="space-y-4">
+                  {neonError ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-xs text-rose-200">{neonError}</div> : null}
+                  {neonNotice ? <div role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-4 py-3 text-xs leading-5 text-emerald-200">{neonNotice}</div> : null}
+                  <Panel title="Connect Neon Postgres" subtitle="Securely connect a Neon project to this Render service">
+                    <div className="space-y-4 p-5 sm:p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-[#0b0f14] p-4">
+                        <div><p className="text-xs font-semibold text-white">DATABASE_URL</p><p className="mt-1 text-[10px] text-slate-500">Only this variable will be changed. Other Render variables are preserved.</p></div>
+                        <span className={"rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-wider " + (neonUrlExists === true ? "border-amber-400/20 bg-amber-400/10 text-amber-200" : neonUrlExists === false ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-slate-500")}>{neonUrlExists === true ? "Existing URL" : neonUrlExists === false ? "Not configured" : "Checking…"}</span>
+                      </div>
+                      {neonLoading && !neonProjects.length ? <p className="text-xs text-slate-500">Loading Neon projects and database settings…</p> : null}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Neon project</span><select value={neonProjectId} onChange={(event) => { setNeonProjectId(event.target.value); setNeonBranchId(""); setNeonDatabaseName(""); setNeonRoleName(""); setNeonBranches([]); setNeonDatabases([]); setNeonRoles([]); }} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none focus:border-[#7c6cff]/50"><option value="">Select project</option>{neonProjects.map((project) => <option key={project.id} value={project.id}>{project.name} · {project.region ?? project.id}</option>)}</select></label>
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Branch</span><select value={neonBranchId} onChange={(event) => { setNeonBranchId(event.target.value); setNeonDatabaseName(""); setNeonRoleName(""); }} disabled={!neonProjectId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select branch</option>{neonBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.isDefault ? " · default" : ""}</option>)}</select></label>
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Database</span><select value={neonDatabaseName} onChange={(event) => setNeonDatabaseName(event.target.value)} disabled={!neonBranchId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select database</option>{neonDatabases.map((database) => <option key={database.name} value={database.name}>{database.name}</option>)}</select></label>
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Postgres role</span><select value={neonRoleName} onChange={(event) => setNeonRoleName(event.target.value)} disabled={!neonBranchId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select role</option>{neonRoles.map((role) => <option key={role.name} value={role.name}>{role.name}{role.protected ? " · protected" : ""}</option>)}</select></label>
+                      </div>
+                      <div className="rounded-xl border border-white/[0.08] p-4">
+                        <p className="text-xs font-semibold text-slate-200">Connection mode</p>
+                        <p className="mt-1 text-[10px] leading-5 text-slate-500">BALMZ AI requests a pooled Neon connection string by default, which is generally suited to web services with concurrent requests. The connection string is never returned to the browser.</p>
+                        <p className="mt-2 text-[10px] text-slate-500">The database is tested from the server using SELECT 1 before Render receives DATABASE_URL.</p>
+                      </div>
+                      {neonUrlExists === true ? <label className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] p-4"><input type="checkbox" checked={replaceDatabaseUrl} onChange={(event) => setReplaceDatabaseUrl(event.target.checked)} className="mt-0.5 accent-[#7c6cff]" /><span><span className="block text-xs font-semibold text-amber-100">Replace the existing DATABASE_URL</span><span className="mt-1 block text-[10px] leading-5 text-slate-400">This may switch the selected application to a different database. Confirm that you selected the intended project and branch. Existing data in either database is not deleted.</span></span></label> : null}
+                      <button type="button" onClick={() => void connectNeonDatabase()} disabled={neonBusy || neonLoading || !neonProjectId || !neonBranchId || !neonDatabaseName || !neonRoleName || (neonUrlExists === true && !replaceDatabaseUrl)} className="min-h-11 w-full rounded-lg bg-[#7c6cff] px-4 text-xs font-semibold text-white disabled:opacity-40">{neonBusy ? "Testing and connecting Neon…" : "Test and connect DATABASE_URL"}</button>
+                      <p className="text-[10px] leading-5 text-slate-500">The API key is read from the encrypted Neon service connector. It is not shown or sent to the browser. Connecting updates only the selected Render service's DATABASE_URL; it does not auto-deploy.</p>
+                      {neonNotice ? <button type="button" onClick={() => selectedService && void deploy(selectedService)} disabled={Boolean(busyId)} className="min-h-11 w-full rounded-lg border border-emerald-400/25 px-4 text-xs font-semibold text-emerald-200 disabled:opacity-40">{busyId === selectedService?.id ? "Starting deployment…" : "Deploy now with Neon DATABASE_URL"}</button> : null}
+                    </div>
+                  </Panel>
+                  <Panel title="Neon connection guidance" subtitle="Connect the right database without risking existing production data">
+                    <div className="grid gap-3 p-5 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Choose the runtime role</p><p className="mt-2 text-[11px] leading-5 text-slate-500">Use a dedicated application role with only the permissions your application needs. Avoid owner or admin roles for normal runtime traffic.</p></div>
+                      <div className="rounded-xl border border-white/[0.08] p-4"><p className="text-xs font-semibold text-white">Separate preview and production</p><p className="mt-2 text-[11px] leading-5 text-slate-500">Use a development/preview branch for testing. Select the production branch only when the deployment is intended to use production data.</p></div>
+                    </div>
+                    <div className="border-t border-white/[0.07] p-5"><a href="https://console.neon.tech" target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-[#a69cff] hover:underline">Open Neon Console ↗</a></div>
+                  </Panel>
+                </div>
+              ) : null}
+
               {view === "metrics" ? (
                 <div className="space-y-4">
                   {inspectLoading ? <div className="rounded-2xl border border-white/[0.08] p-8 text-center text-xs text-slate-500">Loading service metrics…</div>
