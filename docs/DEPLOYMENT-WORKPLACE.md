@@ -48,3 +48,14 @@ The target Render environment must have the appropriate permissions to update se
 ## Secret handling and limits
 
 Neon API credentials remain encrypted in balmz_service_credentials or server environment variables. Neon database URIs are resolved and tested server-side. The browser sees resource names and non-secret connection status only. This workflow does not create Neon projects, branches, databases or roles and does not reset any database password.
+
+
+## Super Admin-only access and terminal diagnostics
+
+The Deployment Workplace is rendered only inside the authenticated Super Admin workspace. The legacy /dashboard/deployments address redirects to /admin?section=deployments and is not a separate member-facing feature. Its backing APIs also verify a live Super Admin identity on the server.
+
+The Admin Terminal accepts the allow-listed read-only commands:
+- deployments (alias: render): list Render services with service IDs, types, and actual public URLs returned by Render.
+- neon: list Neon projects and their non-secret region/Postgres-version metadata.
+
+These commands do not run shell commands, arbitrary SQL, deploys, or environment-variable mutations. Mutating actions remain in the protected Deployment Workplace and require their own confirmations.

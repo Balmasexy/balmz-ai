@@ -374,7 +374,7 @@ export function DeploymentWorkplace() {
     : "https://dashboard.render.com";
 
   return (
-    <main className="min-h-[100dvh] bg-[#0b0f14] text-slate-100">
+    <div className="min-h-[100dvh] bg-[#0b0f14] text-slate-100">
       <header className="sticky top-0 z-30 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0b0f14]/95 px-4 backdrop-blur-xl sm:px-8">
         <div><p className="text-sm font-semibold text-white">Render</p><p className="mt-0.5 text-[10px] text-slate-500">Workspace / Services / Deployment workplace</p></div>
         <div className="flex items-center gap-2">
@@ -665,6 +665,6 @@ export function DeploymentWorkplace() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-4 text-[10px] text-slate-600"><p>Super Admin · Server-side Render API · no API secrets in the browser</p><label className="flex items-center gap-2 text-[10px] text-slate-500"><input type="checkbox" checked={clearCache} onChange={(event) => setClearCache(event.target.checked)} className="accent-[#7c6cff]" /> Clear build cache on next deploy</label></div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

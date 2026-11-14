@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAdminOverview, getAdminSession } from "@/lib/admin";
+import { getRenderApiToken } from "@/lib/render-api";
+import { getNeonApiToken, neonApiRequest } from "@/lib/neon-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const HELP =
-  "Available commands: help, whoami, pwd, ls, overview, users, plans, subscriptions, payments, usage, webhooks, audit, security. Commands are read-only and query BALMZ AI data only. No shell, SQL, scripts, files, or secrets are accessible.";
+  "Available commands: help, whoami, pwd, ls, overview, users, plans, subscriptions, payments, usage, webhooks, audit, security, deployments, neon. Commands are read-only. deployments lists connected Render services and their real URLs; neon lists projects from the connected Neon account. No shell, arbitrary SQL, scripts, files, or secrets are accessible.";
 
 function safeNumber(value: number | string | null | undefined): string {
   return Number(value ?? 0).toLocaleString("en-NG");
@@ -54,6 +56,39 @@ export async function POST(request: Request) {
   }
   if (command === "ls") {
     return NextResponse.json({ output: "overview  accounts  plans  subscriptions  payments  usage  webhooks  audit  terminal  settings" }, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  if (["deployments", "render"].includes(command)) {
+    try {
+      const token = await getRenderApiToken();
+      const response = await fetch("https://api.render.com/v1/services?limit=100", {
+        headers: { Authorization: "Bearer " + token, Accept: "application/json" },
+        cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "RENDER_AUTH_FAILED" : "RENDER_LOOKUP_FAILED");
+      const rows = await response.json() as Array<{ service?: { id: string; name: string; type: string; serviceDetails?: { url?: string } }; id?: string; name?: string; type?: string; serviceDetails?: { url?: string } }>;
+      const services = rows.map((row) => row.service ?? row).filter((item) => item.id && item.name).slice(0, 15);
+      const output = services.length ? services.map((item) => `${item.name} · ${item.type} · ${item.id} · ${item.serviceDetails?.url ?? "no public URL"}`).join(" | ") : "No Render services returned.";
+      return NextResponse.json({ output: `Render services=${services.length} | ${output}` }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "RENDER_UNAVAILABLE";
+      const output = code === "RENDER_NOT_CONFIGURED" ? "Render is not connected. Connect it in Super Admin → Service connectors." : code === "RENDER_AUTH_FAILED" ? "Render rejected the saved API key. Reconnect the Render connector." : "Render service lookup failed. Check the connector and try again.";
+      return NextResponse.json({ output }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+  }
+
+  if (command === "neon") {
+    try {
+      const token = await getNeonApiToken();
+      const data = await neonApiRequest<{ projects?: Array<{ id: string; name: string; region_id?: string; pg_version?: number }> }>(token, "/projects?limit=100");
+      const projects = Array.isArray(data.projects) ? data.projects.slice(0, 15) : [];
+      const output = projects.length ? projects.map((item) => `${item.name} · ${item.id} · ${item.region_id ?? "region unavailable"} · PostgreSQL ${item.pg_version ?? "version unavailable"}`).join(" | ") : "No Neon projects returned.";
+      return NextResponse.json({ output: `Neon projects=${projects.length} | ${output}` }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "NEON_UNAVAILABLE";
+      const output = code === "NEON_NOT_CONFIGURED" ? "Neon is not connected. Connect it in Super Admin → Service connectors." : code === "NEON_AUTH_FAILED" ? "Neon rejected the saved API key. Reconnect the Neon connector." : "Neon project lookup failed. Check the connector and try again.";
+      return NextResponse.json({ output }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
   }
 
   if (!["overview", "status", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security"].includes(command)) {

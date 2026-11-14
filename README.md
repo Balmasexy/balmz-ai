@@ -162,3 +162,6 @@ Before a production release, validate:
 - Super Admin authorization, API-key scopes and audit events.
 - Android build signatures and real-device behavior.
 - Database row counts and existing account/subscription preservation.
+
+
+Deployment and Neon controls are restricted to Super Admin → Deployment workplace. The Admin Terminal exposes read-only `deployments`/`render` and `neon` diagnostics; it does not execute arbitrary shell commands or SQL.

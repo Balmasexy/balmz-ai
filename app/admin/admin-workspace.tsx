@@ -12,6 +12,7 @@ import { AIConnectionsSection } from "./ai-connections-section";
 import { ServiceConnectorsSection } from "./service-connectors-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { FamilyAccessSection } from "./family-access-section";
+import { DeploymentWorkplace } from "@/app/dashboard/deployments/deployment-workplace";
 
 type Section =
   | "overview"
@@ -24,6 +25,7 @@ type Section =
   | "webhooks"
   | "audit"
   | "terminal"
+  | "deployments"
   | "storage"
   | "ai-connections"
   | "service-connectors"
@@ -68,7 +70,8 @@ const navigation: { title: string; items: NavigationItem[] }[] = [
   {
     title: "OPERATIONS",
     items: [
-      { id: "terminal", label: "Admin terminal", icon: "›_", detail: "Restricted diagnostics console" },
+      { id: "deployments", label: "Deployment workplace", icon: "⇧", detail: "Render URLs, custom domains and Neon database integration" },
+      { id: "terminal", label: "Admin terminal", icon: "›_", detail: "Read-only Render and Neon deployment diagnostics" },
       { id: "storage", label: "File storage", icon: "▤", detail: "Private files and deployment archives" },
       { id: "settings", label: "System settings", icon: "⚙", detail: "Security and service posture" },
     ],
@@ -85,7 +88,8 @@ const titles: Record<Section, { eyebrow: string; title: string; description: str
   usage: { eyebrow: "CONSUMPTION", title: "Usage analytics", description: "Review real usage counters and limits recorded by the application." },
   webhooks: { eyebrow: "INTEGRATION EVENTS", title: "Webhook monitor", description: "Inspect Paystack webhook events and their processing state." },
   audit: { eyebrow: "GOVERNANCE", title: "Audit trail", description: "Review administrative actions recorded for accountability." },
-  terminal: { eyebrow: "OPERATIONS CONSOLE", title: "Admin terminal", description: "Run built-in, read-only BALMZ AI diagnostics." },
+  terminal: { eyebrow: "OPERATIONS CONSOLE", title: "Admin terminal", description: "Run built-in, read-only BALMZ AI and infrastructure diagnostics." },
+  deployments: { eyebrow: "DEPLOYMENT & DATABASE", title: "Deployment workplace", description: "Manage Render service URLs, custom domains and Neon Postgres connections. Super Admin only." },
   storage: { eyebrow: "FILE INFRASTRUCTURE", title: "Super Admin storage", description: "Manage private project files and deployment archives." },
   "ai-connections": { eyebrow: "AI & AGENT INFRASTRUCTURE", title: "AI connections", description: "Connect and manage external model providers." },
   "service-connectors": { eyebrow: "DEVELOPER INTEGRATIONS", title: "Service connectors", description: "Search, connect and test external services." },
@@ -444,7 +448,7 @@ function TerminalSection({ email }: { email: string }) {
   const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([
     { id: 1, kind: "system", text: "BALMZ AI CONTROL CONSOLE · server-verified · read-only" },
-    { id: 2, kind: "system", text: "Type help to list approved commands. Every command is checked against your active Super Admin session." },
+    { id: 2, kind: "system", text: "Type help to list approved commands. Render/Neon diagnostics are read-only and checked against your active Super Admin session." },
   ]);
 
   async function runCommand(event: FormEvent<HTMLFormElement>) {
@@ -518,7 +522,7 @@ function TerminalSection({ email }: { email: string }) {
       <div className="space-y-5">
         <Panel title="Command reference" subtitle="Server-allow-listed commands">
           <div className="grid grid-cols-2 gap-2 p-4">
-            {["help", "whoami", "overview", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security", "clear"].map((item) => <button key={item} type="button" onClick={() => setCommand(item)} className="min-h-10 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-left font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/20 hover:text-emerald-300">{item}</button>)}
+            {["help", "whoami", "overview", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security", "deployments", "neon", "clear"].map((item) => <button key={item} type="button" onClick={() => setCommand(item)} className="min-h-10 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-left font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/20 hover:text-emerald-300">{item}</button>)}
           </div>
         </Panel>
         <Panel title="Identity & isolation" subtitle="Current console owner">
@@ -577,7 +581,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
     const requested = new URLSearchParams(window.location.search).get("section");
     const allowed: Section[] = [
       "overview", "accounts", "family-access", "plans", "subscriptions", "payments", "usage",
-      "webhooks", "audit", "terminal", "storage", "ai-connections",
+      "webhooks", "audit", "terminal", "deployments", "storage", "ai-connections",
       "service-connectors", "api-keys", "settings",
     ];
     if (requested && allowed.includes(requested as Section)) {
@@ -690,6 +694,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             {active === "usage" ? <UsageSection data={filteredData} /> : null}
             {active === "webhooks" ? <WebhooksSection data={filteredData} /> : null}
             {active === "audit" ? <AuditSection data={filteredData} /> : null}
+            {active === "deployments" ? <DeploymentWorkplace /> : null}
             {active === "terminal" ? <TerminalSection email={adminEmail} /> : null}
             {active === "storage" ? <StorageSection /> : null}
             {active === "ai-connections" ? <AIConnectionsSection /> : null}
@@ -713,7 +718,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
                 { id: "terminal" as Section, label: "Terminal", icon: "›_" },
                 { id: "deployments" as Section, label: "Deploy", icon: "⇧" },
               ]).map((item) => (
-                <button key={item.id} type="button" onClick={() => (item.id as string) === "deployments" ? router.push("/dashboard/deployments") : navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)]" : "text-slate-500 hover:text-slate-200"}`}>
+                <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)]" : "text-slate-500 hover:text-slate-200"}`}>
                   <span className="text-base leading-4">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
