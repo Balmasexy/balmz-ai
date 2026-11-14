@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ output: "/balmz-ai/admin" }, { headers: { "Cache-Control": "no-store" } });
   }
   if (command === "ls") {
-    return NextResponse.json({ output: "overview  accounts  plans  subscriptions  payments  usage  webhooks  audit  terminal  settings" }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ output: "overview  accounts  plans  subscriptions  payments  usage  webhooks  audit  security  deployments  neon  terminal  settings" }, { headers: { "Cache-Control": "no-store" } });
   }
 
   if (["deployments", "render"].includes(command)) {
