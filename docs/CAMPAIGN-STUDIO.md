@@ -1,0 +1,4 @@
+Campaign Studio is available at `/dashboard/campaign-studio`. It accepts the brief, target audience, product details, tone and requested channels, then uses the OpenAI Responses API to create a campaign concept, exactly three copy variants, a launch checklist and an image prompt. It can optionally request a generated campaign image using the Responses API image-generation tool. Generated campaign copy and prompts are saved in the signed-in user's existing private notes records; generated image bytes are returned for the current page session and are not retained in campaign history.
+
+Campaign generation and optional image generation are each metered against the user's server-side `ai_messages` allowance. OpenAI API usage may be billed separately. The generator instructs the model not to invent product features, pricing, performance statistics, testimonials, guarantees or legal claims.
+
