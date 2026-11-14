@@ -92,8 +92,11 @@ export function ChartGPTWorkspace({ isAdmin }: { isAdmin: boolean }) {
   async function downloadFile() {
     if (!result?.file) return;
     const mime = result.format === "png" ? "image/png" : result.format === "svg" ? "image/svg+xml" : "application/json";
+    const pngBase64 = result.file.startsWith("data:image/png;base64,")
+      ? result.file.slice("data:image/png;base64,".length)
+      : result.file;
     const blob = result.format === "png"
-      ? new Blob([Uint8Array.from(atob(result.file.replace(/^data:image\\/png;base64,/, "")), (character) => character.charCodeAt(0))], { type: mime })
+      ? new Blob([Uint8Array.from(atob(pngBase64), (character) => character.charCodeAt(0))], { type: mime })
       : new Blob([result.file], { type: mime });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
