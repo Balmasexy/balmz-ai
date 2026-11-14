@@ -1,61 +1,44 @@
-# Deployment workplace
+# Deployment Workplace
 
-The authenticated Super Admin deployment workplace is available at `/dashboard/deployments`.
+The authenticated Super Admin Deployment Workplace is available inside **Super Admin → Deployment Workplace**. The legacy `/dashboard/deployments` route redirects to that protected admin section.
 
-## Render integration
+## Implemented Render controls
 
-The workspace lists up to 50 services accessible to the configured Render API key, shows the most recent deployment for each service, and can trigger a build-and-deploy for a selected connected service. It can optionally clear the build cache when the administrator explicitly selects that option.
+The workplace lists up to 50 services visible to the connected Render account and displays each service's latest deployment and provider-returned public URL. For a selected service it can:
 
-Configure the following server-side secret on the BALMZ AI Render web service:
+- Trigger a real Render build-and-deploy, with build-cache clearing available only when explicitly selected.
+- Inspect deployment history and lifecycle events.
+- Retrieve recent application and build log entries (this is a refresh-based view, not a live streaming terminal).
+- Inspect returned CPU, memory and instance metrics.
+- List the provider-returned primary URL and custom domains.
+- Add a custom domain to a Render web service or static site.
 
-- `RENDER_API_KEY`: a Render API key with access only to the intended workspace/resources where scoped keys are available.
+A domain is not registered or paid for by BALMZ AI. Adding it in Render does not change DNS; apply the exact DNS records shown by Render, then refresh until Render reports the domain verified. The original `.onrender.com` address remains available unless its Render service subdomain policy is separately changed. BALMZ AI does not invent preview URLs.
 
-The API key is never sent to the browser and is never stored in browser local storage. The deployment API requires a valid Better Auth session and a database-confirmed Super Admin role. Before starting a deployment, the server verifies that the selected service ID is returned by the connected Render account.
+## Neon Postgres connection
 
-## Cost and safety
+The Neon tab lists projects, branches, databases and roles available to the connected Neon account. For a selected target it:
 
-- The UI itself does not charge a fee.
-- Hosting plans, build minutes, storage, bandwidth, and provider usage may incur charges or be subject to free-tier quotas.
-- A deployment request starts a real provider build; it is not a simulation.
-- Cache clearing is opt-in per deployment.
-- This release does not create, delete, suspend, resize, or change environment variables on hosting services.
-- No Render API key should be placed in frontend code, a chat prompt, or a Git commit.
+1. Verifies the selected Render service belongs to the connected Render account.
+2. Verifies that the project, branch, database and role belong to the connected Neon account.
+3. Requests the selected Neon pooled connection URI server-side and validates the URI host and TLS settings.
+4. Opens a server-side PostgreSQL connection and runs `SELECT 1`.
+5. Updates only the selected Render service's `DATABASE_URL` using Render's single-variable endpoint.
 
-## Current scope
+The URI is never returned to the browser or written to application logs. Other Render environment variables are not replaced. If `DATABASE_URL` already exists, the admin must explicitly select the replacement option and confirm the action. The environment change does not automatically deploy the service; review the selected project, branch, database and restricted runtime role, then explicitly trigger **Deploy latest**.
 
-Render connected-service listing and deployment trigger are implemented. Vercel, GitHub Actions custom pipelines, repository import/create, build log streaming, rollback, custom domains, and project environment editing are not yet implemented in this screen.
+Use the restricted application role for production runtime traffic, not a Neon owner or migration role. This workflow does not create projects, branches, databases or roles; it does not run schema migrations, alter tables, reset passwords or edit arbitrary environment variables.
 
+## Credentials and costs
 
-## Deployment URLs and custom domains
+Render and Neon management credentials are resolved server-side from a tested, encrypted **Super Admin → Service connectors** record or from the respective Render service environment fallback (`RENDER_API_KEY` and `NEON_API_KEY`). A configured credential is never sent to the browser. The integration displays only provider resource metadata and non-secret status.
 
-The Domains tab reads the selected service's public URL from Render and lists its custom domains using the Render Custom Domains API. Administrators can add a domain to a web service or static site. Adding a domain in Render does not change DNS: configure the exact DNS records shown in the Render service settings, then refresh until the domain reports verified. Render continues to provide the original onrender.com URL unless its service subdomain policy is separately changed.
+Build minutes, hosting plans, storage, bandwidth and provider usage may incur charges or be subject to free-tier quotas. A deployment request starts a real provider build; it is not a simulation.
 
-The app does not invent preview URLs. A service URL is displayed only when Render returns it for that service.
+## Current limits
 
-## Neon Postgres integration
+This workspace does not provide Vercel integration, repository import/provisioning, custom GitHub Actions pipelines, rollback, live log streaming, arbitrary shell access, arbitrary SQL, secret retrieval, arbitrary service environment editing or database migration execution.
 
-The Neon tab reuses the tested, encrypted Neon connection saved under Super Admin → Service connectors. It lists the connected account's projects, branches, databases and roles. When a Super Admin selects a target, the server:
+## Admin Terminal boundary
 
-1. Confirms that the selected Render service and Neon resources belong to the connected accounts.
-2. Requests a pooled connection URI from the Neon Management API. The URI is never returned to the browser or written to logs.
-3. Tests the database connection with SELECT 1.
-4. Updates only the selected Render service's DATABASE_URL using Render's single-variable endpoint.
-
-The operation preserves all other service environment variables. If DATABASE_URL already exists, the UI requires a separate explicit replacement checkbox and confirmation. The operation does not automatically deploy the service; use Deploy latest after checking the selected project, branch and role. Use a restricted runtime role, not an owner role, for production traffic.
-
-The target Render environment must have the appropriate permissions to update service environment variables. The Render API's single-variable operation does not replace the complete environment-variable list.
-
-## Secret handling and limits
-
-Neon API credentials remain encrypted in balmz_service_credentials or server environment variables. Neon database URIs are resolved and tested server-side. The browser sees resource names and non-secret connection status only. This workflow does not create Neon projects, branches, databases or roles and does not reset any database password.
-
-
-## Super Admin-only access and terminal diagnostics
-
-The Deployment Workplace is rendered only inside the authenticated Super Admin workspace. The legacy /dashboard/deployments address redirects to /admin?section=deployments and is not a separate member-facing feature. Its backing APIs also verify a live Super Admin identity on the server.
-
-The Admin Terminal accepts the allow-listed read-only commands:
-- deployments (alias: render): list Render services with service IDs, types, and actual public URLs returned by Render.
-- neon: list Neon projects and their non-secret region/Postgres-version metadata.
-
-These commands do not run shell commands, arbitrary SQL, deploys, or environment-variable mutations. Mutating actions remain in the protected Deployment Workplace and require their own confirmations.
+The Admin Terminal is a separate allow-listed diagnostic console. Its read-only `deployments` / `render` commands list connected Render services and actual URLs; `neon` lists connected Neon projects. Database-backed status commands query selected live BALMZ AI records. The terminal never runs host-shell commands or arbitrary SQL and cannot read files or secret values or mutate accounts, subscriptions or payments. Deployment mutations remain in the protected Deployment Workplace with separate action confirmations.

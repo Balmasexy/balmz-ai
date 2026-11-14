@@ -1,69 +1,64 @@
 # AI provider and agent connections
 
-The Super Admin can manage external model providers from /admin → **AI connections**. Tested connections appear in the model selector in the client workplace.
+The Super Admin manages external model providers from **Super Admin → AI Connections**. Tested connections appear in the signed-in chat model selector. Provider keys are encrypted on the server before they are stored in Neon; the browser receives only safe model and connection metadata.
 
-## Supported providers
+## Supported chat providers
 
 - OpenAI
 - Anthropic Claude
 - Google Gemini
 - xAI Grok
-- OpenRouter (one key can reach a broad model catalogue)
+- OpenRouter
 - DeepSeek
 - Groq
 - Mistral
 - Together AI
 - Fireworks AI
-- General Language API (any public HTTPS OpenAI-compatible chat endpoint)
+- General Language API (a public HTTPS OpenAI-compatible chat endpoint)
 
-OpenAI-compatible providers use their provider-specific HTTPS API endpoints. Anthropic and Gemini use their native Messages and generateContent APIs. Model names are entered exactly as provided by the model vendor; BALMZ AI does not invent a provider's available model list.
+Anthropic and Gemini use their native provider APIs. The other chat adapters use the provider's OpenAI-compatible chat endpoint. Model IDs must match the provider's actual catalogue; BALMZ AI does not invent model access.
 
-### General Language API
+## OpenAI connection and Responses API features
 
-The General Language API connector supports vendors exposing an OpenAI-compatible `GET /models` catalogue and `POST /chat/completions` endpoint. Configure these three server-only Render environment variables:
+Connect OpenAI from **Super Admin → AI Connections** using a key and a tested model, or configure `OPENAI_API_KEY` as a server-only Render environment variable and connect using the available environment credential. Do not paste keys into chat prompts, source control, client storage or support messages.
+
+The regular BALMZ AI chat adapter uses the provider's chat-completions-compatible interface for its supported text/chat models. The Campaign Studio uses the current OpenAI Responses API directly for structured campaign generation and optional image-generation tool calls; it does not use the legacy Completions endpoint. The Responses feature requires a real OpenAI API key and access to the configured model. An OpenAI connection that works for regular chat is not, by itself, proof that every Responses or image model is enabled on that API account.
+
+## General Language API
+
+The General Language API connector supports vendors exposing an OpenAI-compatible `GET /models` catalogue and `POST /chat/completions` endpoint. Configure these server-only Render environment variables:
 
 - `GENERAL_LANGUAGE_API_KEY`
-- `GENERAL_LANGUAGE_API_BASE_URL` (public HTTPS base URL, such as `https://api.vendor.com/v1`)
-- `GENERAL_LANGUAGE_API_MODEL` (exact provider model identifier)
+- `GENERAL_LANGUAGE_API_BASE_URL` (public HTTPS base URL)
+- `GENERAL_LANGUAGE_API_MODEL` (exact model identifier)
 
-The Super Admin can then choose **General Language API**, load the available models using the existing server credential, and connect the selected model without pasting a key into the browser. The endpoint is validated as HTTPS and private/reserved IP destinations are rejected. Redirects are disabled for provider requests.
+The endpoint is validated as HTTPS and private/reserved IP destinations are rejected. Redirects are disabled for provider requests. General Language works for chat and ChartGPT through the compatible chat interface. It is not assumed to support OpenAI's proprietary Responses or image-generation endpoints.
 
-Migration `0008_general_language_api_provider.sql` adds the provider ID and endpoint URL column. It is applied in the current production Neon database. For a fresh environment, apply it using the Neon migration/owner role after migrations 0001–0007. Existing provider records are preserved.
+## ChartGPT
 
+ChartGPT first reuses a tested, enabled OpenAI or General Language connector (or the corresponding server-side environment configuration). It validates the selected chart fields against the supplied data and renders from the user's actual values. A dedicated ChartGPT Team service credential remains an optional fallback when no supported chat provider can generate the chart. The AI does not supply replacement or fabricated chart data.
 
-## Database migration
+## Campaign Studio
 
-Production has migrations 0001–0008 applied. For a new environment, apply db/migrations/0002_ai_provider_connections.sql and subsequent migrations in numeric order using the migration/owner role. Do not run migrations with the restricted application role if it lacks DDL permission.
+Campaign Studio is available at `/dashboard/campaign-studio`. It accepts the brief, target audience, product details, tone and requested channels, then uses the OpenAI Responses API to create a campaign concept, exactly three copy variants, a launch checklist and an image prompt. It can optionally request a generated campaign image using the Responses API image-generation tool. Generated campaign copy and prompts are saved in the signed-in user's existing private notes records; generated image bytes are returned for the current page session and are not retained in campaign history.
 
-This additive migration creates balmz_ai_provider_connections and records version 0002 in balmz_schema_migrations. It does not change users, sessions, subscriptions, payment records, or usage counters.
+Campaign generation and optional image generation are each metered against the user's server-side `ai_messages` allowance. OpenAI API usage may be billed separately. The generator instructs the model not to invent product features, pricing, performance statistics, testimonials, guarantees or legal claims.
 
-## Add a connection without re-entering an API key
+## Video generation status
 
-1. Configure the provider key once in the Render environment using the matching name in `.env.example`, such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`.
-2. Open /admin → **AI connections** and select the provider.
-3. Choose **Load available models**. BALMZ AI resolves the credential from the Render environment first, then from an existing encrypted connection. The browser never receives the key.
-4. Select the model and choose **Connect using available credential**. BALMZ AI tests the resolved key/model pair before storing the encrypted connection.
-5. Once connected, the model appears in the signed-in Chat model selector.
+Video generation is not included in this release. OpenAI discontinued the Sora API on 24 September 2026; BALMZ AI does not call that retired endpoint. A separate supported video provider and its credentials are required before adding video generation or resumable long-form video jobs.
 
-A key can still be entered once in the optional field when no Render or saved credential exists. This is a fallback, not a requirement when the server already has a credential. Failed tests are not saved.
+## Credential protection and usage
 
-## Credential protection
+Only server routes decrypt saved provider keys. AI connection management and provider selection are protected by an authenticated session and the database-confirmed Super Admin role. User AI features require an active BALMZ AI subscription and reserve server-side usage against `ai_messages` with idempotency keys.
 
-API keys are encrypted before they are inserted into Neon using AES-256-GCM. The encryption key is derived from the server-only BETTER_AUTH_SECRET; rotating that secret without re-encrypting stored credentials will make existing provider keys unreadable. Plan credential migration before rotating the Better Auth secret.
-
-Only the server decrypts provider keys. API routes require a current authenticated session, and provider management additionally requires the database-confirmed Super Admin role. The Chat API retains its existing subscription check and ai_messages usage reservation.
-
-## Provider billing and limits
-
-A connected provider key does not make that provider free. Requests are billed or limited under the corresponding provider account. BALMZ AI currently uses a one-model-per-connection record and a shared text chat adapter; image generation, audio, embeddings, provider-native tool execution and full MCP server registration are not enabled by this connector release.
+Rotating `BETTER_AUTH_SECRET` without re-encrypting stored provider keys makes those keys unreadable; plan credential migration before rotating the secret.
 
 ## Troubleshooting
 
-- If the page asks for migration 0002, apply the SQL migration and refresh.
-- If no key is entered and no Render/saved credential exists, the provider cannot be authenticated. Add the provider key once to Render's encrypted environment settings; do not expect a provider's public name or catalogue to grant API access.
-- If the provider returns HTTP 429, BALMZ AI reads the provider's `Retry-After` header when available and displays the suggested wait. Do not repeatedly click **Load available models**, **Connect & test**, or **Test again** while the provider is rate-limiting the key/account.
-- When model catalogue access is rate-limited, select **Enter a custom model ID** and enter the exact model identifier shown in the provider's own console/documentation. This avoids repeated catalogue calls; the connection test still sends one real, small provider request and may also be rate-limited.
-- A 429 during **Test again** does not downgrade a previously connected model or clear its last successful test timestamp. Authentication failures, invalid model IDs and other definitive test failures remain visible as failed tests.
-- If a test fails, verify the provider key is active, the model ID exists, and the account has API access, quota and credit.
-- If a stored provider stops responding, wait for the provider's reset window before selecting **Test again**.
-- The provider connection is available to user accounts only after the authenticated chat UI receives it from /api/ai/models.
+- If no provider appears in the model selector, connect and test a real key/model pair.
+- If the page reports that a provider credential is not configured, add the key to the Render service environment or save it through the protected AI Connections form.
+- A provider name in the plugin directory does not grant API access or provider credit.
+- A 401/403 means the provider rejected the key or model access; reconnect a valid key.
+- A 429 means a provider rate limit has been reached; wait for the provider's reset window before retrying.
+- For image generation, confirm the OpenAI API project has access to the selected GPT Image model and sufficient API quota. Image generation may fail independently while campaign copy remains available.

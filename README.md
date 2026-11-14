@@ -69,6 +69,14 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/api/auth/email-status`: safe transactional email readiness status
 - `/mcp`: registered MCP tools endpoint
 
+## Campaign Studio
+
+- `/dashboard/campaign-studio`: brief-to-campaign concept studio using the OpenAI Responses API, three channel-specific copy variants, launch checklist, image prompt, optional generated image, and per-user saved campaign history.
+- Campaign generation is subscription-metered. OpenAI text and image API usage may incur separate provider charges. Image files remain in the current page session; campaign copy and prompts are saved to the account's private notes records.
+- OpenAI Responses and image-generation API access must be enabled for the connected API project. General Language remains an OpenAI-compatible chat provider; it is not treated as a Responses/image-generation endpoint.
+
+See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior.
+
 ## Neon database and migrations
 
 Use the dedicated Neon project and the `balmz_ai` database. The schema is versioned by additive SQL files in `db/migrations`; production records versions `0001` through `0008` in `public.balmz_schema_migrations` as of 13 November 2026. Migrations `0007` and `0008` were applied using the Neon owner role after a read-only baseline check; existing account, subscription, usage, payment, webhook and connector rows were preserved.
