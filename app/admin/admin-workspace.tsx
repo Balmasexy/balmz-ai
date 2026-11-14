@@ -713,7 +713,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
                 { id: "terminal" as Section, label: "Terminal", icon: "›_" },
                 { id: "deployments" as Section, label: "Deploy", icon: "⇧" },
               ]).map((item) => (
-                <button key={item.id} type="button" onClick={() => item.id === "deployments" ? router.push("/dashboard/deployments") : navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)]" : "text-slate-500 hover:text-slate-200"}`}>
+                <button key={item.id} type="button" onClick={() => (item.id as string) === "deployments" ? router.push("/dashboard/deployments") : navigate(item.id)} aria-current={active === item.id ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition ${active === item.id ? "bg-[var(--balmz-orange)]/[0.09] text-[var(--balmz-orange)]" : "text-slate-500 hover:text-slate-200"}`}>
                   <span className="text-base leading-4">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
