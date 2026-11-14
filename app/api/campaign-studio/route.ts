@@ -323,7 +323,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    campaign: { id: campaignId, ...record, imageDataUrl, imageError },
+    campaign: { ...record, imageDataUrl, imageError },
     usage: { textUnits: 1, imageUnits: generateImage && !imageError ? 1 : 0 },
   }, { headers: { "Cache-Control": "no-store" } });
 }
