@@ -19,6 +19,9 @@ export type ServiceId =
 
 export type ServiceCredentials = Record<string, string>;
 
+// Personal Neon API keys must include the organization scope when listing projects.
+const NEON_ORG_ID = process.env.NEON_ORG_ID?.trim() || "org-mute-hall-53918235";
+
 export const SERVICE_CATALOG: Array<{
   id: ServiceId;
   name: string;
@@ -99,7 +102,7 @@ export const SERVICE_CATALOG: Array<{
     keyRequired: true,
     demoLive: false,
     url: "https://console.neon.tech/app/settings/api-keys",
-    keyHelp: "Create a Neon API key in account settings. Keep the project database URL separate from this management token.",
+    keyHelp: "Use a Neon personal or organization API key. Personal keys require NEON_ORG_ID for project listing. Keep the project database URL separate from this management token.",
     envAliases: { live: ["NEON_API_KEY"] },
     capabilities: ["Verify API key", "List projects", "Project operations"],
   },
@@ -265,10 +268,16 @@ async function testRender(credentials: ServiceCredentials) {
 async function testNeon(credentials: ServiceCredentials) {
   const token = credentials.token?.trim();
   if (!token) throw new Error("NEON_API_KEY_REQUIRED");
-  await checkedFetch("https://console.neon.tech/api/v2/projects?limit=1", {
+  const endpoint = new URL("https://console.neon.tech/api/v2/projects");
+  endpoint.searchParams.set("limit", "1");
+  endpoint.searchParams.set("org_id", NEON_ORG_ID);
+  const response = await checkedFetch(endpoint.toString(), {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  return { account: "Neon API" };
+  const payload = await response.json() as { projects?: Array<{ id?: string; name?: string }> };
+  const project = payload.projects?.find((item) => item.id === "solitary-morning-85108688");
+  if (!project) throw new Error("NEON_PROJECT_NOT_VISIBLE");
+  return { account: "Neon API", organizationId: NEON_ORG_ID, projectId: project.id };
 }
 
 async function testNotion(credentials: ServiceCredentials) {
