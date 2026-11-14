@@ -1,5 +1,4 @@
 import {
-  AI_PROVIDERS,
   decryptProviderKey,
   getAIProviderEnvironmentKey,
   getGeneralLanguageEnvironmentConfig,
@@ -55,7 +54,7 @@ function inferBlueprint(prompt: string, data: ChartDataRow[]): ChartBlueprint {
   const wantsPie = /pie|donut|share|composition|proportion|percentage breakdown/i.test(prompt);
   return {
     chartType: wantsPie && numericKeys.length ? "pie" : wantsLine ? "line" : "bar",
-    title: asText(prompt.split(/[.!?\\n]/)[0], "Data overview", 90),
+    title: asText(prompt.split(/[.!?]/)[0], "Data overview", 90),
     xKey,
     series: numericKeys.slice(0, wantsPie ? 1 : 4).map((dataKey) => ({ dataKey, label: dataKey })),
   };
@@ -94,14 +93,18 @@ function normalizeBlueprint(value: unknown, prompt: string, data: ChartDataRow[]
 }
 
 function parseBlueprint(reply: string, prompt: string, data: ChartDataRow[]): ChartBlueprint {
-  const cleaned = reply.trim()
-    .replace(/^\uFEFF/, "")
-    .replace(/^\x60{3}(?:json)?\\s*/i, "")
-    .replace(/\\s*\x60{3}$/, "");
+  let cleaned = reply.trim();
+  if (cleaned.charCodeAt(0) === 0xfeff) cleaned = cleaned.slice(1);
+  const fence = String.fromCharCode(96).repeat(3);
+  if (cleaned.startsWith(fence + "json")) cleaned = cleaned.slice(7);
+  else if (cleaned.startsWith(fence)) cleaned = cleaned.slice(3);
+  if (cleaned.trimEnd().endsWith(fence)) cleaned = cleaned.trimEnd().slice(0, -3);
   try {
-    return normalizeBlueprint(JSON.parse(cleaned), prompt, data);
+    return normalizeBlueprint(JSON.parse(cleaned.trim()), prompt, data);
   } catch {
-    return inferBlueprint(prompt, data);
+    const fallback = inferBlueprint(prompt, data);
+    if (!fallback.series.length) throw new Error("CHART_NUMERIC_DATA_REQUIRED");
+    return fallback;
   }
 }
 
