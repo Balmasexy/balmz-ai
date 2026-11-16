@@ -24,6 +24,19 @@ const allowedHeaders =
   "Content-Type, Authorization, MCP-Session-Id, MCP-Protocol-Version, Last-Event-ID, OpenAI-Conversation-Id, OpenAI-Session-Id";
 
 export function middleware(request: NextRequest) {
+  const apiPath = request.nextUrl.pathname === "/v1/models" || request.nextUrl.pathname === "/v1/chat/completions";
+  if (apiPath) {
+    const response = request.method === "OPTIONS"
+      ? new NextResponse(null, { status: 204 })
+      : NextResponse.next();
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    response.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key");
+    response.headers.set("Access-Control-Max-Age", "600");
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+
   const origin = request.headers.get("origin");
 
   // Requests without an Origin are commonly server-to-server and same-origin.
