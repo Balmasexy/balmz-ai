@@ -111,6 +111,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const pendingMessagesRef = useRef<PendingChatMessage[]>([]);
   const processingQueueRef = useRef(false);
   const queueBlockedRef = useRef(false);
+  const processPendingMessagesRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     try {
@@ -307,7 +308,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     queueBlockedRef.current = false;
     setQueueBlocked(false);
     setNotice("");
-    void processPendingMessages();
+    processPendingMessagesRef.current();
   }, [networkConnected]);
 
   useEffect(() => {
@@ -589,6 +590,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       }
     }
   }
+
+  processPendingMessagesRef.current = () => { void processPendingMessages(); };
 
   function retryQueuedMessages() {
     if (!pendingMessagesRef.current.length) {
