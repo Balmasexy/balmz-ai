@@ -1,14 +1,23 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
+import { resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
 import { listAIProviderConnections, AI_PROVIDERS, getGeneralLanguageEnvironmentConfig } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: { "Cache-Control": "no-store" } });
+export async function GET(request: Request) {
+  const externalAuth = await resolveWorldWalletAIExternalAuth(request);
+  if (externalAuth.error) {
+    return NextResponse.json(
+      { error: externalAuth.error.code, message: externalAuth.error.message },
+      { status: externalAuth.error.status, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const session = externalAuth.isExternal ? null : await getAuth().api.getSession({ headers: await headers() });
+  const userId = externalAuth.userId || session?.user.id;
+  if (!userId) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: { "Cache-Control": "no-store" } });
 
   const models: Array<{ value: string; label: string; provider: string; modelId: string }> = [];
   let connectionsAvailable = true;
