@@ -6,7 +6,7 @@ import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
 import { findAIProviderConnection, sendAIProviderMessage, sendAIProviderMessages, getGeneralLanguageEnvironmentConfig, toOpenAIChatMessages, type AIImageAttachment, type AIMessage, type AIProviderConnection } from "@/lib/ai/providers";
 import { getActiveComplimentaryAccess } from "@/lib/family-access";
 import { getDbPool } from "@/lib/db";
-import { buildWorldWalletAIContextMessage, resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
+import { buildWorldWalletAIContextMessage, resolveWorldWalletAIExternalAuth, sendWorldWalletGeminiBackendMessage } from "@/lib/integrations/world-wallet-ai-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -318,6 +318,36 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
 
+
+  if (modelChoice === "env:world-wallet-gemini") {
+    try {
+      const result = await sendWorldWalletGeminiBackendMessage(userId, providerMessages);
+      if (turnIdentity && historySaved) {
+        historySaved = await saveAssistantTurn({
+          userId,
+          identity: turnIdentity,
+          requestId,
+          reply: result.reply,
+          model: result.model,
+          providerId: "google",
+        });
+      }
+      return NextResponse.json({
+        reply: result.reply,
+        model: result.model,
+        provider: "google",
+        historySaved,
+      }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "AI_PROVIDER_ERROR";
+      if (code === "AI_PROVIDER_NOT_CONFIGURED") return safeError(code, 503, "Google Gemini is not configured on the World Wallet AI Render backend.");
+      if (code === "AI_PROVIDER_AUTH_FAILED") return safeError(code, 503, "The World Wallet AI Gemini service could not authenticate this request.");
+      if (code === "AI_PROVIDER_RATE_LIMITED") return safeError(code, 503, "Google Gemini is temporarily rate-limited. Please try again later.");
+      if (code === "AI_PROVIDER_UNAVAILABLE") return safeError(code, 502, "The World Wallet AI Gemini backend could not be reached.");
+      if (code === "AI_PROVIDER_EMPTY_RESPONSE") return safeError(code, 502, "Google Gemini returned an empty response.");
+      return safeError("AI_PROVIDER_ERROR", 502, "Google Gemini could not complete this request.");
+    }
+  }
 
   if (modelChoice.startsWith("connection:")) {
     const connectionId = modelChoice.slice("connection:".length);
