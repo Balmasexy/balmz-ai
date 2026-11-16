@@ -80,6 +80,8 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 
 See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior.
 
+BALMZ AI also exposes an OpenAI-compatible model API at `https://balmz-ai.onrender.com/v1`. Use model `balmz-fast` with a scoped BALMZ API key; see `docs/OPENAI-COMPATIBLE-API.md` for setup, endpoints and limitations.
+
 ## Neon database and migrations
 
 Use the dedicated Neon project and the `balmz_ai` database. The schema is versioned by additive SQL files in `db/migrations`; production records versions `0001` through `0008` in `public.balmz_schema_migrations` as of 13 November 2026. Migrations `0007` and `0008` were applied using the Neon owner role after a read-only baseline check; existing account, subscription, usage, payment, webhook and connector rows were preserved.
