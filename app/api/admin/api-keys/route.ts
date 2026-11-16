@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Environment = "demo" | "live";
-const allowedScopes = new Set(["platform:read"]);
+const allowedScopes = new Set(["platform:read", "ai:chat", "ai:models"]);
 
 async function authorize() {
   const session = await getAuth().api.getSession({ headers: await headers() });
