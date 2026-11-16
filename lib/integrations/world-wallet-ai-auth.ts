@@ -174,7 +174,7 @@ function geminiProxyBaseUrl(): string | null {
 async function createWorldWalletGeminiProxyAssertion(userId: string): Promise<string> {
   const secret = process.env.WORLD_WALLET_AI_INTEGRATION_SECRET?.trim();
   const baseUrl = geminiProxyBaseUrl();
-  if (!secret || secret.length < 32 || !baseUrl) throw new Error("AI_PROVIDER_NOT_CONFIGURED");
+  if (!secret || secret.length < 32 || !baseUrl) throw new Error("AI_PROXY_NOT_CONFIGURED");
   const identity = await getDbPool().query<{ email: string; email_verified: boolean }>(
     "SELECT email, \"emailVerified\" AS email_verified FROM public.\"user\" WHERE id = $1 LIMIT 1",
     [userId],
@@ -197,7 +197,7 @@ async function callWorldWalletGeminiBackend(
   body?: { messages: Array<{ role: "system" | "user" | "assistant"; content: string; images?: Array<{ mimeType: string; dataBase64: string }> }> },
 ): Promise<Record<string, unknown>> {
   const baseUrl = geminiProxyBaseUrl();
-  if (!baseUrl) throw new Error("AI_PROVIDER_NOT_CONFIGURED");
+  if (!baseUrl) throw new Error("AI_PROXY_NOT_CONFIGURED");
   const token = await createWorldWalletGeminiProxyAssertion(userId);
   let response: Response;
   try {
@@ -214,19 +214,55 @@ async function callWorldWalletGeminiBackend(
   try { const value = await response.json(); if (value && typeof value === "object" && !Array.isArray(value)) payload = value as Record<string, unknown>; }
   catch { throw new Error("AI_PROVIDER_INVALID_RESPONSE"); }
   if (!response.ok) {
-    const code = response.status === 401 || response.status === 403 ? "AI_PROVIDER_AUTH_FAILED" : response.status === 429 ? "AI_PROVIDER_RATE_LIMITED" : response.status === 503 ? "AI_PROVIDER_NOT_CONFIGURED" : "AI_PROVIDER_UNAVAILABLE";
+    const detail = typeof payload.detail === "string" ? payload.detail.toLowerCase() : "";
+    let code = "AI_PROVIDER_UNAVAILABLE";
+    if (response.status === 401 || response.status === 403) code = "AI_PROVIDER_AUTH_FAILED";
+    else if (response.status === 429) code = "AI_PROVIDER_RATE_LIMITED";
+    else if (response.status === 400) code = "AI_PROVIDER_INVALID_REQUEST";
+    else if (response.status === 503 && detail.includes("rejected the backend key")) code = "AI_PROVIDER_KEY_REJECTED";
+    else if (response.status === 503 && detail.includes("not configured")) code = "AI_PROVIDER_NOT_CONFIGURED";
     throw new Error(code);
   }
   return payload;
 }
 
 /** Check backend Gemini availability without exposing its private credential. */
-export async function getWorldWalletGeminiBackendModel(userId: string): Promise<{ model: string } | null> {
+export type WorldWalletGeminiBackendStatus = {
+  configured: boolean;
+  model: string | null;
+  code: string | null;
+  message: string | null;
+};
+
+export async function getWorldWalletGeminiBackendStatus(userId: string): Promise<WorldWalletGeminiBackendStatus> {
   try {
     const payload = await callWorldWalletGeminiBackend(userId, "status");
-    if (payload.configured !== true || typeof payload.model !== "string" || !payload.model.trim()) return null;
-    return { model: payload.model };
-  } catch { return null; }
+    const model = typeof payload.model === "string" && payload.model.trim() ? payload.model.trim() : null;
+    if (payload.configured !== true || !model) {
+      return { configured: false, model, code: "AI_PROVIDER_NOT_CONFIGURED", message: "Google Gemini is not configured on the World Wallet AI Render backend. Set GEMINI_API_KEY on that backend; no key is needed in the BALMZ AI website." };
+    }
+    return { configured: true, model, code: null, message: null };
+  } catch (error) {
+    const rawCode = error instanceof Error ? error.message : "AI_PROVIDER_UNAVAILABLE";
+    const knownCodes = new Set(["AI_PROXY_NOT_CONFIGURED","AI_PROVIDER_NOT_CONFIGURED","AI_PROVIDER_AUTH_FAILED","AI_PROVIDER_RATE_LIMITED","AI_PROVIDER_KEY_REJECTED","AI_PROVIDER_INVALID_REQUEST","AI_PROVIDER_INVALID_RESPONSE","AI_PROVIDER_UNAVAILABLE"]);
+    const code = knownCodes.has(rawCode) ? rawCode : "AI_PROVIDER_UNAVAILABLE";
+    const messages: Record<string, string> = {
+      AI_PROXY_NOT_CONFIGURED: "The private Render-to-Render Gemini bridge is missing its URL or shared service secret.",
+      AI_PROVIDER_NOT_CONFIGURED: "Google Gemini is not configured on the World Wallet AI Render backend. Set GEMINI_API_KEY on that backend; no key is needed in the BALMZ AI website.",
+      AI_PROVIDER_AUTH_FAILED: "The World Wallet AI backend could not authenticate the BALMZ AI service or its signed account identity.",
+      AI_PROVIDER_RATE_LIMITED: "Google Gemini is rate-limited. Check the Google AI project quota and try again.",
+      AI_PROVIDER_KEY_REJECTED: "Google Gemini rejected the backend API key or its permissions. Check GEMINI_API_KEY on the World Wallet AI Render backend.",
+      AI_PROVIDER_INVALID_REQUEST: "The World Wallet AI backend rejected the Gemini status request.",
+      AI_PROVIDER_INVALID_RESPONSE: "The World Wallet AI backend returned an invalid Gemini status response.",
+      AI_PROVIDER_UNAVAILABLE: "The World Wallet AI Gemini backend could not be reached. Check that the Render backend is live."
+    };
+    return { configured: false, model: null, code, message: messages[code] };
+  }
+}
+
+export async function getWorldWalletGeminiBackendModel(userId: string): Promise<{ model: string } | null> {
+  const status = await getWorldWalletGeminiBackendStatus(userId);
+  return status.configured && status.model ? { model: status.model } : null;
 }
 
 /** Send a chat turn to the backend's private Gemini key; the key never leaves that service. */
