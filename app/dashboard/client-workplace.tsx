@@ -303,6 +303,14 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     return () => { active = false; if (removeListener) void removeListener(); };
   }, []);
   useEffect(() => {
+    if (!networkConnected || !queueBlockedRef.current || pendingMessagesRef.current.length === 0) return;
+    queueBlockedRef.current = false;
+    setQueueBlocked(false);
+    setNotice("");
+    void processPendingMessages();
+  }, [networkConnected]);
+
+  useEffect(() => {
     let cancelled = false;
     fetch("/api/subscription", { cache: "no-store" })
       .then(async (response) => {
@@ -320,12 +328,12 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     setModelsLoading(true);
     try {
       const response = await fetch("/api/ai/models", { cache: "no-store" });
-      const payload = await response.json() as { models?: ModelOption[]; message?: string };
+      const payload = await response.json() as { models?: ModelOption[]; message?: string; backendGemini?: { configured?: boolean; model?: string | null; code?: string | null; message?: string | null } };
       if (!response.ok || !Array.isArray(payload.models)) {
         throw new Error(payload.message || "AI model list could not be loaded.");
       }
       setModelOptions(payload.models);
-      setModelsMessage(payload.message || "");
+      setModelsMessage(payload.message || payload.backendGemini?.message || "");
       setModel((current) => payload.models!.some((option) => option.value === current)
         ? current
         : payload.models![0]?.value ?? "");
@@ -502,12 +510,6 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     try {
       while (pendingMessagesRef.current.length > 0) {
         const pending = pendingMessagesRef.current[0];
-        if (!networkConnected) {
-          queueBlockedRef.current = true;
-          setQueueBlocked(true);
-          setNotice("You appear to be offline. Your message is queued and will remain here until you reconnect and retry.");
-          break;
-        }
 
         const currentMessages = conversationMessagesRef.current.get(pending.conversationId) ?? [];
         const messageIndex = currentMessages.findIndex((message) => message.id === pending.messageId && message.role === "user");
@@ -540,7 +542,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         } catch {
           queueBlockedRef.current = true;
           setQueueBlocked(true);
-          setNotice("Could not reach BALMZ AI. Your message is safely queued; check your connection and retry.");
+          setNotice(!networkConnected ? "You appear to be offline. Your message is safely queued and will retry when connectivity returns." : "Could not reach BALMZ AI. Your message is safely queued; check your connection and retry.");
           break;
         }
 
@@ -774,7 +776,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
                 <div className="flex items-center gap-2">{attachmentPicker}<span className="text-[10px] text-slate-600">Drop images here · Up to 4 photos · Vision support depends on the selected model</span></div>
                 <div className="flex items-center gap-3"><span className="text-[10px] text-slate-600">Enter to send · Shift + Enter for a new line</span>
-                <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
+                <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || imageBusy || modelsLoading || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
               </div>
             </div>
             <div className="mt-4 flex flex-col items-center gap-2 text-center">
@@ -806,7 +808,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-2">
               <div className="flex items-center gap-2">{attachmentPicker}<span className="hidden text-[10px] text-slate-600 sm:inline">Add a photo or drop it here</span></div>
               <div className="flex items-center gap-3"><span className="hidden text-[10px] text-slate-600 sm:inline">Shift + Enter for a new line</span>
-              <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || planCheck !== "active" || !model} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
+              <button onClick={() => void sendMessage()} disabled={(!prompt.trim() && !selectedImages.length) || busy || imageBusy || modelsLoading || planCheck !== "active"} className="flex h-9 items-center gap-2 rounded-xl bg-[var(--balmz-orange)] px-4 text-xs font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="send" /> Send</button></div>
             </div>
           </div>
         </div> : null}
