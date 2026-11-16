@@ -81,7 +81,7 @@ Use `stream=True` when an application requires Server-Sent Events. The current c
 - Multi-turn text context (up to 20 messages)
 - Non-streaming JSON and SSE-formatted streaming responses
 - Standard OpenAI-style error objects
-- `Idempotency-Key` for safe client retries
+- `Idempotency-Key` to prevent duplicate usage metering on retried requests (the completion itself is not replay-cached)
 
 The initial API does not yet implement the OpenAI Responses API, tool/function calling, image inputs, audio, embeddings, fine-tuning, or provider-specific Gemini endpoints. Applications must support custom OpenAI-compatible Chat Completions settings; an application that only accepts its own first-party provider credentials cannot be pointed at BALMZ AI directly.
 
