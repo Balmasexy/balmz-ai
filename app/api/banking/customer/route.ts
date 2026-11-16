@@ -14,8 +14,8 @@ export async function GET() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: noStore });
   try {
-    const result = await getDbPool().query<{ id: string; environment: string; customer_type: string; provider_status: string; terms_accepted_at: string }>(
-      "SELECT id, environment, customer_type, provider_status, terms_accepted_at FROM public.balmz_money_movement_customers WHERE user_id = $1 LIMIT 1",
+    const result = await getDbPool().query<{ id: string; environment: string; customer_type: string; provider_status: string; consent_accepted_at: string }>(
+      "SELECT id, environment, customer_type, provider_status, consent_accepted_at FROM public.balmz_money_movement_customers WHERE user_id = $1 LIMIT 1",
       [session.user.id],
     );
     return NextResponse.json({ customer: result.rows[0] ?? null }, { headers: noStore });

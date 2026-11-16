@@ -64,7 +64,7 @@ export async function GET() {
     return NextResponse.json({
       credentials: result.rows.map(publicRecord),
       productionApprovalRequired: true,
-      transfersEnabled: process.env.NMI_MONEY_MOVEMENT_LIVE_APPROVED === "true",
+      transfersEnabled: process.env.NMI_MONEY_MOVEMENT_LIVE_APPROVED === "true" && process.env.NMI_CUSTOMER_KYC_AND_DISCLOSURE_APPROVED === "true",
       notice: "Secrets are encrypted and never returned to the app. Production transfers require NMI written go-live approval and production credentials.",
     }, { headers: noStore });
   } catch (error) {

@@ -15,6 +15,7 @@ type NativePlaidLinkResult = {
   publicToken?: string;
   institution?: { name?: string };
   cancelled?: boolean;
+  errorMessage?: string;
 };
 const NativePlaidLink = registerPlugin<{
   open(options: { linkToken: string }): Promise<NativePlaidLinkResult>;
@@ -112,6 +113,7 @@ export function BankingWorkspace({ userName }: { userName: string }) {
       if (isAndroid) {
         const nativeResult = await NativePlaidLink.open({ linkToken: result.linkToken });
         if (nativeResult.cancelled) {
+          if (nativeResult.errorMessage) setError(nativeResult.errorMessage);
           setBusy("");
           return;
         }

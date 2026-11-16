@@ -171,7 +171,7 @@ jobs:
               private var pendingCall: PluginCall? = null
 
               override fun load() {
-                  launcher = activity.registerForActivityResult(OpenPlaidLink()) { result ->
+                  launcher = getActivity().registerForActivityResult(OpenPlaidLink()) { result ->
                       val call = pendingCall
                       pendingCall = null
                       call?.setKeepAlive(false)
@@ -189,6 +189,7 @@ jobs:
                           is LinkExit -> {
                               val response = JSObject()
                               response.put("cancelled", true)
+                              result.error?.displayMessage?.let { response.put("errorMessage", it) }
                               call.resolve(response)
                           }
                       }
@@ -206,7 +207,7 @@ jobs:
                       call.reject("A Plaid Link session is already open.")
                       return
                   }
-                  val activity = activity
+                  val hostActivity = getActivity()
                   val resultLauncher = launcher
                   if (resultLauncher == null) {
                       call.reject("Plaid Link is not ready. Reopen the bank screen and try again.")
@@ -222,7 +223,7 @@ jobs:
                   val configuration = linkTokenConfiguration {
                       this.token = token
                       onLoad = OnLoadCallback {
-                          activity.runOnUiThread {
+                          hostActivity.runOnUiThread {
                               val readySession = session
                               if (readySession == null) {
                                   readyBeforeSession = true
@@ -234,7 +235,7 @@ jobs:
                       }
                   }
 
-                  session = Plaid.createPlaidLinkSession(activity, configuration)
+                  session = Plaid.createPlaidLinkSession(hostActivity, configuration)
                   if (readyBeforeSession && !launched && pendingCall === call) {
                       launched = true
                       resultLauncher.launch(session!!)

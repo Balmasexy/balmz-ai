@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.balmz_money_movement_customers (
   customer_type text NOT NULL CHECK (customer_type IN ('unverified', 'personal', 'business', 'receive-only')),
   provider_status text NOT NULL DEFAULT 'pending',
   terms_version text NOT NULL,
-  terms_accepted_at timestamptz NOT NULL,
+  consent_accepted_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
