@@ -6,6 +6,7 @@ import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
 import { findAIProviderConnection, sendAIProviderMessage, sendAIProviderMessages, getGeneralLanguageEnvironmentConfig, toOpenAIChatMessages, type AIImageAttachment, type AIMessage, type AIProviderConnection } from "@/lib/ai/providers";
 import { getActiveComplimentaryAccess } from "@/lib/family-access";
 import { getDbPool } from "@/lib/db";
+import { buildWorldWalletAIContextMessage, resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -157,8 +158,13 @@ function safeError(code: string, status: number, message: string) {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) return safeError("UNAUTHORIZED", 401, "Sign in to use BALMZ AI.");
+  const externalAuth = await resolveWorldWalletAIExternalAuth(request);
+  if (externalAuth.error) {
+    return safeError(externalAuth.error.code, externalAuth.error.status, externalAuth.error.message);
+  }
+  const session = externalAuth.isExternal ? null : await getAuth().api.getSession({ headers: await headers() });
+  const userId = externalAuth.userId || session?.user.id;
+  if (!userId) return safeError("UNAUTHORIZED", 401, "Sign in to use BALMZ AI.");
 
   let body: unknown;
   try {
@@ -229,7 +235,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let subscription;
   try {
-    subscription = await getCurrentSubscription(session.user.id);
+    subscription = await getCurrentSubscription(userId);
   } catch {
     return safeError("SUBSCRIPTION_UNAVAILABLE", 503, "Your subscription could not be checked. No request was sent to the AI provider.");
   }
@@ -240,7 +246,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   let providerMessages: AIMessage[] = messages;
   try {
     const familyAccess = subscription.plan_code === "family_complimentary"
-      ? await getActiveComplimentaryAccess(session.user.id)
+      ? await getActiveComplimentaryAccess(userId)
       : null;
     if (familyAccess) {
       providerMessages = [
@@ -255,14 +261,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("FAMILY_ACCESS_UNAVAILABLE", 503, "Your shared workspace instructions could not be verified. No AI request was sent.");
   }
 
+  if (externalAuth.isExternal) {
+    const integrationBody = body as { integrationContext?: unknown };
+    const contextMessage = buildWorldWalletAIContextMessage(integrationBody.integrationContext);
+    if (contextMessage) providerMessages = [{ role: "system", content: contextMessage }, ...providerMessages];
+  }
+
   if (turnIdentity) {
-    const savedReply = await findSavedAssistantReply(session.user.id, turnIdentity, requestId);
+    const savedReply = await findSavedAssistantReply(userId, turnIdentity, requestId);
     if (savedReply) {
       return NextResponse.json({ ...savedReply, historySaved: true, duplicate: true }, { headers: { "Cache-Control": "no-store" } });
     }
 
     // Reject IDs owned by another account before reserving a billable usage unit.
-    const ownership = await checkConversationOwnership(session.user.id, turnIdentity.conversationId);
+    const ownership = await checkConversationOwnership(userId, turnIdentity.conversationId);
     if (ownership === "not-owned") {
       return safeError("CONVERSATION_NOT_FOUND", 404, "This conversation was not found.");
     }
@@ -273,7 +285,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     await consumeUsage({
-      userId: session.user.id,
+      userId: userId,
       metric: "ai_messages",
       units: 1,
       source: "client_chat",
@@ -294,7 +306,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (turnIdentity) {
     const lastUser = messages[messages.length - 1];
     const saveState = await saveUserTurn({
-      userId: session.user.id,
+      userId: userId,
       identity: turnIdentity,
       requestId,
       content: lastUser.content,
@@ -319,7 +331,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       const reply = await sendAIProviderMessage(connection, providerMessages);
       if (turnIdentity && historySaved) {
         historySaved = await saveAssistantTurn({
-          userId: session.user.id,
+          userId: userId,
           identity: turnIdentity,
           requestId,
           reply,
@@ -352,7 +364,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       const reply = await sendAIProviderMessages("general", general.apiKey, general.modelId, providerMessages, 1800, general.baseUrl);
       if (turnIdentity && historySaved) {
         historySaved = await saveAssistantTurn({
-          userId: session.user.id,
+          userId: userId,
           identity: turnIdentity,
           requestId,
           reply,
@@ -422,7 +434,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!reply) return safeError("EMPTY_AI_RESPONSE", 502, "The AI provider returned an empty response.");
     if (turnIdentity && historySaved) {
       historySaved = await saveAssistantTurn({
-        userId: session.user.id,
+        userId: userId,
         identity: turnIdentity,
         requestId,
         reply,

@@ -23,6 +23,19 @@ The browser loads available tested models from `GET /api/ai/models` and sends a 
 
 Supported chat connections include OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, DeepSeek, Groq, Mistral, Together AI, Fireworks AI and General Language API. Gemini uses its native API adapter; Anthropic uses its native Messages API adapter. The other listed compatible providers, including General Language, use an OpenAI-compatible chat-completions interface. The selected model ID must actually be available to the provider account.
 
+## World Wallet AI and BALMZ AI APT bridge
+
+The BALMZ AI APT and World Wallet AI web assistant can use this same provider and account-metered chat service through the World Wallet AI backend. The bridge is server-to-server:
+- World Wallet AI authenticates the user with its existing wallet-PIN session, then signs a short-lived HS256 service assertion.
+- BALMZ AI verifies that assertion and links it to an existing, email-verified BALMZ AI account with the same email address.
+- The request uses the linked BALMZ AI account's active subscription, model connections and `ai_messages` allowance. Chat turns are stored in the existing owner-scoped conversation tables.
+- The APT and World Wallet AI clients never receive the integration secret, Better Auth session, provider key or database credential.
+- Optional wallet context is sent only when the user explicitly enables it; wallet addresses, transaction hashes, PINs and recovery phrases are not forwarded.
+
+The BALMZ AI Render service requires the server-only `WORLD_WALLET_AI_INTEGRATION_SECRET`. The World Wallet AI backend requires the exact same secret plus `BALMZ_AI_SERVICE_URL=https://balmz-ai.onrender.com`. Keep the secret identical in both Render services and never add it to a frontend variable, Android build config, source control or chat.
+
+The connected account must already exist in BALMZ AI and have a verified email matching the signed-in World Wallet AI email. The connected chat is subject to that BALMZ AI account's subscription, configured provider access and usage allowance. If the account is not linked, the API returns an explicit account-linking error instead of creating a shadow user or silently bypassing billing.
+
 The General Language API is the provider-neutral connector for a public HTTPS OpenAI-compatible chat endpoint. Its server-side configuration uses `GENERAL_LANGUAGE_API_KEY`, `GENERAL_LANGUAGE_API_BASE_URL` and `GENERAL_LANGUAGE_API_MODEL`. Endpoint validation rejects private/reserved destinations and provider requests do not follow redirects. See [GENERAL_LANGUAGE_API.md](GENERAL_LANGUAGE_API.md).
 
 ## Durable conversation history and privacy
