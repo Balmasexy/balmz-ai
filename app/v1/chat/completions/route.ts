@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { authenticateBalmzApiKey, sha256ApiKey } from "@/lib/api-keys";
+import { authenticateBalmzApiKey, sha256ApiKey, type AuthenticatedApiKey } from "@/lib/api-keys";
 import { consumeUsage } from "@/lib/subscriptions";
 import { sendWorldWalletGeminiBackendMessage } from "@/lib/integrations/world-wallet-ai-auth";
 
@@ -51,7 +51,7 @@ function streamingResponse(reply: string, id: string, created: number) {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  let apiKey;
+  let apiKey: AuthenticatedApiKey | null = null;
   try {
     apiKey = await authenticateBalmzApiKey(request, "ai:chat");
   } catch {
@@ -90,7 +90,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const messages: ProviderMessage[] = [];
   let totalChars = 0;
-  for (const [index, item] of input.messages.entries()) {
+  for (const item of input.messages) {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       return errorResponse("A chat message is invalid.", "invalid_request_error", "invalid_message", 400);
     }
