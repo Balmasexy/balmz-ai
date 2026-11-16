@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateBalmzApiKey } from "@/lib/api-keys";
+import { authenticateBalmzApiKey, type AuthenticatedApiKey } from "@/lib/api-keys";
 import { getWorldWalletGeminiBackendStatus } from "@/lib/integrations/world-wallet-ai-auth";
 
 export const runtime = "nodejs";
@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
 function errorResponse(message: string, type: string, code: string, status: number) {
   return NextResponse.json(
     { error: { message, type, param: null, code } },
-    { status, headers: { "Cache-Control": "no-store", "WWW-Authenticate": status === 401 ? "Bearer" : "" } },
+    { status, headers: { "Cache-Control": "no-store", ...(status === 401 ? { "WWW-Authenticate": "Bearer" } : {}) } },
   );
 }
 
 export async function GET(request: Request) {
-  let apiKey;
+  let apiKey: AuthenticatedApiKey | null = null;
   try {
     apiKey = await authenticateBalmzApiKey(request, "ai:models");
   } catch {
