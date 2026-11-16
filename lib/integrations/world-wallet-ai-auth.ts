@@ -181,7 +181,7 @@ async function createWorldWalletGeminiProxyAssertion(userId: string): Promise<st
   );
   const user = identity.rows[0];
   const email = user?.email?.trim().toLowerCase();
-  if (!user || !email || user.email_verified !== true throw new Error("AI_PROVIDER_AUTH_FAILED");
+  if (!user || !email || user.email_verified !== true) throw new Error("AI_PROVIDER_AUTH_FAILED");
   const now = Math.floor(Date.now() / 1000);
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
   const header = encode({ alg: "HS256", typ: "JWT" });
