@@ -599,10 +599,6 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setQueueBlocked(false);
       return;
     }
-    if (!networkConnected) {
-      setNotice("You are still offline. Reconnect before retrying queued messages.");
-      return;
-    }
     queueBlockedRef.current = false;
     setQueueBlocked(false);
     setNotice("");
