@@ -78,7 +78,7 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - Campaign generation is subscription-metered. OpenAI text and image API usage may incur separate provider charges. Image files remain in the current page session; campaign copy and prompts are saved to the account's private notes records.
 - OpenAI Responses and image-generation API access must be enabled for the connected API project. General Language remains an OpenAI-compatible chat provider; it is not treated as a Responses/image-generation endpoint.
 
-See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior.
+See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior.\n\nBALMZ AI also exposes an OpenAI-compatible model API at `https://balmz-ai.onrender.com/v1`. Use model `balmz-fast` with a scoped BALMZ API key; see `docs/OPENAI-COMPATIBLE-API.md` for setup, endpoints and limitations.
 
 ## Neon database and migrations
 
