@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
-import { getWorldWalletGeminiBackendModel, resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
+import { getWorldWalletGeminiBackendStatus, resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
 import { listAIProviderConnections, AI_PROVIDERS, getGeneralLanguageEnvironmentConfig } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
@@ -55,8 +55,8 @@ export async function GET(request: Request) {
     });
   }
 
-  const backendGemini = await getWorldWalletGeminiBackendModel(userId);
-  if (backendGemini && !models.some((item) => item.value === "env:world-wallet-gemini")) {
+  const backendGemini = await getWorldWalletGeminiBackendStatus(userId);
+  if (backendGemini.configured && backendGemini.model && !models.some((item) => item.value === "env:world-wallet-gemini")) {
     models.unshift({
       value: "env:world-wallet-gemini",
       label: backendGemini.model + " · Google Gemini (World Wallet backend)",
@@ -65,9 +65,19 @@ export async function GET(request: Request) {
     });
   }
 
+  const message = models.length
+    ? null
+    : backendGemini.message || "No AI provider has been connected by the Super Admin yet.";
+
   return NextResponse.json({
     models,
     connectionsAvailable,
-    message: models.length ? null : "No AI provider has been connected by the Super Admin yet.",
+    backendGemini: {
+      configured: backendGemini.configured,
+      model: backendGemini.model,
+      code: backendGemini.code,
+      message: backendGemini.message,
+    },
+    message,
   }, { headers: { "Cache-Control": "no-store" } });
 }
