@@ -83,6 +83,168 @@ jobs:
       - name: Sync Capacitor Android plugins and web configuration
         run: npx cap sync android
 
+      - name: Install official Plaid Android Link SDK and Capacitor bridge
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          root_gradle = Path("android/build.gradle")
+          root_text = root_gradle.read_text()
+          agp = "classpath 'com.android.tools.build:gradle:8.13.0'"
+          if agp not in root_text:
+              raise SystemExit("Expected Capacitor Android Gradle plugin declaration was not found.")
+          if "kotlin-gradle-plugin" not in root_text:
+              root_text = root_text.replace(
+                  agp,
+                  agp + "\n        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.20'",
+                  1,
+              )
+          root_gradle.write_text(root_text)
+
+          variables_gradle = Path("android/variables.gradle")
+          variables_text = variables_gradle.read_text()
+          if "minSdkVersion = 24" in variables_text:
+              variables_text = variables_text.replace("minSdkVersion = 24", "minSdkVersion = 25", 1)
+          elif "minSdkVersion = 25" not in variables_text:
+              raise SystemExit("Could not verify Capacitor minimum Android SDK version.")
+          variables_gradle.write_text(variables_text)
+
+          app_gradle = Path("android/app/build.gradle")
+          app_text = app_gradle.read_text()
+          android_plugin = "apply plugin: 'com.android.application'"
+          if android_plugin not in app_text:
+              raise SystemExit("Expected Android app plugin declaration was not found.")
+          if "org.jetbrains.kotlin.android" not in app_text:
+              app_text = app_text.replace(
+                  android_plugin,
+                  android_plugin + "\napply plugin: 'org.jetbrains.kotlin.android'",
+                  1,
+              )
+          dependency_anchor = "dependencies {"
+          if dependency_anchor not in app_text:
+              raise SystemExit("Android dependency block was not found.")
+          if "com.plaid.link:sdk-core" not in app_text:
+              app_text = app_text.replace(
+                  dependency_anchor,
+                  dependency_anchor + "\n    implementation 'com.plaid.link:sdk-core:6.4.0'",
+                  1,
+              )
+          app_gradle.write_text(app_text)
+
+          main_activity = Path("android/app/src/main/java/com/balmz/ai/MainActivity.java")
+          main_activity.parent.mkdir(parents=True, exist_ok=True)
+          main_activity.write_text("""package com.balmz.ai;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(PlaidLinkPlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          """)
+
+          plugin = Path("android/app/src/main/java/com/balmz/ai/PlaidLinkPlugin.kt")
+          plugin.write_text(r'''package com.balmz.ai
+
+          import androidx.activity.result.ActivityResultLauncher
+          import com.getcapacitor.JSObject
+          import com.getcapacitor.Plugin
+          import com.getcapacitor.PluginCall
+          import com.getcapacitor.PluginMethod
+          import com.getcapacitor.annotation.CapacitorPlugin
+          import com.plaid.link.OpenPlaidLink
+          import com.plaid.link.Plaid
+          import com.plaid.link.PlaidSession
+          import com.plaid.link.OnLoadCallback
+          import com.plaid.link.configuration.linkTokenConfiguration
+          import com.plaid.link.result.LinkExit
+          import com.plaid.link.result.LinkSuccess
+
+          @CapacitorPlugin(name = "PlaidLink")
+          class PlaidLinkPlugin : Plugin() {
+              private var launcher: ActivityResultLauncher<PlaidSession>? = null
+              private var pendingCall: PluginCall? = null
+
+              override fun load() {
+                  launcher = getActivity().registerForActivityResult(OpenPlaidLink()) { result ->
+                      val call = pendingCall
+                      pendingCall = null
+                      call?.setKeepAlive(false)
+                      if (call == null) return@registerForActivityResult
+
+                      when (result) {
+                          is LinkSuccess -> {
+                              val response = JSObject()
+                              response.put("publicToken", result.publicToken)
+                              val institution = JSObject()
+                              result.metadata.institution?.name?.let { institution.put("name", it) }
+                              response.put("institution", institution)
+                              call.resolve(response)
+                          }
+                          is LinkExit -> {
+                              val response = JSObject()
+                              response.put("cancelled", true)
+                              result.error?.displayMessage?.let { response.put("errorMessage", it) }
+                              call.resolve(response)
+                          }
+                      }
+                  }
+              }
+
+              @PluginMethod
+              fun open(call: PluginCall) {
+                  val token = call.getString("linkToken")?.trim()
+                  if (token.isNullOrBlank()) {
+                      call.reject("A Plaid Link token is required.")
+                      return
+                  }
+                  if (pendingCall != null) {
+                      call.reject("A Plaid Link session is already open.")
+                      return
+                  }
+                  val hostActivity = getActivity()
+                  val resultLauncher = launcher
+                  if (resultLauncher == null) {
+                      call.reject("Plaid Link is not ready. Reopen the bank screen and try again.")
+                      return
+                  }
+
+                  pendingCall = call
+                  call.setKeepAlive(true)
+                  var session: PlaidSession? = null
+                  var readyBeforeSession = false
+                  var launched = false
+
+                  val configuration = linkTokenConfiguration {
+                      this.token = token
+                      onLoad = OnLoadCallback {
+                          hostActivity.runOnUiThread {
+                              val readySession = session
+                              if (readySession == null) {
+                                  readyBeforeSession = true
+                              } else if (!launched && pendingCall === call) {
+                                  launched = true
+                                  resultLauncher.launch(readySession)
+                              }
+                          }
+                      }
+                  }
+
+                  session = Plaid.createPlaidLinkSession(hostActivity, configuration)
+                  if (readyBeforeSession && !launched && pendingCall === call) {
+                      launched = true
+                      resultLauncher.launch(session!!)
+                  }
+              }
+          }
+          ''')
+          PY
+
       - name: Build APK and Android App Bundles
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug bundleDebug assembleRelease bundleRelease
