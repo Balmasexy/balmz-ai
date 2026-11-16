@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
-import { resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
+import { getWorldWalletGeminiBackendModel, resolveWorldWalletAIExternalAuth } from "@/lib/integrations/world-wallet-ai-auth";
 import { listAIProviderConnections, AI_PROVIDERS, getGeneralLanguageEnvironmentConfig } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
@@ -52,6 +52,16 @@ export async function GET(request: Request) {
       label: `${general.modelId} · General Language server key`,
       provider: AI_PROVIDERS.general.label,
       modelId: general.modelId,
+    });
+  }
+
+  const backendGemini = await getWorldWalletGeminiBackendModel(userId);
+  if (backendGemini && !models.some((item) => item.value === "env:world-wallet-gemini")) {
+    models.unshift({
+      value: "env:world-wallet-gemini",
+      label: backendGemini.model + " · Google Gemini (World Wallet backend)",
+      provider: AI_PROVIDERS.google.label,
+      modelId: backendGemini.model,
     });
   }
 
