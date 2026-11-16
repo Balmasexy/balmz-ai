@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type Account = { id: string; name: string; type: string | null; subtype: string | null; mask: string | null };
 type Connection = { id: string; institutionName: string; status: string; accounts: Account[] };
-type Source = { id: string; institutionName: string; accountType: string; mask: string | null; status: string; achEnabled: boolean };
+type Source = { id: string; institutionName: string; accountType: string; plaidAccountId: string | null; mask: string | null; status: string; achEnabled: boolean };
 type Customer = { id: string; environment: string; customer_type: string; provider_status: string } | null;
 
 export function AchActivationWorkspace() {
@@ -79,7 +79,7 @@ export function AchActivationWorkspace() {
             {connections.map((connection) => <article key={connection.id} className="rounded-xl border border-white/[0.07] p-4">
               <p className="text-xs font-semibold text-white">{connection.institutionName}</p>
               <div className="mt-3 space-y-2">{connection.accounts.map((account) => {
-                const existing = sources.find((source) => source.institutionName === connection.institutionName && source.accountType === account.subtype && source.mask === account.mask);
+                const existing = sources.find((source) => source.plaidAccountId === account.id);
                 const eligible = account.type === "depository" && (account.subtype === "checking" || account.subtype === "savings");
                 return <div key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-black/20 p-3">
                   <div><p className="text-xs text-slate-200">{account.name}</p><p className="mt-1 text-[10px] text-slate-500">{account.subtype || account.type} · •••• {account.mask || "—"}</p></div>

@@ -12,17 +12,17 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: noStore });
   try {
     const result = await getDbPool().query<{
-      id: string; name: string; institution_name: string; account_type: string;
+      id: string; name: string; institution_name: string; account_type: string; plaid_account_id: string | null;
       account_mask: string | null; provider_status: string; ach_enabled: boolean;
       environment: string; created_at: string;
     }>(
-      "SELECT id, name, institution_name, account_type, account_mask, provider_status, ach_enabled, environment, created_at FROM public.balmz_money_movement_funding_sources WHERE user_id = $1 AND removed_at IS NULL ORDER BY created_at DESC",
+      "SELECT id, name, institution_name, account_type, plaid_account_id, account_mask, provider_status, ach_enabled, environment, created_at FROM public.balmz_money_movement_funding_sources WHERE user_id = $1 AND removed_at IS NULL ORDER BY created_at DESC",
       [session.user.id],
     );
     return NextResponse.json({
       fundingSources: result.rows.map((row) => ({
         id: row.id, name: row.name, institutionName: row.institution_name,
-        accountType: row.account_type, mask: row.account_mask, status: row.provider_status,
+        accountType: row.account_type, plaidAccountId: row.plaid_account_id, mask: row.account_mask, status: row.provider_status,
         achEnabled: row.ach_enabled, environment: row.environment, createdAt: row.created_at,
       })),
       transfersEnabled: false,

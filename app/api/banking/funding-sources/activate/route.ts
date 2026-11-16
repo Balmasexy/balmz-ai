@@ -44,8 +44,8 @@ export async function POST(request: Request) {
     if (item.environment !== environment || customer.environment !== environment) return NextResponse.json({ error: "BANKING_ENVIRONMENT_MISMATCH" }, { status: 409, headers: noStore });
 
     const duplicate = await getDbPool().query<{ id: string }>(
-      "SELECT id FROM public.balmz_money_movement_funding_sources WHERE user_id = $1 AND plaid_item_id = $2 AND removed_at IS NULL LIMIT 1",
-      [session.user.id, item.id],
+      "SELECT id FROM public.balmz_money_movement_funding_sources WHERE user_id = $1 AND plaid_item_id = $2 AND plaid_account_id = $3 AND removed_at IS NULL LIMIT 1",
+      [session.user.id, item.id, body.accountId],
     );
     if (duplicate.rows[0]) return NextResponse.json({ error: "FUNDING_SOURCE_ALREADY_EXISTS", message: "This bank connection already has a funding source. Refresh the page to see its status." }, { status: 409, headers: noStore });
 
@@ -88,8 +88,8 @@ export async function POST(request: Request) {
     const achEnabled = providerStatus === "verified";
     const fundingId = randomUUID();
     await getDbPool().query(
-      "INSERT INTO public.balmz_money_movement_funding_sources (id, user_id, customer_id, plaid_item_id, funding_source_url, name, institution_name, account_type, account_mask, environment, provider_status, ach_enabled) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-      [fundingId, session.user.id, customer.id, item.id, created.location, bankAccount.name, item.institution_name, bankAccount.account_subtype, bankAccount.mask, environment, providerStatus === "verified" ? "verified" : "pending", achEnabled],
+      "INSERT INTO public.balmz_money_movement_funding_sources (id, user_id, customer_id, plaid_item_id, plaid_account_id, funding_source_url, name, institution_name, account_type, account_mask, environment, provider_status, ach_enabled) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+      [fundingId, session.user.id, customer.id, item.id, body.accountId, created.location, bankAccount.name, item.institution_name, bankAccount.account_subtype, bankAccount.mask, environment, providerStatus === "verified" ? "verified" : "pending", achEnabled],
     );
     await getDbPool().query(
       "INSERT INTO public.balmz_admin_audit_log (id, actor_user_id, action, metadata) VALUES ($1, $2, 'ach_funding_source_activated', $3::jsonb)",

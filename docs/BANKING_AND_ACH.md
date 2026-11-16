@@ -7,6 +7,14 @@
 - Provider credentials are managed only by Super Admin at `/admin` → Banking Secret Vault.
 - Plaid Link is the only place the end user enters bank credentials or a bank one-time verification code. BALMZ AI must never collect or persist a bank password, OTP, PIN, or full account/routing number.
 
+## Android app integration
+
+The BALMZ AI Android build uses Plaid's official native Android Link SDK (version 6.4.0) through a local Capacitor bridge. The backend creates Android Link tokens with `android_package_name=com.balmz.ai`; it does not use the browser Link script inside the Android WebView. The web application continues to use Plaid Link Web.
+
+Before Android bank login can work, add the exact package name `com.balmz.ai` to Plaid Dashboard → Build → API → Allowed Android package names. This is a one-time Plaid-side allowlist setting. The Android SDK requires Android API level 25 or newer.
+
+Plaid's legacy WebView SDK is deprecated; the native Android SDK is used for the APK so bank app handoffs and OAuth/MFA are handled by the supported Android Link experience.
+
 ## Provider design
 
 Plaid Auth + Plaid Link is used for bank sign-in/MFA and selected-account authentication. The backend exchanges the one-time public token for an access token and encrypts that access token using the server-side credential encryption mechanism. The selected account ID, account type/subtype, name and partial mask are stored for display and later processor-token creation.
