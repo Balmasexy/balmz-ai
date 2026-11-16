@@ -340,12 +340,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       }, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
       const code = error instanceof Error ? error.message : "AI_PROVIDER_ERROR";
-      if (code === "AI_PROVIDER_NOT_CONFIGURED") return safeError(code, 503, "Google Gemini is not configured on the World Wallet AI Render backend.");
-      if (code === "AI_PROVIDER_AUTH_FAILED") return safeError(code, 503, "The World Wallet AI Gemini service could not authenticate this request.");
-      if (code === "AI_PROVIDER_RATE_LIMITED") return safeError(code, 503, "Google Gemini is temporarily rate-limited. Please try again later.");
-      if (code === "AI_PROVIDER_UNAVAILABLE") return safeError(code, 502, "The World Wallet AI Gemini backend could not be reached.");
-      if (code === "AI_PROVIDER_EMPTY_RESPONSE") return safeError(code, 502, "Google Gemini returned an empty response.");
-      return safeError("AI_PROVIDER_ERROR", 502, "Google Gemini could not complete this request.");
+      console.warn("[BALMZ AI] Gemini backend request failed", { code });
+      if (code === "AI_PROXY_NOT_CONFIGURED") return safeError(code, 503, "The private Render-to-Render Gemini bridge is missing its backend URL or shared service secret.");
+      if (code === "AI_PROVIDER_NOT_CONFIGURED") return safeError(code, 503, "Google Gemini is not configured on the World Wallet AI Render backend. Set GEMINI_API_KEY there; no key is needed in this website.");
+      if (code === "AI_PROVIDER_KEY_REJECTED") return safeError(code, 503, "Google Gemini rejected the API key on the World Wallet AI Render backend. Check that backend secret and its Gemini API permissions.");
+      if (code === "AI_PROVIDER_AUTH_FAILED") return safeError(code, 503, "The World Wallet AI Gemini service could not authenticate this request. Check the shared Render integration secret and verified account email.");
+      if (code === "AI_PROVIDER_RATE_LIMITED") return safeError(code, 503, "Google Gemini is temporarily rate-limited. Check the Google AI project quota and try again.");
+      if (code === "AI_PROVIDER_INVALID_REQUEST") return safeError(code, 400, "The Gemini backend rejected this message format. Try a shorter message or remove unsupported attachments.");
+      if (code === "AI_PROVIDER_INVALID_RESPONSE") return safeError(code, 502, "The World Wallet AI Gemini backend returned an invalid response.");
+      if (code === "AI_PROVIDER_UNAVAILABLE") return safeError(code, 502, "The World Wallet AI Gemini backend could not be reached. Check its Render service status.");
+      if (code === "AI_PROVIDER_EMPTY_RESPONSE") return safeError(code, 502, "Google Gemini returned an empty answer. Retry the message.");
+      return safeError("AI_PROVIDER_ERROR", 502, "Google Gemini could not complete this request. Retry it or check the Render backend logs.");
     }
   }
 
