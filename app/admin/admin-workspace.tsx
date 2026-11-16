@@ -10,6 +10,7 @@ import type { AdminOverview, CountValue } from "@/lib/admin";
 import { StorageSection } from "./storage-section";
 import { AIConnectionsSection } from "./ai-connections-section";
 import { ServiceConnectorsSection } from "./service-connectors-section";
+import { BankingVaultSection } from "./banking-vault-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { FamilyAccessSection } from "./family-access-section";
 import { DeploymentWorkplace } from "@/app/dashboard/deployments/deployment-workplace";
@@ -29,6 +30,7 @@ type Section =
   | "storage"
   | "ai-connections"
   | "service-connectors"
+  | "banking-vault"
   | "api-keys"
   | "settings";
 
@@ -64,6 +66,7 @@ const navigation: { title: string; items: NavigationItem[] }[] = [
     items: [
       { id: "ai-connections", label: "AI connections", icon: "✳", detail: "Connect AI models and providers" },
       { id: "service-connectors", label: "Service connectors", icon: "⌘", detail: "GitHub, CoinGecko, Paystack and more" },
+      { id: "banking-vault", label: "Banking Secret Vault", icon: "▣", detail: "Restricted Plaid and ACH provider credentials" },
       { id: "api-keys", label: "API keys", icon: "⚿", detail: "Create Demo and Live BALMZ keys" },
     ],
   },
@@ -93,6 +96,7 @@ const titles: Record<Section, { eyebrow: string; title: string; description: str
   storage: { eyebrow: "FILE INFRASTRUCTURE", title: "Super Admin storage", description: "Manage private project files and deployment archives." },
   "ai-connections": { eyebrow: "AI & AGENT INFRASTRUCTURE", title: "AI connections", description: "Connect and manage external model providers." },
   "service-connectors": { eyebrow: "DEVELOPER INTEGRATIONS", title: "Service connectors", description: "Search, connect and test external services." },
+  "banking-vault": { eyebrow: "RESTRICTED BANKING INTEGRATIONS", title: "Banking Secret Vault", description: "Manage Plaid and NMI Money Movement credentials. Secrets stay encrypted on the backend." },
   "api-keys": { eyebrow: "DEVELOPER ACCESS", title: "BALMZ API keys", description: "Create and revoke separate Demo and Live application keys." },
   settings: { eyebrow: "PLATFORM CONTROL", title: "System settings", description: "Review service configuration and protected capabilities." },
 };
@@ -699,6 +703,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
             {active === "storage" ? <StorageSection /> : null}
             {active === "ai-connections" ? <AIConnectionsSection /> : null}
             {active === "service-connectors" ? <ServiceConnectorsSection /> : null}
+            {active === "banking-vault" ? <BankingVaultSection /> : null}
             {active === "api-keys" ? <ApiKeysSection /> : null}
             {active === "settings" ? <SettingsSection /> : null}
 

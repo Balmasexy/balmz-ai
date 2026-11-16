@@ -88,6 +88,7 @@ export async function GET() {
     }>(
       `SELECT id, service_id, display_name, environment, status, last_tested_at, last_error_code
          FROM public.balmz_service_credentials
+        WHERE service_id NOT IN ('plaid', 'money-movement')
         ORDER BY service_id, environment, display_name`,
     );
     const saved = result.rows.map(publicEntry);

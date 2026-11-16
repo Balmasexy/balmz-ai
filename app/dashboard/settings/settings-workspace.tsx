@@ -14,6 +14,7 @@ const rows: SettingRow[] = [
   { id: "upgrade", icon: "✧", label: "Upgrade plan", value: "View plans", href: "/dashboard/billing" },
   { id: "usage", icon: "▥", label: "Usage and limits", value: "View usage", href: "/dashboard/usage" },
   { id: "plugins", icon: "⌘", label: "Plugins and connectors", value: "Explore", href: "/dashboard/plugins" },
+  { id: "banking", icon: "▤", label: "Bank connections", value: "Connect bank", href: "/dashboard/banking" },
 ];
 
 function SettingGroup({ items }: { items: SettingRow[] }) {

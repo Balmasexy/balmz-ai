@@ -60,9 +60,12 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/dashboard/usage`: usage and allowance details
 - `/dashboard/billing`: plan catalogue and billing workspace
 - `/dashboard/settings`: profile and account settings
+- `/dashboard/banking`: private Plaid Link bank authentication and connected-account management (not a dashboard card)
+- `/dashboard/banking/ach`: ACH funding-source setup through the NMI Money Movement integration
 - `/dashboard/deployments`: protected Render service/deployment workplace
 - `/dashboard/deployments` → Domains: Render public service URLs and custom-domain management; Neon: project/branch/database/role selection and tested DATABASE_URL wiring to a selected Render service
 - `/admin`: protected Super Admin workplace
+- `/admin` → Banking Secret Vault: restricted Plaid and NMI provider credentials
 - `/api/subscription`: server-derived subscription status
 - `/api/health/db`: database connectivity probe
 - `/api/auth/*`: Better Auth endpoints
@@ -80,6 +83,8 @@ See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior.
 ## Neon database and migrations
 
 Use the dedicated Neon project and the `balmz_ai` database. The schema is versioned by additive SQL files in `db/migrations`; production records versions `0001` through `0008` in `public.balmz_schema_migrations` as of 13 November 2026. Migrations `0007` and `0008` were applied using the Neon owner role after a read-only baseline check; existing account, subscription, usage, payment, webhook and connector rows were preserved.
+
+The current production migration baseline was verified through version `0008` on 13 November 2026. The banking feature adds forward-only migrations `0009_plaid_nmi_money_movement.sql` and `0010_plaid_bank_accounts.sql`; they are **not yet applied to production** and must be reviewed and applied separately before the bank routes are used. They create the transfer-provider customer, Plaid Item/account and funding-source records without changing existing identity, subscription or payment rows.
 
 The migrations cover:
 
