@@ -586,7 +586,7 @@ export function AdminWorkspace({ data, adminEmail }: { data: AdminOverview; admi
     const allowed: Section[] = [
       "overview", "accounts", "family-access", "plans", "subscriptions", "payments", "usage",
       "webhooks", "audit", "terminal", "deployments", "storage", "ai-connections",
-      "service-connectors", "api-keys", "settings",
+      "service-connectors", "banking-vault", "api-keys", "settings",
     ];
     if (requested && allowed.includes(requested as Section)) {
       setActive(requested as Section);
