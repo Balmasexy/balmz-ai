@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
-import { getDbPool } from "@/lib/db";
 import {
   addCustomerMcpConnection,
   disconnectCustomerMcpConnection,
