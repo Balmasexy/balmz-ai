@@ -15,6 +15,44 @@ const SEARCH_TERMS: Record<string, string> = {
   people: "portrait photography",
 };
 
+
+const UNSPLASH_LICENSE = "https://unsplash.com/license";
+const CURATED_PHOTOS: Array<{ id: string; title: string; category: string; photoId: string }> = [
+  { id: "landscape-1", title: "Mountain lake at sunrise", category: "nature", photoId: "photo-1500530855697-b586d89ba3ee" },
+  { id: "landscape-2", title: "Alpine landscape", category: "nature", photoId: "photo-1470770841072-f978cf4d019e" },
+  { id: "coast-1", title: "Ocean coastline", category: "nature", photoId: "photo-1507525428034-b723cf961d3e" },
+  { id: "animal-1", title: "Wildlife portrait", category: "animals", photoId: "photo-1518791841217-8f162f1e1131" },
+  { id: "travel-1", title: "Coastal travel view", category: "travel", photoId: "photo-1500534623283-312aade485b7" },
+  { id: "travel-2", title: "Mountain travel destination", category: "travel", photoId: "photo-1501785888041-af3ef285b470" },
+  { id: "art-1", title: "Creative abstract color", category: "art", photoId: "photo-1541701494587-cb58502866ab" },
+  { id: "design-1", title: "Minimal design workspace", category: "design", photoId: "photo-1498050108023-c5249f4df085" },
+  { id: "people-1", title: "Portrait photography inspiration", category: "people", photoId: "photo-1534528741775-53994a69daeb" },
+  { id: "people-2", title: "Natural portrait", category: "people", photoId: "photo-1500648767791-00dcc994a43e" },
+];
+
+function curatedFallback(category: string, query: string) {
+  const search = query.toLowerCase();
+  const selected = CURATED_PHOTOS.filter((photo) =>
+    (category === "all" || photo.category === category) &&
+    (!search || (photo.title + " " + photo.category).toLowerCase().includes(search)),
+  );
+  const results = selected.length ? selected : CURATED_PHOTOS.filter((photo) => category === "all" || photo.category === category);
+  return results.map((photo) => {
+    const imageUrl = "https://images.unsplash.com/" + photo.photoId + "?auto=format&fit=crop&w=900&q=82";
+    return {
+      id: "unsplash-" + photo.id,
+      title: photo.title,
+      filename: photo.title,
+      thumbnailUrl: imageUrl,
+      originalUrl: imageUrl,
+      descriptionUrl: "https://unsplash.com/s/photos/" + encodeURIComponent(photo.category),
+      creator: "Photographer credit available through Unsplash",
+      license: "Unsplash License",
+      licenseUrl: UNSPLASH_LICENSE,
+    };
+  });
+}
+
 type MetadataValue = { value?: string };
 type CommonsImageInfo = {
   url?: string;
@@ -101,14 +139,16 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
-      return NextResponse.json(
-        { error: "IMAGE_SOURCE_UNAVAILABLE", message: "The free image library is temporarily unavailable. Please try again." },
-        { status: 502, headers: { "Cache-Control": "no-store" } },
-      );
+      return NextResponse.json({
+        source: "Unsplash curated fallback",
+        query: searchTerm,
+        images: curatedFallback(category, query),
+        notice: "Showing curated Unsplash images because Wikimedia Commons is temporarily unavailable. Review the Unsplash license before reuse.",
+      }, { headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=900" } });
     }
 
     const payload = await response.json() as { query?: { pages?: CommonsPage[] } };
-    const images = (payload.query?.pages ?? []).flatMap((page) => {
+    const commonsImages = (payload.query?.pages ?? []).flatMap((page) => {
       const info = page.imageinfo?.[0];
       if (!info?.thumburl || !info.url || !info.descriptionurl) return [];
       if (!info.thumburl.startsWith("https://upload.wikimedia.org/") ||
@@ -133,19 +173,21 @@ export async function GET(request: Request) {
       }];
     });
 
-    return NextResponse.json(
-      {
-        source: "Wikimedia Commons",
-        query: searchTerm,
-        images,
-        notice: "Files on Commons have free-use licenses, but conditions differ by image. Review the file page and license before reusing; creator credit is shown where available.",
-      },
-      { headers: { "Cache-Control": "private, max-age=180, stale-while-revalidate=900" } },
-    );
+    const images = commonsImages.length ? commonsImages : curatedFallback(category, query);
+    return NextResponse.json({
+      source: commonsImages.length ? "Wikimedia Commons" : "Unsplash curated fallback",
+      query: searchTerm,
+      images,
+      notice: commonsImages.length
+        ? "Files on Commons have free-use licenses, but conditions differ by image. Review the file page and license before reusing; creator credit is shown where available."
+        : "No suitable Wikimedia results were returned. Showing curated Unsplash images instead; review the Unsplash license before reuse.",
+    }, { headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=900" } });
   } catch {
-    return NextResponse.json(
-      { error: "IMAGE_SOURCE_UNAVAILABLE", message: "The free image library could not be reached. Please check your connection and try again." },
-      { status: 502, headers: { "Cache-Control": "no-store" } },
-    );
+    return NextResponse.json({
+      source: "Unsplash curated fallback",
+      query: searchTerm,
+      images: curatedFallback(category, query),
+      notice: "Showing curated Unsplash images because Wikimedia Commons could not be reached. Review the Unsplash license before reuse.",
+    }, { headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=900" } });
   }
 }
