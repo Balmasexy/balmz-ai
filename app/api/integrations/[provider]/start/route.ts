@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
@@ -19,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ provider: string }> };
 
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(_request: Request, context: RouteContext) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED", message: "Sign in before connecting an account." }, { status: 401 });
 
