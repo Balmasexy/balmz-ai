@@ -63,7 +63,11 @@ async function readTokens(userId: string, connectionId: string): Promise<{ row: 
   let tokens = JSON.parse(decryptCustomerOAuthValue(row.encrypted_tokens)) as CustomerOAuthTokenSet;
   if (row.token_expires_at && Date.parse(row.token_expires_at) <= Date.now() + 60_000) {
     if (!tokens.refreshToken) throw new Error("CUSTOMER_CONNECTION_REAUTH_REQUIRED");
-    await refreshCustomerOAuthConnection(userId, connectionId);
+    try {
+      await refreshCustomerOAuthConnection(userId, connectionId);
+    } catch {
+      throw new Error("CUSTOMER_CONNECTION_REAUTH_REQUIRED");
+    }
     row = await loadOwnedConnection(userId, connectionId);
     tokens = JSON.parse(decryptCustomerOAuthValue(row.encrypted_tokens)) as CustomerOAuthTokenSet;
   }
