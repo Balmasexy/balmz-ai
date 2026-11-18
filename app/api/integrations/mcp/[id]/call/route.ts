@@ -11,7 +11,7 @@ export async function POST(request: Request, context: RouteContext) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   const { id } = await context.params;
-  let body: { toolName?: unknown; arguments?: unknown; confirmed?: unknown };
+  let body: { toolName?: unknown; arguments?: unknown; confirmed?: unknown; approvalRequestId?: unknown };
   try { body = await request.json(); }
   catch { return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 }); }
 
@@ -30,6 +30,7 @@ export async function POST(request: Request, context: RouteContext) {
       toolName: body.toolName,
       args,
       confirmed: body.confirmed === true,
+      approvalRequestId: typeof body.approvalRequestId === "string" ? body.approvalRequestId : undefined,
     });
     if (result.approvalRequired) {
       return NextResponse.json({
@@ -50,7 +51,7 @@ export async function POST(request: Request, context: RouteContext) {
     const safeCode = [
       "MCP_CONNECTION_NOT_FOUND", "MCP_TOOL_NOT_FOUND",
       "MCP_TOOL_ARGUMENT_INVALID", "MCP_TOOL_ARGUMENTS_TOO_LARGE",
-      "MCP_TOOL_RESULT_TOO_LARGE", "MCP_TOOL_FAILED",
+      "MCP_TOOL_RESULT_TOO_LARGE", "MCP_TOOL_FAILED", "MCP_APPROVAL_NOT_FOUND",
     ].includes(code) ? code : "MCP_TOOL_FAILED";
     return NextResponse.json({ error: safeCode, message: "The MCP tool did not complete successfully." }, { status, headers: { "Cache-Control": "no-store" } });
   }
