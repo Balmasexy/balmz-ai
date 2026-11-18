@@ -33,7 +33,7 @@ function environmentModel(provider: "openai" | "google") {
   if (provider === "openai") {
     return process.env.OPENAI_RESPONSES_MODEL_ID?.trim()
       || process.env.OPENAI_MODEL_ID?.trim()
-      || "";
+      || "gpt-6-astra";
   }
   return process.env.GEMINI_MODEL_ID?.trim() || "gemini-3.1-flash-lite";
 }
