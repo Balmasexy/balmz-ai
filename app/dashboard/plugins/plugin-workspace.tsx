@@ -12,7 +12,7 @@ type Plugin = {
   description: string;
   capabilities: string[];
   route: string;
-  access: "admin" | "billing" | "info";
+  access: "admin" | "billing" | "info" | "customer";
   provider: string;
   externalUrl?: string;
 };
@@ -20,6 +20,17 @@ type Plugin = {
 const plugins: Plugin[] = [
   { id: "openai", name: "ChatGPT / OpenAI", category: "AI", description: "Use the workspace’s shared, administrator-tested OpenAI connection in BALMZ AI chat. Provider credentials stay on the server.", capabilities: ["Chat", "GPT models", "Usage metering"], route: "/dashboard", access: "info", provider: "OpenAI" },
   { id: "models", name: "AI model providers", category: "AI", description: "Select any shared, tested provider model enabled by the administrator from the ChatGPT-style model selector.", capabilities: ["Chat", "Model selection", "Provider switching"], route: "/dashboard", access: "info", provider: "BALMZ AI" },
+  { id: "google-gemini", name: "Google Gemini", category: "AI", description: "Use the connected Gemini model and its native, model-supported Google tools. Access depends on the administrator's verified provider connection.", capabilities: ["Gemini models", "Google Search", "URL context", "Code execution"], route: "/admin?section=ai-connections", access: "admin", provider: "Google" },
+  { id: "openai-responses", name: "OpenAI Responses tools", category: "AI", description: "Access OpenAI Responses tools such as web search, file search, image generation, Code Interpreter and authorized MCP when the model and account support them.", capabilities: ["Responses API", "Built-in tools", "Remote MCP"], route: "/dashboard", access: "info", provider: "OpenAI" },
+  { id: "google-workspace", name: "Google Workspace", category: "Work", description: "Connect your own Google account for the Gmail, Drive and Calendar read-only tools you authorize.", capabilities: ["Gmail read", "Drive read", "Calendar read"], route: "/dashboard/connections?provider=google", access: "customer", provider: "Google" },
+  { id: "microsoft-365", name: "Microsoft 365", category: "Work", description: "Connect your own Microsoft account for authorized Outlook mail, OneDrive files and Calendar tools.", capabilities: ["Outlook read", "OneDrive read", "Calendar read"], route: "/dashboard/connections?provider=microsoft", access: "customer", provider: "Microsoft" },
+  { id: "slack-customer", name: "Slack", category: "Work", description: "Connect your own Slack identity and grant the requested user-level workspace permissions.", capabilities: ["Workspace identity", "Channel read", "Message history read"], route: "/dashboard/connections?provider=slack", access: "customer", provider: "Slack" },
+  { id: "dropbox-customer", name: "Dropbox", category: "Work", description: "Connect your own Dropbox account for authorized file and metadata access.", capabilities: ["File metadata", "File read"], route: "/dashboard/connections?provider=dropbox", access: "customer", provider: "Dropbox" },
+  { id: "box-customer", name: "Box", category: "Work", description: "Connect your own Box account for files and folders allowed by your Box integration.", capabilities: ["Files", "Folders", "Account identity"], route: "/dashboard/connections?provider=box", access: "customer", provider: "Box" },
+  { id: "github-customer", name: "GitHub public repositories", category: "Developer", description: "Connect your GitHub identity to access public repository metadata. Private repository access requires a separately approved GitHub App installation.", capabilities: ["Public repositories", "Profile", "Email"], route: "/dashboard/connections?provider=github", access: "customer", provider: "GitHub" },
+  { id: "gitlab-customer", name: "GitLab", category: "Developer", description: "Connect your own GitLab account for read-only user and repository access.", capabilities: ["Repositories read", "User profile", "Projects"], route: "/dashboard/connections?provider=gitlab", access: "customer", provider: "GitLab" },
+  { id: "notion-customer", name: "My Notion workspace", category: "Work", description: "Connect your own Notion workspace and grant access to the pages and databases you choose.", capabilities: ["Workspace pages", "Search", "Databases"], route: "/dashboard/connections?provider=notion", access: "customer", provider: "Notion" },
+  { id: "mcp-customer", name: "Remote MCP servers", category: "Developer", description: "Connect your own compatible remote MCP servers, inspect their tools and control which actions BALMZ AI may use.", capabilities: ["Tool discovery", "User-owned credentials", "Approval controls"], route: "/dashboard/connections?tab=mcp", access: "customer", provider: "MCP" },
   { id: "github", name: "GitHub", category: "Developer", description: "Connect repositories for code, issues and project workflows through the Super Admin connector.", capabilities: ["Repositories", "Issues", "Development"], route: "/admin?section=service-connectors", access: "admin", provider: "GitHub" },
   { id: "coingecko", name: "CoinGecko", category: "Finance", description: "Configure verified market-data credentials for supported CoinGecko endpoints.", capabilities: ["Crypto market data", "Demo / Pro key"], route: "/admin?section=service-connectors", access: "admin", provider: "CoinGecko" },
   { id: "chartgpt", name: "ChartGPT", category: "Work", description: "Generate charts from prompts and your structured data using the shared administrator-tested ChartGPT connection. Export your results; chart history is not retained by ChartGPT.", capabilities: ["Chart generation", "SVG / PNG / JSON export"], route: "/dashboard/charts", access: "info", provider: "ChartGPT" },
@@ -46,7 +57,10 @@ export function PluginWorkspace({ isAdmin, planName }: { isAdmin: boolean; planN
       <header className="sticky top-0 z-20 flex min-h-[68px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#080c14]/95 px-4 backdrop-blur-xl sm:px-8">
         <Link href="/dashboard" aria-label="Back to chat" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-xl text-slate-300 hover:bg-white/5">←</Link>
         <div className="text-center"><p className="text-sm font-semibold text-white">Plugins</p><p className="text-[10px] text-slate-500">BALMZ AI tool directory</p></div>
-        <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#0b111c]"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={32} height={32} className="h-8 w-8 rounded-full object-contain" /></Link>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/connections" className="rounded-full border border-white/10 px-3 py-2 text-[10px] text-slate-300 hover:bg-white/5">My connections</Link>
+          <Link href="/dashboard/settings" aria-label="Open profile settings" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#0b111c]"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={32} height={32} className="h-8 w-8 rounded-full object-contain" /></Link>
+        </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-7 sm:px-8 sm:py-10">
@@ -81,12 +95,12 @@ export function PluginWorkspace({ isAdmin, planName }: { isAdmin: boolean; planN
               <p className="mt-4 flex-1 text-xs leading-6 text-slate-400">{plugin.description}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">{plugin.capabilities.map((capability) => <span key={capability} className="rounded-lg bg-white/[0.045] px-2 py-1 text-[9px] text-slate-400">{capability}</span>)}</div>
               <div className="mt-5 flex items-center justify-between gap-2 border-t border-white/[0.07] pt-4">
-                <span className="text-[10px] text-slate-500">{plugin.access === "admin" ? "Admin-managed" : plugin.access === "billing" ? "Billing workspace" : "Workspace feature"}</span>
+                <span className="text-[10px] text-slate-500">{plugin.access === "customer" ? "Your account" : plugin.access === "admin" ? "Admin-managed" : plugin.access === "billing" ? "Billing workspace" : "Workspace feature"}</span>
                 <div className="flex items-center gap-2">
                   {plugin.externalUrl ? <button type="button" onClick={() => void openNativeBrowser(plugin.externalUrl!).catch(() => showNativeToast("Could not open the provider website."))} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-slate-400 hover:text-white">Docs</button> : null}
                   {plugin.access === "admin" && !isAdmin
                     ? <span className="rounded-lg border border-white/[0.08] px-3 py-2 text-[10px] text-slate-500">Ask administrator</span>
-                    : <Link href={plugin.route} className="rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110">{plugin.access === "admin" ? "Manage" : plugin.access === "billing" ? "Open" : "Open tool"}</Link>}
+                    : <Link href={plugin.route} className="rounded-lg bg-[var(--balmz-orange)] px-3 py-2 text-[10px] font-semibold text-[#17100a] transition hover:brightness-110">{plugin.access === "customer" ? "Connect account" : plugin.access === "admin" ? "Manage" : plugin.access === "billing" ? "Open" : "Open tool"}</Link>}
                 </div>
               </div>
             </article>
