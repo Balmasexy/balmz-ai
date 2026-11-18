@@ -10,6 +10,7 @@ import {
   MAX_MCP_REQUEST_BYTES,
   MAX_MCP_RESPONSE_BYTES,
   MAX_MCP_TOOLS,
+  MCP_REQUEST_TIMEOUT_MS,
   normalizeMcpEndpoint,
   resolvePublicMcpEndpoint,
   validateMcpArguments,
