@@ -155,8 +155,8 @@ export async function consumeUsage(input: {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const accountLock = await client.query<{ id: string }>(
-      `SELECT id FROM public."user" WHERE id = $1 FOR UPDATE`,
+    const accountLock = await client.query<{ id: string; role: string }>(
+      `SELECT id, role FROM public."user" WHERE id = $1 FOR UPDATE`,
       [userId],
     );
     if (!accountLock.rowCount) throw new Error("USER_NOT_FOUND");
@@ -169,6 +169,19 @@ export async function consumeUsage(input: {
     if (prior.rowCount) {
       await client.query("COMMIT");
       return { accepted: true, duplicate: true };
+    }
+
+    // Super Admin accounts are explicitly unlimited. Keep the usage event for
+    // audit/reporting, but do not create or enforce a monthly usage counter.
+    if (accountLock.rows[0]?.role === "admin") {
+      await client.query(
+        `INSERT INTO public.balmz_usage_events
+           (id, user_id, metric, units, source, idempotency_key, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, '{}'::jsonb)`,
+        [randomUUID(), userId, metric, units, source, idempotencyKey],
+      );
+      await client.query("COMMIT");
+      return { accepted: true, duplicate: false };
     }
 
     const subscriptionResult = await client.query<{
