@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { getCurrentSubscription } from "@/lib/subscriptions";
 import { getDbPool } from "@/lib/db";
+import { isAdminUser } from "@/lib/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,18 @@ export async function GET(): Promise<NextResponse> {
   }
 
   try {
-    const subscription = await getCurrentSubscription(session.user.id);
+    const isSuperAdmin = await isAdminUser(session.user.id);
+    const subscription = isSuperAdmin
+      ? {
+          id: "super-admin",
+          status: "active",
+          plan_code: "super_admin",
+          plan_name: "Super Admin — Unlimited",
+          current_period_starts_at: null,
+          current_period_ends_at: null,
+          entitlements: { unlimited: true },
+        }
+      : await getCurrentSubscription(session.user.id);
     const now = new Date();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const usageResult = await getDbPool().query<{
@@ -51,7 +63,7 @@ export async function GET(): Promise<NextResponse> {
         usage.push({
           metric: row.metric,
           used: Number(row.units_used),
-          limit: row.units_limit === null ? null : Number(row.units_limit),
+          limit: isSuperAdmin || row.units_limit === null ? null : Number(row.units_limit),
           periodEnd: row.period_end.toISOString(),
         });
       }
@@ -59,10 +71,11 @@ export async function GET(): Promise<NextResponse> {
 
     return NextResponse.json({
       subscription,
-      active: Boolean(subscription),
+      active: Boolean(isSuperAdmin || subscription),
+      unlimited: isSuperAdmin,
       usage,
       paymentsEnabled: false,
-      message: subscription ? null : "An active BALMZ AI plan is required before sending AI requests.",
+      message: isSuperAdmin || subscription ? null : "An active BALMZ AI plan is required before sending AI requests.",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json(
