@@ -126,6 +126,12 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       const saved = raw ? JSON.parse(raw) as Conversation[] : [];
       const validSaved = Array.isArray(saved) ? saved : [];
       const url = new URL(window.location.href);
+      const initialPrompt = url.searchParams.get("prompt");
+      if (initialPrompt) {
+        setPrompt(initialPrompt.slice(0, 4000));
+        url.searchParams.delete("prompt");
+        window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+      }
       const forceNewChat = localStorage.getItem(NEW_CHAT_AFTER_AUTH_KEY) === "1" || url.searchParams.get("new") === "1";
       if (forceNewChat) {
         const fresh = makeConversation();
@@ -712,6 +718,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${activeId === item.id ? "bg-[var(--balmz-orange)]/10 text-white" : "text-slate-400 hover:bg-white/[0.045] hover:text-slate-200"}`}><span className={activeId === item.id ? "text-[var(--balmz-orange)]" : "text-slate-600"}><Icon name="chat" /></span><span className="truncate">{item.title}</span></button>)}</div> : <p className="px-3 py-4 text-xs text-slate-600">No matching chats</p>}
           <p className="px-2 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Explore</p>
           <div className="space-y-1">
+            <Link href="/dashboard/images" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▧ Images</Link>
             <Link href="/dashboard/plugins" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">⌘ Plugins and connectors</Link>
             <Link href="/dashboard/charts" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">▥ ChartGPT workspace</Link>
             <Link href="/dashboard/campaign-studio" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">✳ Campaign Studio</Link>
@@ -743,6 +750,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           <div className="flex items-center gap-1.5">
             {hasMessages ? <button type="button" onClick={() => void shareActiveConversation()} className="rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white">Share</button> : null}
             {hasMessages && isNativeApp() ? <button type="button" onClick={() => void exportActiveConversation()} className="rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white">Export</button> : null}
+            <Link href="/dashboard/images" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Images</Link>
             <Link href="/dashboard/plugins" className="hidden rounded-lg px-2 py-2 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex">Plugins</Link>
             <label className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-500">Model <select aria-label="Choose AI model" disabled={modelsLoading || !modelOptions.length} value={model} onChange={(event) => setModel(event.target.value)} className="max-w-[150px] bg-transparent text-xs font-medium text-slate-200 outline-none disabled:opacity-60">{modelOptions.length ? modelOptions.map((option) => <option key={option.value} value={option.value}>{option.provider} · {option.label}</option>) : <option value="">{modelsLoading ? "Loading models…" : "No connected models"}</option>}</select></label>
             <button type="button" onClick={() => void refreshModels()} disabled={modelsLoading} className="hidden rounded-lg border border-white/[0.08] px-2.5 py-2 text-[10px] font-medium text-slate-400 hover:border-[var(--balmz-orange)]/40 hover:text-white disabled:opacity-40 sm:inline-flex">{modelsLoading ? "Loading…" : "Refresh models"}</button>

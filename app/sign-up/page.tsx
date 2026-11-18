@@ -5,6 +5,33 @@ import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
+function getAuthSwitchUrl(path: "/sign-in" | "/sign-up"): string {
+  const current = new URLSearchParams(window.location.search);
+  const next = current.get("next") || "";
+  const carried = new URLSearchParams();
+  if (next.startsWith("/dashboard") && !next.startsWith("//") && !next.includes("\\")) {
+    carried.set("next", next);
+  }
+  const prompt = current.get("prompt");
+  if (prompt) carried.set("prompt", prompt.slice(0, 4000));
+  if (current.get("newChat") === "1") carried.set("newChat", "1");
+  const query = carried.toString();
+  return path + (query ? "?" + query : "");
+}
+
+function getPostAuthDestination(): string {
+  const params = new URLSearchParams(window.location.search);
+  const requested = params.get("next") || "";
+  const safePath = requested.startsWith("/dashboard") && !requested.startsWith("//") && !requested.includes("\\")
+    ? requested
+    : "/dashboard";
+  const destination = new URL(safePath, window.location.origin);
+  const prompt = params.get("prompt");
+  if (prompt) destination.searchParams.set("prompt", prompt.slice(0, 4000));
+  if (params.get("newChat") === "1") destination.searchParams.set("new", "1");
+  return destination.pathname + destination.search;
+}
+
 export default function SignUpPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,7 +51,7 @@ export default function SignUpPage() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
-        callbackURL: "/dashboard",
+        callbackURL: getPostAuthDestination(),
       });
       if (result.error) {
         setError(result.error.message || "Unable to create your account. Please review your details.");
@@ -50,7 +77,7 @@ export default function SignUpPage() {
     try {
       const result = await authClient.sendVerificationEmail({
         email: email.trim().toLowerCase(),
-        callbackURL: "/dashboard",
+        callbackURL: getPostAuthDestination(),
       });
       if (result.error) throw new Error("Verification email could not be sent.");
       setResendMessage("A new verification email was requested. Check your inbox and spam folder.");
@@ -62,8 +89,8 @@ export default function SignUpPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#080c14] px-5 py-12 text-white">
-      <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl sm:p-9">
+    <main className="flex min-h-screen items-center justify-center bg-[#212121] px-5 py-12 text-white">
+      <section className="w-full max-w-md rounded-[28px] border border-white/[0.08] bg-[#303030] p-7 shadow-2xl sm:p-9">
         <Link href="/" className="inline-flex items-center gap-3 text-sm font-semibold tracking-[0.2em] text-white"><Image src="/balmz-logo.svg" alt="BALMZ AI logo" width={40} height={40} priority className="h-10 w-10 rounded-xl object-contain" /><span>BALMZ AI</span></Link>
         <h1 className="mt-7 text-3xl font-semibold tracking-tight">Create your account</h1>
         <p className="mt-2 text-sm text-slate-400">Set up your secure BALMZ AI workspace.</p>
@@ -73,7 +100,7 @@ export default function SignUpPage() {
             <p role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-100">Your account has been created. Verify your email address before signing in. Open the verification link from BALMZ AI in your inbox.</p>
             <button type="button" onClick={() => void resendVerification()} disabled={resending} className="w-full rounded-xl border border-orange-400/30 px-4 py-3 text-sm font-semibold text-orange-300 disabled:opacity-50">{resending ? "Sending…" : "Resend verification email"}</button>
             {resendMessage ? <p role="status" className="text-xs leading-5 text-slate-400">{resendMessage}</p> : null}
-            <Link href="/sign-in" className="block text-center text-sm font-semibold text-orange-400 hover:text-orange-300">Continue to sign in</Link>
+            <Link href="/sign-in" onClick={(event) => { event.preventDefault(); window.location.assign(getAuthSwitchUrl("/sign-in")); }} className="block text-center text-sm font-semibold text-[var(--balmz-orange)] hover:text-orange-300">Continue to sign in</Link>
           </div>
         ) : (
         <form className="mt-8 space-y-5" onSubmit={submit}>
@@ -87,7 +114,7 @@ export default function SignUpPage() {
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition focus:border-orange-400"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-[#212121] px-4 py-3 text-white outline-none transition focus:border-orange-400"
               placeholder="Your name"
             />
           </label>
@@ -122,7 +149,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-xl bg-orange-500 px-4 py-3 font-semibold text-[#17100a] transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-[var(--balmz-orange)] px-4 py-3 font-semibold text-[#17100a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? "Creating account…" : "Create account"}
           </button>
