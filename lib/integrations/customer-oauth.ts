@@ -192,6 +192,7 @@ async function fetchProviderIdentity(providerId: string, accessToken: string): P
     headers["X-GitHub-Api-Version"] = "2022-11-28";
     headers["User-Agent"] = "BALMZ-AI";
   }
+  if (providerId === "dropbox") headers["Content-Type"] = "application/json";
   if (providerId === "notion") headers["Notion-Version"] = "2022-06-28";
 
   let response: Response;
@@ -263,11 +264,8 @@ async function fetchProviderIdentity(providerId: string, accessToken: string): P
     case "notion": {
       id = typeof profile.id === "string" ? profile.id : "";
       displayName = typeof profile.name === "string" ? profile.name : "";
-      const owner = profile.owner && typeof profile.owner === "object" ? profile.owner as Record<string, unknown> : {};
-      const ownerUser = owner.user && typeof owner.user === "object" ? owner.user as Record<string, unknown> : {};
-      email = typeof ownerUser.person === "object" && ownerUser.person && typeof (ownerUser.person as Record<string, unknown>).email === "string"
-        ? (ownerUser.person as Record<string, unknown>).email as string
-        : null;
+      const person = profile.person && typeof profile.person === "object" ? profile.person as Record<string, unknown> : {};
+      email = typeof person.email === "string" ? person.email : null;
       break;
     }
   }
