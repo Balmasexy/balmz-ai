@@ -34,7 +34,7 @@ The first release requests read-only scopes where providers support them:
 - GitLab: read-user, read-api and read-repository.
 - Notion: user-authorized workspace access according to the Notion integration's configured capabilities; Notion permissions are set in the integration console.
 
-OAuth state is random, stored as a SHA-256 hash, bound to the authenticated BALMZ user and provider, expires after ten minutes, and is consumed once. PKCE S256 is used for providers configured to support it. Tokens and PKCE verifiers use AES-256-GCM authenticated encryption with distinct context labels.
+OAuth state is random, stored as a SHA-256 hash, bound to the authenticated BALMZ user and provider, expires after ten minutes, and is consumed once. PKCE S256 is used for providers configured to support it. Tokens and PKCE verifiers use AES-256-GCM authenticated encryption with distinct context labels. The encryption key is derived from the existing `BETTER_AUTH_SECRET`; keep that secret stable and follow a planned credential re-encryption procedure before rotating it, or saved OAuth tokens will need to be reconnected.
 
 ## Database rollout
 
