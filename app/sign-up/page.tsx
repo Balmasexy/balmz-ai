@@ -5,6 +5,20 @@ import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
+function getAuthSwitchUrl(path: "/sign-in" | "/sign-up"): string {
+  const current = new URLSearchParams(window.location.search);
+  const next = current.get("next") || "";
+  const carried = new URLSearchParams();
+  if (next.startsWith("/dashboard") && !next.startsWith("//") && !next.includes("\\")) {
+    carried.set("next", next);
+  }
+  const prompt = current.get("prompt");
+  if (prompt) carried.set("prompt", prompt.slice(0, 4000));
+  if (current.get("newChat") === "1") carried.set("newChat", "1");
+  const query = carried.toString();
+  return path + (query ? "?" + query : "");
+}
+
 function getPostAuthDestination(): string {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get("next") || "";
@@ -86,7 +100,7 @@ export default function SignUpPage() {
             <p role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-100">Your account has been created. Verify your email address before signing in. Open the verification link from BALMZ AI in your inbox.</p>
             <button type="button" onClick={() => void resendVerification()} disabled={resending} className="w-full rounded-xl border border-orange-400/30 px-4 py-3 text-sm font-semibold text-orange-300 disabled:opacity-50">{resending ? "Sending…" : "Resend verification email"}</button>
             {resendMessage ? <p role="status" className="text-xs leading-5 text-slate-400">{resendMessage}</p> : null}
-            <Link href="/sign-in" className="block text-center text-sm font-semibold text-[var(--balmz-orange)] hover:text-orange-300">Continue to sign in</Link>
+            <Link href="/sign-in" onClick={(event) => { event.preventDefault(); window.location.assign(getAuthSwitchUrl("/sign-in")); }} className="block text-center text-sm font-semibold text-[var(--balmz-orange)] hover:text-orange-300">Continue to sign in</Link>
           </div>
         ) : (
         <form className="mt-8 space-y-5" onSubmit={submit}>
