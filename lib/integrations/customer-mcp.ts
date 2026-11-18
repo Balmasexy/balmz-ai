@@ -292,6 +292,7 @@ export async function callCustomerMcpTool(input: {
   toolName: string;
   args: unknown;
   confirmed: boolean;
+  approvalRequestId?: string;
 }) {
   const row = await getCustomerMcpConnection(input.userId, input.connectionId);
   if (!row) throw new Error("MCP_CONNECTION_NOT_FOUND");
@@ -300,9 +301,10 @@ export async function callCustomerMcpTool(input: {
   if (!tool) throw new Error("MCP_TOOL_NOT_FOUND");
   validateMcpArguments(tool.inputSchema, input.args);
 
-  const requestId = randomUUID();
   const argsHash = createHash("sha256").update(JSON.stringify(input.args)).digest("hex");
   const approvalRequired = !tool.readOnly;
+  let requestId = randomUUID();
+
   if (approvalRequired && !input.confirmed) {
     await getDbPool().query(
       `INSERT INTO public.balmz_customer_mcp_tool_events
@@ -314,14 +316,30 @@ export async function callCustomerMcpTool(input: {
     return { approvalRequired: true, requestId };
   }
 
-  await getDbPool().query(
-    `INSERT INTO public.balmz_customer_mcp_tool_events
-       (id, connection_id, user_id, request_id, tool_name, arguments_sha256,
-        status, approval_required, approved_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $8 THEN now() ELSE NULL END)`,
-    [randomUUID(), input.connectionId, input.userId, requestId, tool.name, argsHash,
-      approvalRequired ? "approved" : "succeeded", approvalRequired],
-  );
+  if (approvalRequired && input.confirmed) {
+    if (!input.approvalRequestId || !/^[0-9a-f-]{36}$/i.test(input.approvalRequestId)) {
+      throw new Error("MCP_APPROVAL_NOT_FOUND");
+    }
+    const approved = await getDbPool().query<{ request_id: string }>(
+      `UPDATE public.balmz_customer_mcp_tool_events
+          SET status = 'approved', approved_at = now()
+        WHERE request_id = $1 AND connection_id = $2 AND user_id = $3
+          AND tool_name = $4 AND arguments_sha256 = $5
+          AND status = 'approval_required' AND approval_required = true
+        RETURNING request_id`,
+      [input.approvalRequestId, input.connectionId, input.userId, tool.name, argsHash],
+    );
+    if (!approved.rows[0]) throw new Error("MCP_APPROVAL_NOT_FOUND");
+    requestId = approved.rows[0].request_id;
+  } else {
+    await getDbPool().query(
+      `INSERT INTO public.balmz_customer_mcp_tool_events
+         (id, connection_id, user_id, request_id, tool_name, arguments_sha256,
+          status, approval_required)
+       VALUES ($1, $2, $3, $4, $5, $6, 'succeeded', false)`,
+      [randomUUID(), input.connectionId, input.userId, requestId, tool.name, argsHash],
+    );
+  }
 
   const client = await openMcpClient(row);
   try {
