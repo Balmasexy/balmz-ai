@@ -24,7 +24,7 @@ function safeGroundingSources(candidate: Record<string, unknown>) {
       : typeof maps?.placeUri === "string" ? maps.placeUri
         : typeof maps?.googleMapsUri === "string" ? maps.googleMapsUri : "";
     if (maps && mapsUrl.startsWith("https://")) {
-      return [{ url: mapsUrl, title: typeof maps.title === "string" ? maps.title.slice(0, 160) : "Google Maps place" }];
+      return [{ url: mapsUrl, title: "Google Maps · " + (typeof maps.title === "string" ? maps.title.slice(0, 140) : "Place") }];
     }
     return [];
   });
