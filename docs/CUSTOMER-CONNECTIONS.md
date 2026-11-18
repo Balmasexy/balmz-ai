@@ -52,7 +52,7 @@ Available first-party actions:
 
 These actions are read-only. They do not send messages, edit files, create events, post to channels, transfer money, or change account settings. Provider requests use fixed HTTPS hosts, disable redirects, and return bounded metadata/previews rather than full file or mailbox contents. Requests are authenticated and owner-scoped. Expired access tokens are refreshed where a refresh token is available; otherwise the UI reports that the customer must reconnect.
 
-These first-party actions are available from **My Connections → Connected account tools**. They are separate from remote MCP actions, which are customer-controlled and can expose write-capable tools only after the customer confirms the exact action and arguments.
+These first-party actions are available from **My Connections → Connected account tools**. They are separate from remote MCP actions, which are customer-controlled. Remote MCP tool annotations are treated as untrusted metadata: every remote MCP invocation requires explicit user confirmation tied to the exact tool name and arguments, even when the remote server labels a tool as read-only. This fail-closed rule may also ask for confirmation before a remote search or read.
 
 ## Database rollout
 
