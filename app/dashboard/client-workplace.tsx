@@ -525,7 +525,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           continue;
         }
 
-        const requestMessages = currentMessages.slice(0, messageIndex + 1).map((message) => ({
+        // The chat API accepts at most 20 recent messages. Keep the newest
+        // context window so long-running conversations can continue normally.
+        const requestMessages = currentMessages.slice(0, messageIndex + 1).slice(-20).map((message) => ({
           role: message.role,
           content: message.content,
           ...(message.images?.length
