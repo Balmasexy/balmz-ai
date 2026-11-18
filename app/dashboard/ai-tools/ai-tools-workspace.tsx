@@ -29,7 +29,7 @@ export function AiToolsWorkspace() {
   const activeProvider = useMemo(() => providers.find((item) => item.id === providerId) ?? null, [providers, providerId]);
   useEffect(() => {
     if (!activeProvider) { setSelectedTools([]); return; }
-    setSelectedTools(activeProvider.capabilities.filter((item) => item.available).map((item) => item.id).slice(0, 3)); setResult(null);
+    setSelectedTools(activeProvider.capabilities.filter((item) => item.available && item.id !== "google_maps").map((item) => item.id).slice(0, 3)); setResult(null);
   }, [activeProvider?.id]);
   function toggleTool(id: string, checked: boolean) { setSelectedTools((current) => checked ? [...current.filter((item) => item !== id), id].slice(0, 6) : current.filter((item) => item !== id)); }
   async function run(event: FormEvent<HTMLFormElement>) {
@@ -53,7 +53,7 @@ export function AiToolsWorkspace() {
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--balmz-orange)]">Native provider tools</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Give your AI tools to work with.</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Choose a tested provider, select the tools supported by that model, and submit a task. Provider API usage may incur additional charges beyond your BALMZ AI message allowance.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Choose a tested provider, select the tools supported by that model, and submit a task. Enable Google Maps only for place-related requests; Maps results include Google Maps attribution. Provider API usage may incur charges beyond your BALMZ AI message allowance.</p>
         {error ? <div role="alert" className="mt-6 rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-xs text-rose-200">{error}</div> : null}
         {loading ? <div className="mt-8 h-48 animate-pulse rounded-2xl bg-white/[0.04]" /> : providers.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-white/[0.08] bg-[#0d1420] p-6"><h2 className="text-sm font-semibold text-white">No tested OpenAI or Gemini model is available</h2><p className="mt-2 text-xs leading-5 text-slate-400">Super Admin must connect and test an OpenAI or Google Gemini model, or configure a supported server-side model credential in Render.</p><Link href="/admin?section=ai-connections" className="mt-4 inline-flex rounded-xl border border-[var(--balmz-orange)]/30 px-4 py-2.5 text-xs text-[var(--balmz-orange)]">Open AI connections</Link></div>
