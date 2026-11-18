@@ -732,6 +732,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400 hover:bg-white/[0.045]">♙ Super Admin</Link>
             </> : null}
           </div>
+          <div className="mt-4 border-t border-white/[0.07] pt-3">
+            <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">Assistant</p>
+            <QuickChatHelper isAdmin={isAdmin} placement="sidebar" />
+          </div>
         </div>
         <div className="border-t border-white/[0.07] p-3">
           <Link href="/dashboard/settings" className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.045]">
@@ -822,7 +826,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           </div>
         </div> : null}
       </section>
-      <QuickChatHelper isAdmin={isAdmin} />
+
     </main>
   );
 }

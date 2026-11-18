@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
 type QuickMessage = { id: string; role: "user" | "assistant"; content: string };
 
-export function QuickChatHelper({ isAdmin = false }: { isAdmin?: boolean }) {
+export function QuickChatHelper({ isAdmin = false, placement = "floating" }: { isAdmin?: boolean; placement?: "floating" | "sidebar" }) {
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [model, setModel] = useState("");
@@ -79,9 +79,9 @@ export function QuickChatHelper({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   return (
-    <div className={`fixed right-5 z-[70] ${isAdmin ? "bottom-20 sm:bottom-5" : "bottom-5"}`}>
+    <div className={placement === "sidebar" ? "w-full" : `fixed right-5 z-[70] ${isAdmin ? "bottom-20 sm:bottom-5" : "bottom-5"}`}>
       {open ? (
-        <section aria-label="Quick Chat helper" className="mb-3 flex h-[min(540px,calc(100dvh-112px))] w-[min(390px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b111c] shadow-2xl shadow-black/50">
+        <section aria-label="Quick Chat helper" className={`${placement === "sidebar" ? "mb-2 flex h-[min(440px,calc(100dvh-240px))] w-full" : "mb-3 flex h-[min(540px,calc(100dvh-112px))] w-[min(390px,calc(100vw-24px))]"} flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b111c] shadow-2xl shadow-black/50`}>
           <header className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
             <div><p className="text-sm font-semibold text-white">Quick Chat</p><p className="mt-0.5 text-[10px] text-slate-500">Ask BALMZ AI without leaving this page</p></div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close Quick Chat" className="rounded-lg px-2 py-1 text-lg text-slate-400 hover:bg-white/5 hover:text-white">×</button>
@@ -113,7 +113,7 @@ export function QuickChatHelper({ isAdmin = false }: { isAdmin?: boolean }) {
           </div>
         </section>
       ) : null}
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="ml-auto flex min-h-12 items-center gap-2 rounded-full border border-[var(--balmz-orange)]/30 bg-[#151f2e] px-4 py-3 text-xs font-semibold text-white shadow-xl shadow-black/30 transition hover:border-[var(--balmz-orange)]/60 hover:bg-[#1a293b]">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className={`${placement === "sidebar" ? "w-full justify-start rounded-xl" : "ml-auto rounded-full"} flex min-h-12 items-center gap-2 border border-[var(--balmz-orange)]/30 bg-[#151f2e] px-4 py-3 text-xs font-semibold text-white shadow-xl shadow-black/30 transition hover:border-[var(--balmz-orange)]/60 hover:bg-[#1a293b]`}>
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--balmz-orange)] text-sm font-black text-[#17100a]">✳</span>
         {open ? "Close Quick Chat" : "Quick Chat"}
       </button>

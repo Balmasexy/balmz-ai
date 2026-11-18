@@ -22,6 +22,7 @@ type Template = {
   prompt: string;
   mark: string;
   style: string;
+  previewUrl: string;
 };
 
 const categories = [
@@ -32,11 +33,23 @@ const categories = [
   { id: "art", label: "Art & illustration" },
   { id: "design", label: "Design" },
   { id: "people", label: "Portraits" },
+  { id: "food", label: "Food" },
+  { id: "technology", label: "Technology" },
+  { id: "architecture", label: "Architecture" },
+  { id: "business", label: "Business" },
+  { id: "fashion", label: "Fashion" },
+  { id: "sports", label: "Sports" },
+  { id: "education", label: "Education" },
+  { id: "lifestyle", label: "Lifestyle" },
+  { id: "space", label: "Space" },
+  { id: "backgrounds", label: "Backgrounds" },
+  { id: "wallpapers", label: "Wallpapers" },
 ];
 
 const templates: Template[] = [
   {
     title: "Brand logo",
+    previewUrl: "https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=900&q=82",
     category: "Branding",
     description: "A simple, memorable identity for a new business or project.",
     mark: "✳",
@@ -45,6 +58,7 @@ const templates: Template[] = [
   },
   {
     title: "Social media post",
+    previewUrl: "https://images.unsplash.com/photo-1558655146-9f40138edfeb?auto=format&fit=crop&w=900&q=82",
     category: "Social",
     description: "A polished visual for an Instagram, Facebook or LinkedIn post.",
     mark: "▧",
@@ -53,6 +67,7 @@ const templates: Template[] = [
   },
   {
     title: "Product campaign",
+    previewUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=82",
     category: "Marketing",
     description: "A clean product hero image for a shop, launch or campaign.",
     mark: "◇",
@@ -61,6 +76,7 @@ const templates: Template[] = [
   },
   {
     title: "Profile avatar",
+    previewUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=82",
     category: "Profile",
     description: "A friendly illustrated profile image with a consistent visual style.",
     mark: "◉",
@@ -69,6 +85,7 @@ const templates: Template[] = [
   },
   {
     title: "Event poster",
+    previewUrl: "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=900&q=82",
     category: "Print",
     description: "A bold poster layout for an event, launch or community gathering.",
     mark: "▤",
@@ -77,6 +94,7 @@ const templates: Template[] = [
   },
   {
     title: "Video thumbnail",
+    previewUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=82",
     category: "Video",
     description: "A high-contrast thumbnail composition that reads at small sizes.",
     mark: "▶",
@@ -85,6 +103,7 @@ const templates: Template[] = [
   },
   {
     title: "Presentation cover",
+    previewUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=900&q=82",
     category: "Business",
     description: "A professional opening slide for a report or presentation.",
     mark: "▱",
@@ -93,11 +112,121 @@ const templates: Template[] = [
   },
   {
     title: "Sticker / reaction art",
+    previewUrl: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=900&q=82",
     category: "Illustration",
     description: "A playful original character or reaction graphic.",
     mark: "♡",
     style: "from-pink-300/20 via-purple-400/10 to-[#242424]",
     prompt: "Create an original expressive sticker illustration showing [CHARACTER OR IDEA] with [EMOTION]. Use a clean silhouette, expressive pose, bold readable shapes, a light outline and a transparent-background-ready composition. Keep the design original and avoid recognizable copyrighted characters.",
+  },
+
+  {
+    title: "Business card",
+    category: "Branding",
+    description: "A polished, print-ready business card concept with clear contact hierarchy.",
+    mark: "▤",
+    style: "from-orange-400/25 via-amber-300/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1589330694653-ded6df03f754?auto=format&fit=crop&w=900&q=82",
+    prompt: "Design a premium double-sided business card for [FULL NAME], [ROLE] at [BRAND]. Include only these supplied details: [PHONE], [EMAIL], [WEBSITE], [ADDRESS]. Use a strong typographic hierarchy, a restrained brand palette, clear margins, print-safe bleed guidance and a distinctive but readable layout. Do not invent contact information or certifications.",
+  },
+  {
+    title: "Flyer",
+    category: "Marketing",
+    description: "An eye-catching promotional flyer for a product, service or community event.",
+    mark: "▧",
+    style: "from-fuchsia-400/20 via-violet-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create a clear promotional flyer for [OFFER OR EVENT]. Audience: [AUDIENCE]. Main message: [MESSAGE]. Include only confirmed details: [DATE], [LOCATION], [CONTACT OR URL]. Use a strong headline, a single focal image, readable hierarchy and a mobile-friendly version. Do not invent discounts, dates, endorsements or claims.",
+  },
+  {
+    title: "Restaurant menu",
+    category: "Food & hospitality",
+    description: "A clean menu layout with legible sections, prices and dietary labels.",
+    mark: "≋",
+    style: "from-emerald-300/20 via-teal-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=82",
+    prompt: "Design a restaurant menu for [RESTAURANT NAME]. Cuisine and mood: [CUISINE / MOOD]. Use the exact supplied dishes and prices: [MENU ITEMS AND PRICES]. Organize into clear sections, make prices easy to scan, and reserve space for supplied allergen and dietary information. Never invent dishes, ingredients, allergens, prices or certifications.",
+  },
+  {
+    title: "Website hero",
+    category: "Web design",
+    description: "A responsive homepage hero with an obvious headline and call to action.",
+    mark: "▱",
+    style: "from-cyan-300/20 via-blue-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create a responsive website homepage hero for [BRAND / PRODUCT]. Target audience: [AUDIENCE]. Value proposition: [VERIFIED VALUE PROPOSITION]. Primary action: [CTA]. Use a clear visual focal point, accessible contrast, spacious composition, and mobile-first cropping. Do not fabricate customer logos, performance numbers, awards or testimonials.",
+  },
+  {
+    title: "Mobile app concept",
+    category: "Product design",
+    description: "A cohesive mobile UI concept with realistic screens and clear information hierarchy.",
+    mark: "▣",
+    style: "from-sky-300/20 via-indigo-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create a mobile app UI concept for [APP PURPOSE]. Primary users: [USERS]. Main task: [TASK]. Show a consistent navigation pattern, readable typography, accessible controls, realistic empty/loading/error states and a coherent color system. Use realistic but clearly illustrative sample content; do not imply real accounts, balances or transactions.",
+  },
+  {
+    title: "Book cover",
+    category: "Publishing",
+    description: "A distinctive book-cover direction with title, subtitle and author placement.",
+    mark: "▤",
+    style: "from-rose-300/20 via-orange-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=900&q=82",
+    prompt: "Design an original front-cover concept for [BOOK TITLE] by [AUTHOR]. Genre: [GENRE]. Intended reader: [READER]. Mood: [MOOD]. Create one strong focal idea, legible title placement, clear author hierarchy and a thumbnail-readable composition. Do not imitate existing covers or add review quotes, awards or publisher marks that were not supplied.",
+  },
+  {
+    title: "Podcast cover",
+    category: "Audio",
+    description: "A square podcast identity that remains recognizable at small sizes.",
+    mark: "◉",
+    style: "from-violet-300/20 via-pink-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create a square podcast cover for [SHOW NAME]. Topic: [TOPIC]. Host: [HOST]. Audience: [AUDIENCE]. Use a bold focal symbol or supplied host portrait, large readable title lettering, strong contrast and safe margins for platform crops. Do not invent guest names, sponsors or platform badges.",
+  },
+  {
+    title: "Product mockup",
+    category: "Product design",
+    description: "A realistic presentation scene for packaging, merchandise or digital products.",
+    mark: "◇",
+    style: "from-amber-300/20 via-red-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create a realistic mockup presentation for [PRODUCT]. Use the supplied product artwork and exact brand colors: [COLORS]. Scene: [SETTING]. Show believable material, scale, lighting and shadows. Keep the logo and labels faithful to supplied assets; do not invent certifications, ingredients, performance claims or packaging text.",
+  },
+  {
+    title: "Infographic",
+    category: "Editorial",
+    description: "A structured visual explanation built from verified facts supplied by the user.",
+    mark: "▥",
+    style: "from-sky-300/20 via-indigo-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create an infographic explaining [TOPIC] for [AUDIENCE]. Use only these verified facts and values: [DATA]. Organize the information into a clear visual sequence with labels, simple charts where appropriate and concise annotations. Do not create missing numbers, percentages, sources or conclusions; clearly identify any unavailable data.",
+  },
+  {
+    title: "Invitation",
+    category: "Events",
+    description: "A refined invitation layout with all essential event details.",
+    mark: "✉",
+    style: "from-pink-300/20 via-purple-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=900&q=82",
+    prompt: "Design an invitation for [EVENT NAME]. Occasion: [OCCASION]. Style: [STYLE]. Include only these details: [DATE], [TIME], [VENUE], [RSVP CONTACT]. Make the event name and key logistics easy to read, provide a print-friendly layout and a phone-sized version. Do not invent event details.",
+  },
+  {
+    title: "Advertising creative",
+    category: "Advertising",
+    description: "A campaign visual with a strong hook and clear space for approved copy.",
+    mark: "✦",
+    style: "from-amber-300/20 via-orange-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create an advertising creative for [PRODUCT OR SERVICE]. Audience: [AUDIENCE]. Approved offer: [OFFER]. Campaign goal: [GOAL]. Build one strong focal point, a concise visual hook, accessible contrast and a clear CTA area. Use only verified product benefits and approved offer terms; do not invent guarantees, prices, savings, testimonials or regulatory claims.",
+  },
+  {
+    title: "Presentation layout",
+    category: "Business",
+    description: "A clean slide system for title, agenda, data, comparison and closing slides.",
+    mark: "▱",
+    style: "from-sky-300/20 via-blue-400/10 to-[#242424]",
+    previewUrl: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=900&q=82",
+    prompt: "Create a consistent 16:9 presentation slide system for [PRESENTATION]. Audience: [AUDIENCE]. Brand colors: [COLORS]. Include title, agenda, section divider, key message, evidence/data, comparison and closing layouts. Preserve supplied facts and chart values exactly. Use large readable type, strong alignment and restrained decoration; do not fabricate metrics or citations.",
   },
 ];
 
@@ -110,6 +239,7 @@ export function ImagesWorkspace({ userName }: { userName: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [sourceNotice, setSourceNotice] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -123,13 +253,15 @@ export function ImagesWorkspace({ userName }: { userName: string }) {
           cache: "no-store",
           signal: controller.signal,
         });
-        const payload = await response.json() as { images?: LibraryImage[]; message?: string };
+        const payload = await response.json() as { images?: LibraryImage[]; message?: string; notice?: string; source?: string };
         if (!response.ok) throw new Error(payload.message || "The image library could not be loaded.");
         setImages(Array.isArray(payload.images) ? payload.images : []);
+        setSourceNotice(payload.notice ? `${payload.source ?? "Image library"} · ${payload.notice}` : payload.source ?? "Image library");
       } catch (cause) {
         if (controller.signal.aborted) return;
         setError(cause instanceof Error ? cause.message : "The image library is unavailable.");
         setImages([]);
+        setSourceNotice("");
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -219,7 +351,8 @@ export function ImagesWorkspace({ userName }: { userName: string }) {
               {categories.map((item) => <button key={item.id} type="button" onClick={() => { setCategory(item.id); setAppliedQuery(""); setSearchText(""); }} className={"shrink-0 rounded-full border px-4 py-2 text-xs transition " + (category === item.id && !appliedQuery ? "border-white/10 bg-white/[0.16] text-white" : "border-white/[0.08] text-white/55 hover:bg-white/[0.06] hover:text-white")}>{item.label}</button>)}
             </div>
 
-            <p className="mb-4 text-xs text-white/45">Free-use images from Wikimedia Commons. Trending here means curated inspiration, not a live popularity ranking.</p>
+            <p className="mb-4 text-xs text-white/45">Free-use image references from Wikimedia Commons and curated Unsplash results. Trending means curated inspiration, not a live popularity ranking.</p>
+            {sourceNotice ? <p className="mb-4 rounded-xl border border-white/[0.08] bg-white/[0.035] px-4 py-3 text-[11px] leading-5 text-white/55">{sourceNotice}</p> : null}
 
             {error ? <p role="alert" className="mb-5 rounded-xl border border-rose-300/20 bg-rose-300/[0.06] px-4 py-3 text-sm text-rose-100">{error}</p> : null}
             {notice ? <p role="status" className="mb-5 rounded-xl border border-emerald-300/15 bg-emerald-300/[0.05] px-4 py-3 text-xs text-emerald-100">{notice}</p> : null}
@@ -261,8 +394,10 @@ export function ImagesWorkspace({ userName }: { userName: string }) {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {matchingTemplates.map((item) => (
                 <article key={item.title} className="overflow-hidden rounded-3xl border border-white/[0.08] bg-[#303030]">
-                  <div className={"flex aspect-[4/3] items-center justify-center bg-gradient-to-br " + item.style}>
-                    <div className="flex h-28 w-28 items-center justify-center rounded-[32px] border border-white/20 bg-black/20 text-5xl text-white shadow-2xl">{item.mark}</div>
+                  <div className={"relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-br " + item.style}>
+                    <img src={item.previewUrl} alt={item.title + " visual preview"} loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/10" />
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-white/30 bg-black/35 text-3xl text-white shadow-2xl backdrop-blur-sm">{item.mark}</div>
                   </div>
                   <div className="p-4">
                     <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold">{item.title}</p><span className="rounded-full bg-white/[0.08] px-2.5 py-1 text-[10px] text-white/50">{item.category}</span></div>

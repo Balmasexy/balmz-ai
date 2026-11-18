@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "android:init": "cap add android",
     "android:sync": "cap sync android",
-    "android:assets": "capacitor-assets generate --android"
+    "android:assets": "capacitor-assets generate --android",
+    "test": "node --test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
