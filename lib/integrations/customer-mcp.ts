@@ -38,7 +38,7 @@ type CustomerMcpConnectionRow = {
   last_error_code: string | null;
 };
 
-function authorizationHeaders(authType: "none" | "bearer", encryptedCredentials: string | null) {
+function authorizationHeaders(authType: "none" | "bearer", encryptedCredentials: string | null): Record<string, string> {
   if (authType === "none") return {};
   if (!encryptedCredentials) throw new Error("MCP_CREDENTIAL_MISSING");
   const credential = decryptCustomerOAuthValue(encryptedCredentials);
@@ -303,7 +303,7 @@ export async function callCustomerMcpTool(input: {
 
   const argsHash = createHash("sha256").update(JSON.stringify(input.args)).digest("hex");
   const approvalRequired = !tool.readOnly;
-  let requestId = randomUUID();
+  let requestId: string = randomUUID();
 
   if (approvalRequired && !input.confirmed) {
     await getDbPool().query(
