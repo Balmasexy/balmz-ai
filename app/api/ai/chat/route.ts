@@ -6,6 +6,7 @@ import { consumeUsage, getCurrentSubscription } from "@/lib/subscriptions";
 import { findAIProviderConnection, sendAIProviderMessage, sendAIProviderMessages, getGeneralLanguageEnvironmentConfig, toOpenAIChatMessages, type AIImageAttachment, type AIMessage, type AIProviderConnection } from "@/lib/ai/providers";
 import { getActiveComplimentaryAccess } from "@/lib/family-access";
 import { getDbPool } from "@/lib/db";
+import { isAdminUser } from "@/lib/admin";
 import { buildWorldWalletAIContextMessage, resolveWorldWalletAIExternalAuth, sendWorldWalletGeminiBackendMessage } from "@/lib/integrations/world-wallet-ai-auth";
 
 export const runtime = "nodejs";
@@ -233,19 +234,21 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("INVALID_TURN", 400, "The latest message must be from the user.");
   }
 
-  let subscription;
+  let isSuperAdmin = false;
+  let subscription: Awaited<ReturnType<typeof getCurrentSubscription>> = null;
   try {
-    subscription = await getCurrentSubscription(userId);
+    isSuperAdmin = await isAdminUser(userId);
+    if (!isSuperAdmin) subscription = await getCurrentSubscription(userId);
   } catch {
-    return safeError("SUBSCRIPTION_UNAVAILABLE", 503, "Your subscription could not be checked. No request was sent to the AI provider.");
+    return safeError("SUBSCRIPTION_UNAVAILABLE", 503, "Your account access could not be verified. No request was sent to the AI provider.");
   }
-  if (!subscription || !["active", "trialing"].includes(subscription.status)) {
+  if (!isSuperAdmin && (!subscription || !["active", "trialing"].includes(subscription.status))) {
     return safeError("ACTIVE_PLAN_REQUIRED", 402, "An active BALMZ AI plan is required before sending AI requests.");
   }
 
   let providerMessages: AIMessage[] = messages;
   try {
-    const familyAccess = subscription.plan_code === "family_complimentary"
+    const familyAccess = !isSuperAdmin && subscription?.plan_code === "family_complimentary"
       ? await getActiveComplimentaryAccess(userId)
       : null;
     if (familyAccess) {
