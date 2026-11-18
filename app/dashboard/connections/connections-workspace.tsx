@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { McpConnectionsSection } from "./mcp-connections-section";
+import { AccountActionsSection } from "./account-actions-section";
 
 type Provider = {
   id: string;
@@ -248,6 +249,7 @@ export function ConnectionsWorkspace() {
           </div>
         </section>
 
+        <AccountActionsSection />
         <McpConnectionsSection />
       </div>
     </main>
