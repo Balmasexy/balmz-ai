@@ -41,3 +41,20 @@ test("authorization URL binds provider, state, PKCE and callback URI", () => {
   assert.equal(url.searchParams.get("redirect_uri"), "https://balmz-ai.onrender.com/api/integrations/google/callback");
   assert.equal(url.searchParams.get("client_id"), "google-client");
 });
+
+test("Slack OAuth requests user scopes and does not use unsupported PKCE", () => {
+  assert.ok(registry, "customer OAuth registry module is not implemented");
+  const provider = registry.getCustomerOAuthProvider("slack");
+  assert.equal(provider.authorizationUrl, "https://slack.com/oauth/v2/authorize");
+  assert.equal(provider.tokenUrl, "https://slack.com/api/oauth.v2.access");
+  assert.equal(provider.scopeParam, "user_scope");
+  assert.equal(provider.usePkce, false);
+  const url = new URL(registry.buildCustomerOAuthAuthorizationUrl("slack", {
+    state: "slack-state",
+    baseUrl: "https://balmz-ai.onrender.com",
+    clientId: "slack-client",
+  }));
+  assert.equal(url.searchParams.get("user_scope"), provider.scopes.join(" "));
+  assert.equal(url.searchParams.get("scope"), null);
+  assert.equal(url.searchParams.get("code_challenge"), null);
+});
