@@ -36,6 +36,24 @@ The first release requests read-only scopes where providers support them:
 
 OAuth state is random, stored as a SHA-256 hash, bound to the authenticated BALMZ user and provider, expires after ten minutes, and is consumed once. PKCE S256 is used for providers configured to support it. Tokens and PKCE verifiers use AES-256-GCM authenticated encryption with distinct context labels. The encryption key is derived from the existing `BETTER_AUTH_SECRET`; keep that secret stable and follow a planned credential re-encryption procedure before rotating it, or saved OAuth tokens will need to be reconnected.
 
+## First-party read-only account actions
+
+The authenticated `/api/integrations/actions` workspace executes a fixed allowlist using the current customer's own decrypted access token. It does not accept arbitrary URLs or arbitrary provider API paths.
+
+Available first-party actions:
+
+- Google: Gmail search (headers/snippets only), Drive metadata listing, Calendar upcoming event metadata.
+- Microsoft: Outlook message metadata/body previews, OneDrive root file/folder metadata, Calendar event metadata.
+- Slack: public channel listing and message search.
+- Dropbox and Box: root folder/file metadata listing.
+- GitHub: connected account profile only. Repository access still requires a separate GitHub App installation and explicit repository selection.
+- GitLab: membership project listing.
+- Notion: search pages/databases available to the connected integration.
+
+These actions are read-only. They do not send messages, edit files, create events, post to channels, transfer money, or change account settings. Provider requests use fixed HTTPS hosts, disable redirects, and return bounded metadata/previews rather than full file or mailbox contents. Requests are authenticated and owner-scoped. Expired access tokens are refreshed where a refresh token is available; otherwise the UI reports that the customer must reconnect.
+
+These first-party actions are available from **My Connections → Connected account tools**. They are separate from remote MCP actions, which are customer-controlled and can expose write-capable tools only after the customer confirms the exact action and arguments.
+
 ## Database rollout
 
 The customer connection implementation uses additive migrations:
