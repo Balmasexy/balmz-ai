@@ -176,7 +176,21 @@ export async function exchangeCustomerOAuthCode(
     throw new Error("OAUTH_TOKEN_ENDPOINT_UNAVAILABLE");
   }
   const payload = await parseProviderJson(response, "OAUTH_TOKEN_EXCHANGE_FAILED");
-  const tokens = normalizeTokenResponse(payload as RawTokenResponse);
+  let tokens: CustomerOAuthTokenSet;
+  if (providerId === "slack") {
+    const authedUser = payload.authed_user && typeof payload.authed_user === "object"
+      ? payload.authed_user as Record<string, unknown>
+      : {};
+    tokens = normalizeTokenResponse({
+      access_token: authedUser.access_token,
+      refresh_token: authedUser.refresh_token,
+      token_type: authedUser.token_type,
+      scope: authedUser.scope,
+      expires_in: authedUser.expires_in,
+    });
+  } else {
+    tokens = normalizeTokenResponse(payload as RawTokenResponse);
+  }
   if (!tokens.scope.length) tokens.scope = provider.scopes;
   return tokens;
 }
