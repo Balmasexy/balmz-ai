@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 
 type McpTool = { name: string; description: string; inputSchema: Record<string, unknown>; readOnly: boolean };
 type McpConnection = { id: string; displayName: string; endpointUrl: string; authType: "none" | "bearer"; status: string; serverName: string | null; serverVersion: string | null; tools: McpTool[]; lastTestedAt: string | null };
@@ -37,7 +38,7 @@ export function McpConnectionsSection() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function addConnection(event: React.FormEvent<HTMLFormElement>) {
+  async function addConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || schemaRequired) return;
     setBusy(true); setError(""); setNotice("");
@@ -85,7 +86,7 @@ export function McpConnectionsSection() {
       let response = await send(false);
       let payload = await response.json() as { result?: unknown; error?: string; message?: string; requestId?: string };
       if (response.status === 409 && payload.error === "MCP_APPROVAL_REQUIRED") {
-        if (!window.confirm("This tool is not verified as read-only and may modify data or trigger an external action. Review the arguments and confirm before proceeding.")) {
+        if (!window.confirm("Confirm this external action?\n\nTool: " + tool.name + "\n\nArguments:\n" + JSON.stringify(input, null, 2) + "\n\nOnly approve if these exact details are correct.")) {
           throw new Error("Action cancelled. The tool was not run.");
         }
         response = await send(true, payload.requestId);
