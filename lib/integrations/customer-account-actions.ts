@@ -106,10 +106,14 @@ async function providerJson(
   let payload: unknown;
   try { payload = await response.json(); }
   catch { throw new Error("CUSTOMER_PROVIDER_INVALID_RESPONSE"); }
-  if (!response.ok || !payload || typeof payload !== "object" || Array.isArray(payload)) {
+  if (!response.ok || !payload || typeof payload !== "object") {
     if (response.status === 401 || response.status === 403) throw new Error("CUSTOMER_CONNECTION_REAUTH_REQUIRED");
     if (response.status === 429) throw new Error("CUSTOMER_PROVIDER_RATE_LIMITED");
     throw new Error("CUSTOMER_PROVIDER_REQUEST_FAILED");
+  }
+  if (Array.isArray(payload)) {
+    if (providerId === "gitlab") return { data: payload };
+    throw new Error("CUSTOMER_PROVIDER_INVALID_RESPONSE");
   }
   const result = payload as Record<string, unknown>;
   if (providerId === "slack" && result.ok === false) throw new Error("CUSTOMER_PROVIDER_REQUEST_FAILED");
@@ -277,7 +281,7 @@ export async function executeCustomerAccountAction(input: {
         const result = await providerJson("gitlab", queryUrl("https://gitlab.com/api/v4/projects", {
           membership: "true", simple: "true", per_page: "20", order_by: "last_activity_at",
         }), token);
-        const projects = Array.isArray(result) ? result : [];
+        const projects = Array.isArray(result.data) ? result.data : [];
         data = safeList(projects, 20).map((project) => ({
           id: project.id, name: text(project.name, 300), pathWithNamespace: text(project.path_with_namespace, 400),
           visibility: text(project.visibility, 40), webUrl: text(project.web_url, 1000),
