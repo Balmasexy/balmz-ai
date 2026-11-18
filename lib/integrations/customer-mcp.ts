@@ -1,6 +1,7 @@
 import { request as httpsRequest } from "node:https";
 import { Transform, Readable } from "node:stream";
 import { randomUUID, createHash } from "node:crypto";
+import { isIP } from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { getDbPool } from "@/lib/db";
@@ -124,8 +125,9 @@ function pinnedMcpFetch(input: RequestInfo | URL, init: RequestInit | undefined,
         else if (Array.isArray(value)) responseHeaders.set(key, value.join(", "));
       }
 
-      resolve(new Response(Readable.toWeb(limiter) as ReadableStream, {
-        status: incoming.statusCode || 502,
+      const status = incoming.statusCode || 502;
+      resolve(new Response(status === 204 || status === 304 ? null : Readable.toWeb(limiter) as ReadableStream, {
+        status,
         statusText: incoming.statusMessage,
         headers: responseHeaders,
       }));
