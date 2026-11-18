@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 type Capability = { id: string; label: string; available: boolean; reason: string | null };
 type Provider = { id: string; provider: "openai" | "google"; label: string; model: string; source: "connection" | "environment"; capabilities: Capability[] };
@@ -31,7 +32,7 @@ export function AiToolsWorkspace() {
     setSelectedTools(activeProvider.capabilities.filter((item) => item.available).map((item) => item.id).slice(0, 3)); setResult(null);
   }, [activeProvider?.id]);
   function toggleTool(id: string, checked: boolean) { setSelectedTools((current) => checked ? [...current.filter((item) => item !== id), id].slice(0, 6) : current.filter((item) => item !== id)); }
-  async function run(event: React.FormEvent<HTMLFormElement>) {
+  async function run(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!activeProvider || !prompt.trim() || !selectedTools.length || busy) return;
     setBusy(true); setError(""); setResult(null);
     try {
