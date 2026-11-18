@@ -172,7 +172,7 @@ function normalizeTools(rawTools: unknown): McpToolRecord[] {
 
 async function openMcpClient(row: Pick<CustomerMcpConnectionRow, "endpoint_url" | "auth_type" | "encrypted_credentials">) {
   const pin = await resolvePublicMcpEndpoint(row.endpoint_url);
-  const headers = authorizationHeaders(row.auth_type, row.encrypted_credentials);
+  const headers: Record<string, string> = authorizationHeaders(row.auth_type, row.encrypted_credentials);
   const client = new Client({ name: "balmz-ai-customer-mcp", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(pin.url, {
     requestInit: {
