@@ -70,6 +70,7 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/admin` → Banking Secret Vault: restricted Plaid and NMI provider credentials
 - `/api/subscription`: server-derived subscription status
 - `/api/integrations`: owner-scoped customer OAuth connection status and management
+- `/api/integrations/actions`: owner-scoped read-only Gmail, Drive, Calendar, Outlook, Slack, Dropbox, Box, GitHub profile, GitLab project and Notion search actions
 - `/api/integrations/mcp`: owner-scoped remote MCP connection management and tool execution
 - `/api/ai/tools`: metered, model-aware OpenAI Responses and Gemini tool requests
 - `/api/health/db`: database connectivity probe
