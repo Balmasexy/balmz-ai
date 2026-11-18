@@ -142,7 +142,6 @@ export async function exchangeCustomerOAuthCode(
     grant_type: "authorization_code",
     code,
     redirect_uri: redirectUri,
-    client_id: credentials.clientId,
   };
   if (provider.usePkce) body.code_verifier = codeVerifier;
 
@@ -151,12 +150,13 @@ export async function exchangeCustomerOAuthCode(
   if (provider.tokenFormat === "json") {
     headers["Content-Type"] = "application/json";
     headers.Authorization = "Basic " + Buffer.from(credentials.clientId + ":" + credentials.clientSecret).toString("base64");
-    requestBody = JSON.stringify({ ...body, client_id: undefined, client_secret: undefined });
+    requestBody = JSON.stringify(body);
   } else {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
     if (provider.tokenAuth === "basic") {
       headers.Authorization = "Basic " + Buffer.from(credentials.clientId + ":" + credentials.clientSecret).toString("base64");
     } else {
+      body.client_id = credentials.clientId;
       body.client_secret = credentials.clientSecret;
     }
     requestBody = new URLSearchParams(body).toString();
@@ -338,18 +338,26 @@ export async function refreshCustomerOAuthConnection(userId: string, connectionI
   const provider = getCustomerOAuthProvider(connection.provider_id);
   const credentials = getCustomerOAuthCredentials(connection.provider_id);
   if (!provider || !credentials) throw new Error("OAUTH_PROVIDER_NOT_CONFIGURED");
-  const body = new URLSearchParams({
+  const refreshPayload: Record<string, string> = {
     grant_type: "refresh_token",
     refresh_token: stored.refreshToken,
-    client_id: credentials.clientId,
-    client_secret: credentials.clientSecret,
-  });
+  };
+  const refreshHeaders: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  if (provider.tokenAuth === "basic") {
+    refreshHeaders.Authorization = "Basic " + Buffer.from(credentials.clientId + ":" + credentials.clientSecret).toString("base64");
+  } else {
+    refreshPayload.client_id = credentials.clientId;
+    refreshPayload.client_secret = credentials.clientSecret;
+  }
   let response: Response;
   try {
     response = await fetch(provider.tokenUrl, {
       method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+      headers: refreshHeaders,
+      body: new URLSearchParams(refreshPayload).toString(),
       redirect: "error",
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
