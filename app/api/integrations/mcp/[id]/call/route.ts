@@ -47,7 +47,8 @@ export async function POST(request: Request, context: RouteContext) {
     const code = error instanceof Error ? error.message : "MCP_TOOL_FAILED";
     const status = code === "MCP_CONNECTION_NOT_FOUND" || code === "MCP_TOOL_NOT_FOUND" ? 404
       : code === "MCP_TOOL_ARGUMENT_INVALID" || code === "MCP_TOOL_ARGUMENTS_TOO_LARGE" ? 400
-        : 502;
+        : code === "MCP_APPROVAL_NOT_FOUND" ? 409
+          : 502;
     const safeCode = [
       "MCP_CONNECTION_NOT_FOUND", "MCP_TOOL_NOT_FOUND",
       "MCP_TOOL_ARGUMENT_INVALID", "MCP_TOOL_ARGUMENTS_TOO_LARGE",
