@@ -56,6 +56,8 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/reset-password`: set a new password from a valid reset link
 - `/dashboard`: authenticated chat workplace
 - `/dashboard/plugins`: plugin and connector directory
+- `/dashboard/connections`: customer-owned Google, Microsoft, Slack, Dropbox, Box, GitHub, GitLab, Notion and remote MCP connections
+- `/dashboard/ai-tools`: model-aware OpenAI Responses and Google Gemini built-in tools
 - `/dashboard/charts`: ChartGPT workspace
 - `/dashboard/usage`: usage and allowance details
 - `/dashboard/billing`: plan catalogue and billing workspace
@@ -67,6 +69,9 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/admin`: protected Super Admin workplace
 - `/admin` → Banking Secret Vault: restricted Plaid and NMI provider credentials
 - `/api/subscription`: server-derived subscription status
+- `/api/integrations`: owner-scoped customer OAuth connection status and management
+- `/api/integrations/mcp`: owner-scoped remote MCP connection management and tool execution
+- `/api/ai/tools`: metered, model-aware OpenAI Responses and Gemini tool requests
 - `/api/health/db`: database connectivity probe
 - `/api/auth/*`: Better Auth endpoints
 - `/api/auth/email-status`: safe transactional email readiness status
@@ -78,7 +83,7 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - Campaign generation is subscription-metered. OpenAI text and image API usage may incur separate provider charges. Image files remain in the current page session; campaign copy and prompts are saved to the account's private notes records.
 - OpenAI Responses and image-generation API access must be enabled for the connected API project. General Language remains an OpenAI-compatible chat provider; it is not treated as a Responses/image-generation endpoint.
 
-See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior.
+See `docs/AI-CONNECTIONS.md` for provider scope and Campaign Studio behavior, `docs/AI-TOOLS.md` for Responses/Gemini tool support, and `docs/CUSTOMER-CONNECTIONS.md` for personal OAuth and remote MCP setup.
 
 BALMZ AI also exposes an OpenAI-compatible model API at `https://balmz-ai.onrender.com/v1`. Use model `balmz-fast` with a scoped BALMZ API key; see `docs/OPENAI-COMPATIBLE-API.md` for setup, endpoints and limitations.
 
