@@ -77,19 +77,19 @@ export function McpConnectionsSection() {
     catch { setError("Enter valid JSON arguments for " + tool.name + "."); return; }
     setBusy(true); setError(""); setResults((current) => ({ ...current, [key]: "" }));
     try {
-      const send = (confirmed: boolean) => fetch("/api/integrations/mcp/" + encodeURIComponent(connection.id) + "/call", {
+      const send = (confirmed: boolean, approvalRequestId?: string) => fetch("/api/integrations/mcp/" + encodeURIComponent(connection.id) + "/call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toolName: tool.name, arguments: input, confirmed }),
+        body: JSON.stringify({ toolName: tool.name, arguments: input, confirmed, ...(approvalRequestId ? { approvalRequestId } : {}) }),
       });
       let response = await send(false);
-      let payload = await response.json() as { result?: unknown; error?: string; message?: string };
+      let payload = await response.json() as { result?: unknown; error?: string; message?: string; requestId?: string };
       if (response.status === 409 && payload.error === "MCP_APPROVAL_REQUIRED") {
         if (!window.confirm("This tool is not verified as read-only and may modify data or trigger an external action. Review the arguments and confirm before proceeding.")) {
           throw new Error("Action cancelled. The tool was not run.");
         }
-        response = await send(true);
-        payload = await response.json() as { result?: unknown; error?: string; message?: string };
+        response = await send(true, payload.requestId);
+        payload = await response.json() as { result?: unknown; error?: string; message?: string; requestId?: string };
       }
       if (!response.ok) throw new Error(payload.message || payload.error || "MCP tool call failed.");
       setResults((current) => ({ ...current, [key]: JSON.stringify(payload.result ?? {}, null, 2).slice(0, 12000) }));
