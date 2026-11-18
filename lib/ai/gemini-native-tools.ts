@@ -12,15 +12,34 @@ function safeGroundingSources(candidate: Record<string, unknown>) {
     ? candidate.groundingMetadata as Record<string, unknown>
     : {};
   const chunks = Array.isArray(metadata.groundingChunks) ? metadata.groundingChunks : [];
-  const sources = chunks.flatMap((chunk) => {
+  const chunkSources = chunks.flatMap((chunk) => {
     if (!chunk || typeof chunk !== "object") return [];
-    const web = (chunk as Record<string, unknown>).web;
-    if (!web || typeof web !== "object") return [];
-    const value = web as Record<string, unknown>;
-    if (typeof value.uri !== "string" || !value.uri.startsWith("https://")) return [];
-    return [{ url: value.uri, title: typeof value.title === "string" ? value.title.slice(0, 160) : new URL(value.uri).hostname }];
+    const row = chunk as Record<string, unknown>;
+    const web = row.web && typeof row.web === "object" ? row.web as Record<string, unknown> : null;
+    if (web && typeof web.uri === "string" && web.uri.startsWith("https://")) {
+      return [{ url: web.uri, title: typeof web.title === "string" ? web.title.slice(0, 160) : new URL(web.uri).hostname }];
+    }
+    const maps = row.maps && typeof row.maps === "object" ? row.maps as Record<string, unknown> : null;
+    const mapsUrl = typeof maps?.uri === "string" ? maps.uri
+      : typeof maps?.placeUri === "string" ? maps.placeUri
+        : typeof maps?.googleMapsUri === "string" ? maps.googleMapsUri : "";
+    if (maps && mapsUrl.startsWith("https://")) {
+      return [{ url: mapsUrl, title: typeof maps.title === "string" ? maps.title.slice(0, 160) : "Google Maps place" }];
+    }
+    return [];
   });
-  return [...new Map(sources.map((item) => [item.url, item])).values()].slice(0, 25);
+  const urlContext = candidate.urlContextMetadata && typeof candidate.urlContextMetadata === "object"
+    ? candidate.urlContextMetadata as Record<string, unknown>
+    : {};
+  const urlMetadata = Array.isArray(urlContext.urlMetadata) ? urlContext.urlMetadata : [];
+  const urlSources = urlMetadata.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as Record<string, unknown>;
+    const url = typeof item.retrievedUrl === "string" ? item.retrievedUrl : "";
+    if (!url.startsWith("https://")) return [];
+    return [{ url, title: new URL(url).hostname }];
+  });
+  return [...new Map([...chunkSources, ...urlSources].map((item) => [item.url, item])).values()].slice(0, 25);
 }
 
 export async function runGeminiNativeTools(input: GeminiToolInput) {
