@@ -14,9 +14,10 @@ test("MCP endpoint validator rejects non-HTTPS, credentials, loopback and privat
   assert.doesNotThrow(() => security.assertPublicMcpAddress("8.8.8.8"));
 });
 
-test("MCP tool calls require confirmation unless explicitly marked read-only", () => {
+test("remote MCP annotations never suppress explicit user confirmation", () => {
   assert.ok(security, "MCP security helpers are not implemented");
-  assert.equal(security.isMcpToolReadOnly({ annotations: { readOnlyHint: true }, name: "search_docs" }), true);
+  assert.equal(security.isMcpToolReadOnly({ annotations: { readOnlyHint: true }, name: "search_docs" }), false);
+  assert.equal(security.isMcpToolReadOnly({ annotations: { readOnlyHint: true }, name: "account_lookup" }), false);
   assert.equal(security.isMcpToolReadOnly({ annotations: { readOnlyHint: false }, name: "delete_file" }), false);
   assert.equal(security.isMcpToolReadOnly({ name: "delete_customer" }), false);
   assert.equal(security.isMcpToolReadOnly({ name: "read_file" }), false);
