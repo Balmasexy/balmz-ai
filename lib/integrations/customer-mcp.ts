@@ -152,7 +152,7 @@ function isIPLiteral(hostname: string): boolean {
   return hostname.includes(":") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
 }
 
-function normalizeTools(rawTools: unknown): McpToolRecord[] {
+function normalizeTools(rawTools: unknown, preserveStoredReadOnly = false): McpToolRecord[] {
   if (!Array.isArray(rawTools)) throw new Error("MCP_TOOL_LIST_INVALID");
   return rawTools.slice(0, MAX_MCP_TOOLS).flatMap((raw): McpToolRecord[] => {
     if (!raw || typeof raw !== "object") return [];
@@ -166,7 +166,7 @@ function normalizeTools(rawTools: unknown): McpToolRecord[] {
       name: tool.name,
       description: safeDescription,
       inputSchema: schema,
-      readOnly: isMcpToolReadOnly(tool),
+      readOnly: preserveStoredReadOnly && typeof tool.readOnly === "boolean" ? tool.readOnly : isMcpToolReadOnly(tool),
     }];
   });
 }
@@ -297,7 +297,7 @@ export async function callCustomerMcpTool(input: {
 }) {
   const row = await getCustomerMcpConnection(input.userId, input.connectionId);
   if (!row) throw new Error("MCP_CONNECTION_NOT_FOUND");
-  const tools = normalizeTools(row.discovered_tools);
+  const tools = normalizeTools(row.discovered_tools, true);
   const tool = tools.find((candidate) => candidate.name === input.toolName);
   if (!tool) throw new Error("MCP_TOOL_NOT_FOUND");
   validateMcpArguments(tool.inputSchema, input.args);
