@@ -140,6 +140,24 @@ function queryUrl(base: string, params: Record<string, string>): string {
   return url.toString();
 }
 
+function notionTitle(entry: Record<string, unknown>): string {
+  const direct = Array.isArray(entry.title) ? entry.title : [];
+  const properties = entry.properties && typeof entry.properties === "object" && !Array.isArray(entry.properties)
+    ? entry.properties as Record<string, unknown>
+    : {};
+  const propertyTitles = Object.values(properties).flatMap((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const property = value as Record<string, unknown>;
+    return Array.isArray(property.title) ? property.title : [];
+  });
+  return [...direct, ...propertyTitles]
+    .map((part) => part && typeof part === "object" ? text((part as Record<string, unknown>).plain_text, 300) : "")
+    .join("")
+    .slice(0, 400);
+}
+
+
+
 export async function executeCustomerAccountAction(input: {
   userId: string;
   connectionId: string;
@@ -300,14 +318,7 @@ export async function executeCustomerAccountAction(input: {
         });
         data = safeList(result.results, 20).map((entry) => ({
           id: text(entry.id, 100), url: text(entry.url, 1000), object: text(entry.object, 40),
-          title: (() => {
-            const title = Array.isArray(entry.title) ? entry.title : Object.values(entry).flatMap((value) => {
-              if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-              const props = value as Record<string, unknown>;
-              return Array.isArray(props.title) ? props.title : [];
-            });
-            return title.map((part) => part && typeof part === "object" ? text((part as Record<string, unknown>).plain_text, 300) : "").join("").slice(0, 400);
-          })(),
+          title: notionTitle(entry),
         }));
       }
       break;
