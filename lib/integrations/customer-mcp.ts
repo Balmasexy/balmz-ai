@@ -95,9 +95,7 @@ function pinnedMcpFetch(input: RequestInfo | URL, init: RequestInit | undefined,
       signal: init?.signal || (input instanceof Request ? input.signal : undefined),
     };
 
-    let responseStarted = false;
     const request = httpsRequest(options, (incoming) => {
-      responseStarted = true;
       const contentLength = Number(incoming.headers["content-length"] || 0);
       if (Number.isFinite(contentLength) && contentLength > MAX_MCP_RESPONSE_BYTES) {
         incoming.destroy(new Error("MCP_RESPONSE_TOO_LARGE"));
@@ -134,14 +132,16 @@ function pinnedMcpFetch(input: RequestInfo | URL, init: RequestInit | undefined,
     });
 
     const timeout = setTimeout(() => {
-      if (!responseStarted) request.destroy(new Error("MCP_REQUEST_TIMEOUT"));
-    }, 20_000);
-    request.once("response", () => clearTimeout(timeout));
+      request.destroy(new Error("MCP_REQUEST_TIMEOUT"));
+    }, MCP_REQUEST_TIMEOUT_MS);
+    request.once("response", (incoming) => {
+      incoming.once("end", () => clearTimeout(timeout));
+      incoming.once("close", () => clearTimeout(timeout));
+    });
     request.once("error", (error) => {
       clearTimeout(timeout);
       reject(error);
     });
-    request.once("close", () => clearTimeout(timeout));
     if (body) request.write(body);
     request.end();
   });
