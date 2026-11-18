@@ -18,9 +18,11 @@ test("OpenAI file search requires at least one user-owned vector store", () => {
 test("Gemini tool definitions use native tool configuration and model-gate Maps", () => {
   assert.ok(capability, "tool capability registry is not implemented");
   const flash = capability.buildGeminiTools("gemini-3.1-flash-lite", ["google_search", "url_context", "code_execution", "google_maps", "file_search"]);
-  assert.deepEqual(flash.map((item) => Object.keys(item)[0]), ["google_search", "url_context", "code_execution"]);
+  assert.deepEqual(flash.map((item) => Object.keys(item)[0]), ["url_context", "code_execution", "google_maps"]);
   const maps = capability.buildGeminiTools("gemini-3.5-flash", ["google_maps"]);
   assert.deepEqual(maps, [{ google_maps: {} }]);
+  const search = capability.buildGeminiTools("gemini-3.1-flash-lite", ["google_search"]);
+  assert.deepEqual(search, []);
 });
 
 test("provider capability registry rejects unknown providers and unsupported model features", () => {
