@@ -118,7 +118,7 @@ const templates: Template[] = [
     mark: "♡",
     style: "from-pink-300/20 via-purple-400/10 to-[#242424]",
     prompt: "Create an original expressive sticker illustration showing [CHARACTER OR IDEA] with [EMOTION]. Use a clean silhouette, expressive pose, bold readable shapes, a light outline and a transparent-background-ready composition. Keep the design original and avoid recognizable copyrighted characters.",
-  },,
+  },
 
   {
     title: "Business card",
