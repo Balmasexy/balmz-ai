@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { McpConnectionsSection } from "./mcp-connections-section";
 
 type Provider = {
   id: string;
@@ -247,13 +248,7 @@ export function ConnectionsWorkspace() {
           </div>
         </section>
 
-        <section className="mt-10 rounded-2xl border border-white/[0.08] bg-[#0d1420] p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <div><h2 className="text-sm font-semibold text-white">Your remote MCP servers</h2><p className="mt-1 text-xs text-slate-500">Connect your own standards-compatible AI tools with separate permissions.</p></div>
-            <span className="rounded-full border border-white/10 px-2.5 py-1 text-[9px] text-slate-500">Setup pending</span>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-slate-400">Remote MCP setup will be available after endpoint security checks, tool discovery and write-action approvals are implemented. No remote server is shown as connected until a real protocol handshake succeeds.</p>
-        </section>
+        <McpConnectionsSection />
       </div>
     </main>
   );
