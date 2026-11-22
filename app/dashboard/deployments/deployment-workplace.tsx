@@ -33,6 +33,7 @@ type Service = {
   region?: string;
   runtime?: string;
   disk?: unknown;
+  url?: string;
   serviceDetails?: {
     url?: string;
     plan?: string;
@@ -535,6 +536,28 @@ export function DeploymentWorkplace() {
               {view === "domains" ? (
                 <div className="space-y-4">
                   {domainError ? <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-xs text-rose-200">{domainError}</div> : null}
+                  <Panel title="Project URLs" subtitle="Render-assigned public HTTPS addresses for every service in this workspace">
+                    <div className="divide-y divide-white/[0.07]">
+                      {(payload?.services ?? []).filter((service) => service.serviceDetails?.url || service.url).map((service) => {
+                        const url = service.serviceDetails?.url ?? service.url ?? "";
+                        return (
+                          <div key={service.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-white">{service.name}</p>
+                              <p className="mt-1 text-[10px] text-slate-500">{service.type.replaceAll("_", " ")} · {service.latestDeploy?.status ?? "Deployment status unavailable"}</p>
+                              <a href={url} target="_blank" rel="noreferrer" className="mt-2 block break-all text-xs font-medium text-[#a69cff] hover:underline">{url}</a>
+                            </div>
+                            <div className="flex shrink-0 gap-2">
+                              <button type="button" onClick={() => void navigator.clipboard.writeText(url).then(() => setNotice(service.name + " URL copied.")).catch(() => setDomainError("Clipboard access is not available."))} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] font-semibold text-slate-300">Copy</button>
+                              <a href={url} target="_blank" rel="noreferrer" className="rounded-lg bg-[#7c6cff] px-3 py-2 text-[10px] font-semibold text-white">Open ↗</a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {(payload?.services ?? []).every((service) => !(service.serviceDetails?.url || service.url)) ? <p className="px-5 py-6 text-xs text-slate-500">No public URLs were returned by Render. Private services, workers and some job types do not have public browser addresses.</p> : null}
+                    </div>
+                    <p className="border-t border-white/[0.07] px-5 py-3 text-[10px] leading-5 text-slate-500 sm:px-6">These are actual service URLs returned by Render. Render manages HTTPS for its onrender.com hostnames; this does not create or verify a custom domain.</p>
+                  </Panel>
                   <Panel title="Live deployment URL" subtitle="The public Render URL assigned to the selected service">
                     <div className="space-y-3 p-5 sm:p-6">
                       {domainsLoading ? <p className="text-xs text-slate-500">Loading deployment URL and domain settings…</p> : deploymentUrl ? <>
