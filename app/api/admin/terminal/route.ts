@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const HELP =
-  "Available commands: help, whoami, pwd, ls, overview, users, plans, subscriptions, payments, usage, webhooks, audit, security, deployments, neon. Commands are read-only. deployments lists connected Render services and their real URLs; neon lists projects from the connected Neon account. No shell, arbitrary SQL, scripts, files, or secrets are accessible.";
+  "Available commands: help, helper, capacitor, whoami, pwd, ls, overview, users, plans, subscriptions, payments, usage, webhooks, audit, security, deployments, neon. Commands are read-only. helper gives deployment guidance; capacitor reports the configured native wrapper. deployments and neon read provider metadata. No shell, arbitrary SQL, scripts, files, or secrets are accessible.";
 
 function safeNumber(value: number | string | null | undefined): string {
   return Number(value ?? 0).toLocaleString("en-NG");
@@ -47,6 +47,34 @@ export async function POST(request: Request) {
 
   if (command === "help") {
     return NextResponse.json({ output: HELP }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (command === "helper") {
+    return NextResponse.json({
+      output: [
+        "BALMZ AI DEPLOYMENT HELPER",
+        "1. Open Deployment Workplace and select the intended Render service. Confirm its repository, branch, region and current public URL.",
+        "2. For a new URL, use Domains and follow the exact DNS records returned by Render. Adding a domain does not register it or change DNS.",
+        "3. For Neon, select the intended project, branch, database and a SQL-created least-privilege application login role. Roles created through the Neon Console/API/CLI inherit neon_superuser privileges and are blocked for runtime DATABASE_URL.",
+        "4. Test the database connection. BALMZ AI writes only DATABASE_URL after the connection and privilege checks pass; it does not run migrations or deploy automatically.",
+        "5. Review the result before explicitly choosing Deploy latest. Deployment starts a real Render build and may consume provider resources.",
+        "For AI guidance, use the floating Quick Chat helper. Type capacitor for mobile wrapper diagnostics."
+      ].join("\\n")
+    }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (command === "capacitor") {
+    return NextResponse.json({
+      output: [
+        "BALMZ AI CAPACITOR CONFIGURATION",
+        "Wrapper: Capacitor 8",
+        "Android application ID: com.balmz.ai",
+        "Display name: BALMZ AI",
+        "Production web origin: https://balmz-ai.onrender.com",
+        "Native bridge: loaded from app/layout.tsx; runtime bridge handles Android back navigation, app lifecycle, connectivity and keyboard events.",
+        "Native helpers: confirmation dialogs, haptics, clipboard, browser, camera, device/network info, filesystem, preferences, notifications, sharing, status bar and toast.",
+        "Android CI: .github/workflows/android-build.yml builds APK/AAB on pull requests, main pushes and manual dispatch.",
+        "The live platform and connectivity detected by this device are shown in the Capacitor panel beside this terminal. This command reports configured project metadata; it does not claim a physical-device test or a signed Play Store release."
+      ].join("\\n")
+    }, { headers: { "Cache-Control": "no-store" } });
   }
   if (command === "whoami") {
     return NextResponse.json({ output: `${session.user.email} · role=admin · access=Super Admin` }, { headers: { "Cache-Control": "no-store" } });
