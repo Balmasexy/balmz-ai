@@ -5,6 +5,7 @@ import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
 import { getNeonApiToken, neonApiRequest } from "@/lib/neon-api";
 import { getRenderApiToken } from "@/lib/render-api";
+import { isSafeNeonRuntimeRole } from "@/lib/neon-runtime-role.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ function safeError(error: unknown) {
   const code = error instanceof Error ? error.message : "NEON_INTEGRATION_FAILED";
   const status = code === "NEON_NOT_CONFIGURED" || code === "RENDER_NOT_CONFIGURED" ? 503
     : code === "NEON_RATE_LIMITED" ? 429
-    : code === "INVALID_SELECTION" ? 400 : 502;
+    : code === "INVALID_SELECTION" || code === "NEON_RUNTIME_ROLE_REJECTED" ? 400 : 502;
   const message = code === "NEON_NOT_CONFIGURED"
     ? "Connect Neon in Super Admin → Service connectors first."
     : code === "RENDER_NOT_CONFIGURED"
@@ -45,7 +46,9 @@ function safeError(error: unknown) {
             ? "Neon is temporarily rate-limiting requests."
             : code === "DATABASE_CONNECTION_TEST_FAILED"
               ? "Neon returned a connection string but the database connection test failed. Check the selected branch, role, and endpoint."
-              : "The Neon integration could not be completed. Check the selected project and service.";
+              : code === "NEON_RUNTIME_ROLE_REJECTED"
+                ? "This role has elevated Neon administrator privileges or cannot log in. Create a SQL-based application role with only the privileges BALMZ AI needs, then select it here."
+                : "The Neon integration could not be completed. Check the selected project and service.";
   return NextResponse.json({ error: code, message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 function validId(value: unknown): value is string {
@@ -152,9 +155,38 @@ export async function POST(request: Request) {
     const client = new Client({ connectionString: connection.uri, connectionTimeoutMillis: 12_000, query_timeout: 8_000 });
     try {
       await client.connect();
+      const roleCheck = await client.query<{
+        rolcanlogin: boolean;
+        rolsuper: boolean;
+        rolcreaterole: boolean;
+        rolcreatedb: boolean;
+        rolreplication: boolean;
+        rolbypassrls: boolean;
+        is_neon_superuser_member: boolean;
+      }>(`
+        SELECT
+          r.rolcanlogin,
+          r.rolsuper,
+          r.rolcreaterole,
+          r.rolcreatedb,
+          r.rolreplication,
+          r.rolbypassrls,
+          CASE
+            WHEN r.rolname = 'neon_superuser' THEN true
+            WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'neon_superuser')
+              THEN pg_has_role(r.rolname, 'neon_superuser', 'MEMBER')
+            ELSE false
+          END AS is_neon_superuser_member
+        FROM pg_roles AS r
+        WHERE r.rolname = current_user
+      `);
+      if (!isSafeNeonRuntimeRole(roleCheck.rows[0])) {
+        throw new Error("NEON_RUNTIME_ROLE_REJECTED");
+      }
       const test = await client.query("SELECT 1 AS connected");
       if (test.rows?.[0]?.connected !== 1) throw new Error("DATABASE_CONNECTION_TEST_FAILED");
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "NEON_RUNTIME_ROLE_REJECTED") throw error;
       throw new Error("DATABASE_CONNECTION_TEST_FAILED");
     } finally {
       await client.end().catch(() => undefined);

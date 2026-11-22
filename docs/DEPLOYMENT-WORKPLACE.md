@@ -22,8 +22,9 @@ The Neon tab lists projects, branches, databases and roles available to the conn
 1. Verifies the selected Render service belongs to the connected Render account.
 2. Verifies that the project, branch, database and role belong to the connected Neon account.
 3. Requests the selected Neon pooled connection URI server-side and validates the URI host and TLS settings.
-4. Opens a server-side PostgreSQL connection and runs `SELECT 1`.
-5. Updates only the selected Render service's `DATABASE_URL` using Render's single-variable endpoint.
+4. Opens a server-side PostgreSQL connection and checks the connected login role for `LOGIN`, superuser, `CREATEROLE`, `CREATEDB`, `REPLICATION`, `BYPASSRLS`, and `neon_superuser` membership before running `SELECT 1`.
+5. Rejects owner/administrator roles and accepts only a SQL-created least-privilege application login role.
+6. Updates only the selected Render service's `DATABASE_URL` using Render's single-variable endpoint.
 
 The URI is never returned to the browser or written to application logs. Other Render environment variables are not replaced. If `DATABASE_URL` already exists, the admin must explicitly select the replacement option and confirm the action. The environment change does not automatically deploy the service; review the selected project, branch, database and restricted runtime role, then explicitly trigger **Deploy latest**.
 
@@ -38,6 +39,12 @@ Build minutes, hosting plans, storage, bandwidth and provider usage may incur ch
 ## Current limits
 
 This workspace does not provide Vercel integration, repository import/provisioning, custom GitHub Actions pipelines, rollback, live log streaming, arbitrary shell access, arbitrary SQL, secret retrieval, arbitrary service environment editing or database migration execution.
+
+## Helper and Capacitor support
+
+The Admin Terminal includes a read-only `helper` command for guided Render/Neon deployment steps and a `capacitor` command for configured Android wrapper metadata. Its Capacitor panel reports the current client platform and network state using the native helper layer. The floating Quick Chat helper remains available for AI guidance. Android packaging continues through `.github/workflows/android-build.yml`; a green CI result is not a physical-device smoke test or proof of Play Store signing.
+
+The admin terminal does not expose a general APT/Bash shell. A real package-managed shell requires a separately deployed, tenant-isolated sandbox gateway and persistent workspace; running arbitrary package installation or shell commands in the Next.js/Render web process is not supported.
 
 ## Admin Terminal boundary
 
