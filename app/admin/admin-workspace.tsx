@@ -14,6 +14,7 @@ import { BankingVaultSection } from "./banking-vault-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { FamilyAccessSection } from "./family-access-section";
 import { DeploymentWorkplace } from "@/app/dashboard/deployments/deployment-workplace";
+import { getNativeAppInfo, getNetworkState, getRuntimePlatform, isNativeApp } from "@/lib/capacitor/native-helpers";
 
 type Section =
   | "overview"
@@ -454,6 +455,33 @@ function TerminalSection({ email }: { email: string }) {
     { id: 1, kind: "system", text: "BALMZ AI CONTROL CONSOLE · server-verified · read-only" },
     { id: 2, kind: "system", text: "Type help to list approved commands. Render/Neon diagnostics are read-only and checked against your active Super Admin session." },
   ]);
+  const [capacitorStatus, setCapacitorStatus] = useState<{
+    checking: boolean;
+    native: boolean;
+    platform: string;
+    connected: boolean | null;
+    connectionType: string;
+    version: string;
+  }>({ checking: true, native: false, platform: "unknown", connected: null, connectionType: "unknown", version: "" });
+
+  useEffect(() => {
+    let active = true;
+    const native = isNativeApp();
+    setCapacitorStatus((current) => ({ ...current, native, platform: getRuntimePlatform() }));
+    void getNetworkState().then((network) => {
+      if (active) setCapacitorStatus((current) => ({
+        ...current, checking: false, connected: network.connected, connectionType: network.connectionType,
+      }));
+    }).catch(() => {
+      if (active) setCapacitorStatus((current) => ({ ...current, checking: false }));
+    });
+    if (native) {
+      void getNativeAppInfo().then((info) => {
+        if (active && info) setCapacitorStatus((current) => ({ ...current, version: info.version || "" }));
+      }).catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, []);
 
   async function runCommand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -526,7 +554,33 @@ function TerminalSection({ email }: { email: string }) {
       <div className="space-y-5">
         <Panel title="Command reference" subtitle="Server-allow-listed commands">
           <div className="grid grid-cols-2 gap-2 p-4">
-            {["help", "whoami", "overview", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security", "deployments", "neon", "clear"].map((item) => <button key={item} type="button" onClick={() => setCommand(item)} className="min-h-10 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-left font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/20 hover:text-emerald-300">{item}</button>)}
+            {["help", "helper", "capacitor", "whoami", "overview", "users", "plans", "subscriptions", "payments", "usage", "webhooks", "audit", "security", "deployments", "neon", "clear"].map((item) => <button key={item} type="button" onClick={() => setCommand(item)} className="min-h-10 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-left font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/20 hover:text-emerald-300">{item}</button>)}
+          </div>
+        </Panel>
+        <Panel title="Helper & Capacitor" subtitle="Quick support and native app diagnostics">
+          <div className="space-y-4 p-4">
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+              <p className="text-xs font-semibold text-white">Deployment helper</p>
+              <p className="mt-1 text-[10px] leading-5 text-slate-500">Run the guided helper for Render, Neon and safe deployment steps. The floating Quick Chat assistant is also available for AI help.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={() => setCommand("helper")} className="min-h-9 rounded-lg bg-[var(--balmz-orange)] px-3 text-[10px] font-semibold text-[#17100a]">Prepare helper</button>
+                <a href="/admin?section=deployments" className="inline-flex min-h-9 items-center rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300">Open Deployments</a>
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-white">Capacitor 8 runtime</p>
+                <span className="rounded-full border border-white/10 px-2 py-1 text-[9px] text-slate-300">{capacitorStatus.native ? "Native app" : "Web app"}</span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+                <p>Platform <span className="mt-1 block text-slate-200">{capacitorStatus.platform}</span></p>
+                <p>Network <span className="mt-1 block text-slate-200">{capacitorStatus.checking ? "Checking" : capacitorStatus.connected === null ? "Unavailable" : capacitorStatus.connected ? "Online" : "Offline"}</span></p>
+                <p>Connection <span className="mt-1 block text-slate-200">{capacitorStatus.connectionType}</span></p>
+                <p>App version <span className="mt-1 block text-slate-200">{capacitorStatus.version || "Web session / not reported"}</span></p>
+              </div>
+              <p className="mt-3 text-[10px] leading-5 text-slate-500">Android ID: com.balmz.ai · Production origin: bal mz-ai.onrender.com</p>
+              <button type="button" onClick={() => setCommand("capacitor")} className="mt-2 min-h-9 w-full rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/30 hover:text-white">View Capacitor diagnostics</button>
+            </div>
           </div>
         </Panel>
         <Panel title="Identity & isolation" subtitle="Current console owner">
