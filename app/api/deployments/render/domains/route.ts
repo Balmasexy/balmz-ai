@@ -34,7 +34,10 @@ async function renderRequest(token: string, path: string, init?: RequestInit) {
     if (response.status === 429) throw new Error("RENDER_RATE_LIMITED");
     throw new Error("RENDER_HTTP_" + response.status);
   }
-  return response.json() as Promise<unknown>;
+  const text = await response.text();
+  if (!text) return null;
+  try { return JSON.parse(text) as unknown; }
+  catch { throw new Error("RENDER_INVALID_RESPONSE"); }
 }
 
 function unwrapServices(value: unknown): RenderService[] {
