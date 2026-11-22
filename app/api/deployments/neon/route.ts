@@ -14,6 +14,7 @@ type NeonProject = { id: string; name: string; region_id?: string; pg_version?: 
 type NeonBranch = { id: string; name: string; default?: boolean; primary?: boolean };
 type NeonDatabase = { name: string; owner_name?: string };
 type NeonRole = { name: string; protected?: boolean };
+type NeonEndpoint = { branch_id: string; type?: string; pooler_enabled?: boolean; disabled?: boolean };
 type RenderService = { id: string; name: string; type: string };
 
 const NEON_ORG_ID = process.env.NEON_ORG_ID?.trim() || "org-mute-hall-53918235";
@@ -33,7 +34,7 @@ function safeError(error: unknown) {
   const code = error instanceof Error ? error.message : "NEON_INTEGRATION_FAILED";
   const status = code === "NEON_NOT_CONFIGURED" || code === "RENDER_NOT_CONFIGURED" ? 503
     : code === "NEON_RATE_LIMITED" ? 429
-    : code === "INVALID_SELECTION" || code === "NEON_RUNTIME_ROLE_REJECTED" ? 400 : 502;
+    : code === "INVALID_SELECTION" || code === "NEON_RUNTIME_ROLE_REJECTED" || code === "NEON_POOLER_DISABLED" ? 400 : 502;
   const message = code === "NEON_NOT_CONFIGURED"
     ? "Connect Neon in Super Admin → Service connectors first."
     : code === "RENDER_NOT_CONFIGURED"
@@ -48,9 +49,21 @@ function safeError(error: unknown) {
               ? "Neon returned a connection string but the database connection test failed. Check the selected branch, role, and endpoint."
               : code === "NEON_RUNTIME_ROLE_REJECTED"
                 ? "This role has elevated Neon administrator privileges or cannot log in. Create a SQL-based application role with only the privileges BALMZ AI needs, then select it here."
-                : "The Neon integration could not be completed. Check the selected project and service.";
+                : code === "NEON_POOLER_DISABLED"
+                  ? "Connection pooling is disabled for this Neon branch. Select direct connection or enable pooling in Neon Console."
+                  : "The Neon integration could not be completed. Check the selected project and service.";
   return NextResponse.json({ error: code, message }, { status, headers: { "Cache-Control": "no-store" } });
 }
+async function branchHasPooler(token: string, projectId: string, branchId: string): Promise<boolean> {
+  const data = await neonApiRequest<{ endpoints?: NeonEndpoint[] }>(
+    token,
+    "/projects/" + encodeURIComponent(projectId) + "/branches/" + encodeURIComponent(branchId) + "/endpoints",
+  );
+  return unwrap<NeonEndpoint>(data, "endpoints").some((endpoint) =>
+    endpoint.branch_id === branchId && endpoint.type === "read_write" && endpoint.pooler_enabled === true && endpoint.disabled !== true
+  );
+}
+
 function validId(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9-]{1,60}$/i.test(value);
 }
@@ -92,11 +105,12 @@ export async function GET(request: Request) {
     const branches = unwrap<NeonBranch>(branchesData, "branches");
     if (!branchId) return NextResponse.json({ project: { id: project.id, name: project.name }, databaseUrlConfigured, branches: branches.map((item) => ({ id: item.id, name: item.name, isDefault: Boolean(item.default || item.primary) })) }, { headers: { "Cache-Control": "no-store" } });
     if (!branches.some((item) => item.id === branchId)) return NextResponse.json({ error: "BRANCH_NOT_IN_PROJECT" }, { status: 404 });
-    const [dbData, roleData] = await Promise.all([
+    const [dbData, roleData, poolerAvailable] = await Promise.all([
       neonApiRequest<{ databases?: NeonDatabase[] }>(token, "/projects/" + encodeURIComponent(projectId) + "/branches/" + encodeURIComponent(branchId) + "/databases?limit=100"),
       neonApiRequest<{ roles?: NeonRole[] }>(token, "/projects/" + encodeURIComponent(projectId) + "/branches/" + encodeURIComponent(branchId) + "/roles?limit=100"),
+      branchHasPooler(token, projectId, branchId),
     ]);
-    return NextResponse.json({ databases: unwrap<NeonDatabase>(dbData, "databases").map((item) => ({ name: item.name, owner: item.owner_name ?? null })), roles: unwrap<NeonRole>(roleData, "roles").map((item) => ({ name: item.name, protected: Boolean(item.protected) })) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ databases: unwrap<NeonDatabase>(dbData, "databases").map((item) => ({ name: item.name, owner: item.owner_name ?? null })), roles: unwrap<NeonRole>(roleData, "roles").map((item) => ({ name: item.name, protected: Boolean(item.protected) })), poolerAvailable }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return safeError(error); }
 }
 export async function POST(request: Request) {
@@ -138,11 +152,15 @@ export async function POST(request: Request) {
     if (!unwrap<NeonDatabase>(databases, "databases").some((item) => item.name === body.databaseName) ||
         !unwrap<NeonRole>(roles, "roles").some((item) => item.name === body.roleName)) throw new Error("INVALID_SELECTION");
 
+    const pooled = body.pooled !== false;
+    if (pooled && !(await branchHasPooler(neonToken, body.projectId, body.branchId))) {
+      throw new Error("NEON_POOLER_DISABLED");
+    }
     const query = new URLSearchParams({
       branch_id: body.branchId,
       database_name: body.databaseName,
       role_name: body.roleName,
-      pooled: body.pooled === false ? "false" : "true",
+      pooled: pooled ? "true" : "false",
     });
     const connection = await neonApiRequest<{ uri?: string }>(neonToken, "/projects/" + encodeURIComponent(body.projectId) + "/connection_uri?" + query.toString());
     if (typeof connection.uri !== "string") throw new Error("NEON_URI_MISSING");
@@ -211,7 +229,7 @@ export async function POST(request: Request) {
       success: true,
       variable: "DATABASE_URL",
       service: { id: service.id, name: service.name },
-      database: { project: projectData.project.name, branch: branches.find((item) => item.id === body.branchId)?.name, database: body.databaseName, role: body.roleName, pooled: body.pooled !== false },
+      database: { project: projectData.project.name, branch: branches.find((item) => item.id === body.branchId)?.name, database: body.databaseName, role: body.roleName, pooled },
       deployRequired: true,
       message: "Neon connection verified and DATABASE_URL saved on the Render service. Render will not deploy this environment change automatically; deploy the service when ready.",
     }, { headers: { "Cache-Control": "no-store" } });
