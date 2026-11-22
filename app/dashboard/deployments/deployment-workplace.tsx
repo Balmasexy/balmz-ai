@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { confirmNativeAction, hapticNotice, hapticTap, openNativeBrowser, showNativeToast } from "@/lib/capacitor/native-helpers";
+import { WorkspaceStorage } from "./workspace-storage";
 
 type Deploy = {
   id: string;
@@ -626,20 +627,7 @@ export function DeploymentWorkplace() {
                   <p className="px-1 text-[10px] leading-5 text-slate-600">BALMZ AI has not upgraded or changed this service plan. No billing method, spend limit, or paid resource was changed by this workplace.</p>
                 </div>
               ) : null}
-              {view === "storage" ? (
-                <div className="space-y-4">
-                  <Panel title="Service-attached storage" subtitle="Persistent disks are separate from the Super Admin's shared file archive">
-                    <div className="space-y-3 p-5 sm:p-6">
-                      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">{selectedService.disk || selectedService.serviceDetails?.disk ? "Persistent disk reported" : "No persistent disk reported"}</p><p className="mt-1 text-xs text-slate-500">Service: {selectedService.name}</p></div><span className="rounded-full border border-white/10 px-3 py-1 text-[10px] text-slate-400">{selectedService.disk || selectedService.serviceDetails?.disk ? "Provider disk" : "No disk data"}</span></div>
-                      <p className="text-xs leading-6 text-slate-400">A Render disk is local to one service instance and is not available during builds. BALMZ AI keeps deployment archives and shared administrator files in the separate private object-storage workspace.</p>
-                      <a href="/admin" className="inline-flex min-h-10 items-center rounded-xl bg-[#7c6cff] px-4 text-xs font-semibold text-[#17100a] hover:brightness-110">Open Super Admin storage ↗</a>
-                    </div>
-                  </Panel>
-                  <Panel title="Storage architecture" subtitle="Choose the storage type that matches the workload">
-                    <div className="grid gap-3 p-5 sm:grid-cols-2"><div className="rounded-xl border border-white/[0.07] p-4"><p className="text-xs font-semibold text-white">Render persistent disk</p><p className="mt-2 text-[11px] leading-5 text-slate-500">For files that must live on this one running service. It does not expand build storage or share files across services.</p></div><div className="rounded-xl border border-white/[0.07] p-4"><p className="text-xs font-semibold text-white">Super Admin object storage</p><p className="mt-2 text-[11px] leading-5 text-slate-500">For archives, documents, backups and files that need to be accessed independently of a Render deployment.</p></div></div>
-                  </Panel>
-                </div>
-              ) : null}
+              {view === "storage" ? <WorkspaceStorage /> : null}
 
               {view === "settings" ? (
                 <Panel title="Service configuration" subtitle="Configuration returned by Render; values are shown read-only">
