@@ -16,10 +16,11 @@ test("accepts a login role without elevated Neon/Postgres privileges", () => {
   assert.equal(isSafeNeonRuntimeRole(limitedLoginRole), true);
 });
 
-test("rejects missing roles and roles without LOGIN", () => {
+test("rejects missing roles, missing privilege metadata and roles without LOGIN", () => {
   assert.equal(isSafeNeonRuntimeRole(undefined), false);
   assert.equal(isSafeNeonRuntimeRole(null), false);
   assert.equal(isSafeNeonRuntimeRole({ ...limitedLoginRole, rolcanlogin: false }), false);
+  assert.equal(isSafeNeonRuntimeRole({ rolcanlogin: true }), false);
 });
 
 for (const privilege of ["rolsuper", "rolcreaterole", "rolcreatedb", "rolreplication", "rolbypassrls", "is_neon_superuser_member"]) {
