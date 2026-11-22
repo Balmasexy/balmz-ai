@@ -156,6 +156,8 @@ export function DeploymentWorkplace() {
   const [neonBranchId, setNeonBranchId] = useState("");
   const [neonDatabaseName, setNeonDatabaseName] = useState("");
   const [neonRoleName, setNeonRoleName] = useState("");
+  const [neonPoolerAvailable, setNeonPoolerAvailable] = useState<boolean | null>(null);
+  const [neonPooled, setNeonPooled] = useState(false);
   const [neonUrlExists, setNeonUrlExists] = useState<boolean | null>(null);
   const [replaceDatabaseUrl, setReplaceDatabaseUrl] = useState(false);
   const [neonLoading, setNeonLoading] = useState(false);
@@ -243,7 +245,7 @@ export function DeploymentWorkplace() {
   }, [view, selectedServiceId]);
 
   useEffect(() => {
-    if (view !== "database" || !neonProjectId) { setNeonBranches([]); setNeonBranchId(""); setNeonDatabases([]); setNeonRoles([]); return; }
+    if (view !== "database" || !neonProjectId) { setNeonBranches([]); setNeonBranchId(""); setNeonDatabases([]); setNeonRoles([]); setNeonPoolerAvailable(null); setNeonPooled(false); return; }
     let active = true;
     setNeonLoading(true);
     fetch("/api/deployments/neon?serviceId=" + encodeURIComponent(selectedServiceId) + "&projectId=" + encodeURIComponent(neonProjectId), { cache: "no-store" })
@@ -254,11 +256,11 @@ export function DeploymentWorkplace() {
   }, [view, selectedServiceId, neonProjectId]);
 
   useEffect(() => {
-    if (view !== "database" || !neonProjectId || !neonBranchId) { setNeonDatabases([]); setNeonRoles([]); return; }
+    if (view !== "database" || !neonProjectId || !neonBranchId) { setNeonDatabases([]); setNeonRoles([]); setNeonPoolerAvailable(null); setNeonPooled(false); return; }
     let active = true;
     setNeonLoading(true);
     fetch("/api/deployments/neon?serviceId=" + encodeURIComponent(selectedServiceId) + "&projectId=" + encodeURIComponent(neonProjectId) + "&branchId=" + encodeURIComponent(neonBranchId), { cache: "no-store" })
-      .then(async (response) => { const result = await response.json() as { databases?: NeonDatabase[]; roles?: NeonRole[]; message?: string }; if (!response.ok) throw new Error(result.message || "Neon database resources could not be loaded."); if (active) { const dbs = result.databases ?? []; const roles = result.roles ?? []; setNeonDatabases(dbs); setNeonRoles(roles); setNeonDatabaseName(dbs[0]?.name ?? ""); setNeonRoleName(roles.find((item) => !item.protected)?.name ?? roles[0]?.name ?? ""); } })
+      .then(async (response) => { const result = await response.json() as { databases?: NeonDatabase[]; roles?: NeonRole[]; poolerAvailable?: boolean; message?: string }; if (!response.ok) throw new Error(result.message || "Neon database resources could not be loaded."); if (active) { const dbs = result.databases ?? []; const roles = result.roles ?? []; const poolerAvailable = result.poolerAvailable === true; setNeonDatabases(dbs); setNeonRoles(roles); setNeonDatabaseName(dbs[0]?.name ?? ""); setNeonRoleName(roles.find((item) => !item.protected && item.name !== dbs[0]?.owner)?.name ?? ""); setNeonPoolerAvailable(poolerAvailable); setNeonPooled(poolerAvailable); } })
       .catch((cause) => { if (active) setNeonError(cause instanceof Error ? cause.message : "Neon database resources could not be loaded."); })
       .finally(() => { if (active) setNeonLoading(false); });
     return () => { active = false; };
@@ -285,12 +287,12 @@ export function DeploymentWorkplace() {
 
   async function connectNeonDatabase() {
     if (!selectedService || neonBusy || !neonProjectId || !neonBranchId || !neonDatabaseName || !neonRoleName) return;
-    const message = "Connect the selected Neon database to " + selectedService.name + " by setting DATABASE_URL? " + (neonUrlExists ? "This will REPLACE the existing DATABASE_URL value." : "A new DATABASE_URL variable will be created.") + " Other variables will not be removed. Render will not deploy automatically; you can deploy after the connection is saved.";
+    const message = "Connect the selected Neon database to " + selectedService.name + " using a " + (neonPooled ? "pooled" : "direct") + " connection and set DATABASE_URL? " + (neonUrlExists ? "This will REPLACE the existing DATABASE_URL value." : "A new DATABASE_URL variable will be created.") + " Other variables will not be removed. Render will not deploy automatically; you can deploy after the connection is saved.";
     const confirmed = await confirmNativeAction("Connect Neon database", message);
     if (!confirmed) return;
     setNeonBusy(true); setNeonError(""); setNeonNotice("");
     try {
-      const response = await fetch("/api/deployments/neon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: selectedService.id, projectId: neonProjectId, branchId: neonBranchId, databaseName: neonDatabaseName, roleName: neonRoleName, pooled: true, replaceExisting: replaceDatabaseUrl }) });
+      const response = await fetch("/api/deployments/neon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: selectedService.id, projectId: neonProjectId, branchId: neonBranchId, databaseName: neonDatabaseName, roleName: neonRoleName, pooled: neonPooled, replaceExisting: replaceDatabaseUrl }) });
       const result = await response.json() as { message?: string; database?: { project?: string; branch?: string; database?: string; role?: string } };
       if (!response.ok) throw new Error(result.message || "Neon could not be connected to this Render service.");
       setNeonUrlExists(true); setReplaceDatabaseUrl(false);
@@ -552,15 +554,16 @@ export function DeploymentWorkplace() {
                       </div>
                       {neonLoading && !neonProjects.length ? <p className="text-xs text-slate-500">Loading Neon projects and database settings…</p> : null}
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Neon project</span><select value={neonProjectId} onChange={(event) => { setNeonProjectId(event.target.value); setNeonBranchId(""); setNeonDatabaseName(""); setNeonRoleName(""); setNeonBranches([]); setNeonDatabases([]); setNeonRoles([]); }} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none focus:border-[#7c6cff]/50"><option value="">Select project</option>{neonProjects.map((project) => <option key={project.id} value={project.id}>{project.name} · {project.region ?? project.id}</option>)}</select></label>
-                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Branch</span><select value={neonBranchId} onChange={(event) => { setNeonBranchId(event.target.value); setNeonDatabaseName(""); setNeonRoleName(""); }} disabled={!neonProjectId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select branch</option>{neonBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.isDefault ? " · default" : ""}</option>)}</select></label>
-                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Database</span><select value={neonDatabaseName} onChange={(event) => setNeonDatabaseName(event.target.value)} disabled={!neonBranchId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select database</option>{neonDatabases.map((database) => <option key={database.name} value={database.name}>{database.name}</option>)}</select></label>
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Neon project</span><select value={neonProjectId} onChange={(event) => { setNeonProjectId(event.target.value); setNeonBranchId(""); setNeonDatabaseName(""); setNeonRoleName(""); setNeonBranches([]); setNeonDatabases([]); setNeonRoles([]); setNeonPoolerAvailable(null); setNeonPooled(false); }} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none focus:border-[#7c6cff]/50"><option value="">Select project</option>{neonProjects.map((project) => <option key={project.id} value={project.id}>{project.name} · {project.region ?? project.id}</option>)}</select></label>
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Branch</span><select value={neonBranchId} onChange={(event) => { setNeonBranchId(event.target.value); setNeonDatabaseName(""); setNeonRoleName(""); setNeonPoolerAvailable(null); setNeonPooled(false); }} disabled={!neonProjectId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select branch</option>{neonBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.isDefault ? " · default" : ""}</option>)}</select></label>
+                        <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Database</span><select value={neonDatabaseName} onChange={(event) => { const nextDatabase = neonDatabases.find((database) => database.name === event.target.value); setNeonDatabaseName(event.target.value); if (nextDatabase && neonRoleName === nextDatabase.owner) setNeonRoleName(neonRoles.find((role) => !role.protected && role.name !== nextDatabase.owner)?.name ?? ""); }} disabled={!neonBranchId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select database</option>{neonDatabases.map((database) => <option key={database.name} value={database.name}>{database.name}</option>)}</select></label>
                         <label className="block"><span className="mb-2 block text-[10px] font-semibold text-slate-400">Postgres role</span><select value={neonRoleName} onChange={(event) => setNeonRoleName(event.target.value)} disabled={!neonBranchId} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#0b0f14] px-3 text-xs text-white outline-none disabled:opacity-40"><option value="">Select role</option>{neonRoles.map((role) => <option key={role.name} value={role.name}>{role.name}{role.protected ? " · protected" : ""}</option>)}</select></label>
                       </div>
                       <div className="rounded-xl border border-white/[0.08] p-4">
                         <p className="text-xs font-semibold text-slate-200">Connection mode</p>
-                        <p className="mt-1 text-[10px] leading-5 text-slate-500">BALMZ AI requests a pooled Neon connection string by default, which is generally suited to web services with concurrent requests. The connection string is never returned to the browser.</p>
-                        <p className="mt-2 text-[10px] text-slate-500">The database is tested from the server using SELECT 1 before Render receives DATABASE_URL.</p>
+                        <p className="mt-1 text-[10px] leading-5 text-slate-500">BALMZ AI checks the selected branch for an enabled read-write pooler and chooses a compatible connection mode. The connection string is never returned to the browser.</p>
+                        {neonPoolerAvailable === true ? <label className="mt-3 flex items-center gap-2 text-[10px] text-slate-300"><input type="checkbox" checked={neonPooled} onChange={(event) => setNeonPooled(event.target.checked)} className="accent-[#7c6cff]" /> Use Neon connection pooling</label> : neonPoolerAvailable === false ? <p className="mt-3 text-[10px] leading-5 text-amber-200/80">Direct connection selected. Neon connection pooling is disabled for this branch.</p> : <p className="mt-3 text-[10px] text-slate-500">Select a branch to check its available connection modes.</p>}
+                        <p className="mt-2 text-[10px] text-slate-500">The database role and connection are tested from the server using SELECT 1 before Render receives DATABASE_URL.</p>
                         <p className="mt-2 text-[10px] leading-5 text-amber-200/80">Security check: the selected role must be a SQL-created login role without neon_superuser membership, superuser, role-management, database-creation, replication or BYPASSRLS privileges. Roles created through the Neon Console/API are administrator roles by default and are rejected for runtime use.</p>
                       </div>
                       {neonUrlExists === true ? <label className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] p-4"><input type="checkbox" checked={replaceDatabaseUrl} onChange={(event) => setReplaceDatabaseUrl(event.target.checked)} className="mt-0.5 accent-[#7c6cff]" /><span><span className="block text-xs font-semibold text-amber-100">Replace the existing DATABASE_URL</span><span className="mt-1 block text-[10px] leading-5 text-slate-400">This may switch the selected application to a different database. Confirm that you selected the intended project and branch. Existing data in either database is not deleted.</span></span></label> : null}
