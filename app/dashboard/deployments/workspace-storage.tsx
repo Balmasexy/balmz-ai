@@ -9,10 +9,10 @@ type StoredObject = { key: string; size: number; lastModified: string | null };
 type StoragePayload = { configured: boolean; bucket?: string; objects: StoredObject[]; listedBytes: number; truncated: boolean; message?: string };
 
 function slugify(value: string) {
-  return value.toLowerCase().replace(/\\.git$/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  return value.toLowerCase().replace(/\.git$/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 }
 function projectFor(service: Service) {
-  const repo = service.repo?.replace(/\\.git$/, "").split("/").filter(Boolean).at(-1);
+  const repo = service.repo?.replace(/\.git$/, "").split("/").filter(Boolean).at(-1);
   const label = repo || service.name;
   return { slug: slugify(label) || slugify(service.name) || "unassigned", label };
 }
