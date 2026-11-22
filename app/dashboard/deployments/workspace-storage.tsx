@@ -12,9 +12,12 @@ function slugify(value: string) {
   return value.toLowerCase().replace(/\.git$/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 }
 function projectFor(service: Service) {
-  const repo = service.repo?.replace(/\.git$/, "").split("/").filter(Boolean).at(-1);
+  const parts = service.repo?.replace(/\.git$/, "").split("/").filter(Boolean) ?? [];
+  const repo = parts.at(-1);
+  const owner = parts.at(-2);
   const label = repo || service.name;
-  return { slug: slugify(label) || slugify(service.name) || "unassigned", label };
+  const slug = owner && repo ? slugify(owner + "-" + repo) : slugify(label);
+  return { slug: slug || slugify(service.name) || "unassigned", label };
 }
 function bytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -57,8 +60,12 @@ export function WorkspaceStorage() {
       for (const service of render.services ?? []) {
         const identity = projectFor(service);
         const existing = map.get(identity.slug);
-        if (existing) existing.services.push(service.name);
-        else map.set(identity.slug, { ...identity, services: [service.name] });
+        if (existing && !existing.services.includes(service.name)) existing.services.push(service.name);
+        else if (!existing) map.set(identity.slug, { ...identity, services: [service.name] });
+      }
+      for (const item of storage.objects) {
+        const slug = item.key.split("/")[1];
+        if (slug && !map.has(slug)) map.set(slug, { slug, label: slug, services: [] });
       }
       const nextProjects = [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
       setProjects(nextProjects);
