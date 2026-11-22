@@ -33,7 +33,7 @@ function safeError(error: unknown) {
   const code = error instanceof Error ? error.message : "NEON_INTEGRATION_FAILED";
   const status = code === "NEON_NOT_CONFIGURED" || code === "RENDER_NOT_CONFIGURED" ? 503
     : code === "NEON_RATE_LIMITED" ? 429
-    : code === "INVALID_SELECTION" ? 400 : 502;
+    : code === "INVALID_SELECTION" || code === "NEON_RUNTIME_ROLE_REJECTED" ? 400 : 502;
   const message = code === "NEON_NOT_CONFIGURED"
     ? "Connect Neon in Super Admin → Service connectors first."
     : code === "RENDER_NOT_CONFIGURED"
@@ -185,7 +185,8 @@ export async function POST(request: Request) {
       }
       const test = await client.query("SELECT 1 AS connected");
       if (test.rows?.[0]?.connected !== 1) throw new Error("DATABASE_CONNECTION_TEST_FAILED");
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "NEON_RUNTIME_ROLE_REJECTED") throw error;
       throw new Error("DATABASE_CONNECTION_TEST_FAILED");
     } finally {
       await client.end().catch(() => undefined);
