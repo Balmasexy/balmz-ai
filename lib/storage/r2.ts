@@ -195,6 +195,42 @@ export async function listR2AdminObjects(): Promise<{ objects: StoredObject[]; l
   };
 }
 
+export function createR2ProjectObjectKey(project: string, filename: string): string {
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(project)) throw new Error("INVALID_PROJECT");
+  const safe = filename.normalize("NFKC").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(-120) || "upload";
+  return `projects/${project}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${safe}`;
+}
+
+export async function listR2WorkspaceObjects(): Promise<{ objects: StoredObject[]; listedBytes: number; truncated: boolean }> {
+  const response = await signedR2Request("GET", "", {
+    "list-type": "2",
+    "max-keys": "1000",
+    prefix: "projects/",
+  });
+  if (!response.ok) throw new Error(`R2_LIST_FAILED_${response.status}`);
+  const xml = await response.text();
+  const objects: StoredObject[] = [];
+  for (const match of xml.matchAll(/<Contents>([\\s\\S]*?)<\\/Contents>/g)) {
+    const block = match[1];
+    const key = tag(block, "Key");
+    if (!key.startsWith("projects/")) continue;
+    objects.push({ key, size: Number(tag(block, "Size")) || 0, lastModified: tag(block, "LastModified") || null });
+  }
+  return {
+    objects,
+    listedBytes: objects.reduce((total, item) => total + item.size, 0),
+    truncated: tag(xml, "IsTruncated").toLowerCase() === "true",
+  };
+}
+
+export async function deleteR2ProjectObject(key: string): Promise<void> {
+  if (!key.startsWith("projects/") || key.includes(String.fromCharCode(0)) || key.split("/").some((part) => part === "." || part === "..")) {
+    throw new Error("INVALID_OBJECT_KEY");
+  }
+  const response = await signedR2Request("DELETE", key);
+  if (!response.ok) throw new Error(`R2_DELETE_FAILED_${response.status}`);
+}
+
 export async function deleteR2AdminObject(key: string): Promise<void> {
   if (!key.startsWith("admin/") || key.includes(String.fromCharCode(0))) throw new Error("INVALID_OBJECT_KEY");
   const response = await signedR2Request("DELETE", key);
