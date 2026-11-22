@@ -286,6 +286,38 @@ export function DeploymentWorkplace() {
     finally { setDomainBusy(false); }
   }
 
+  async function verifyCustomDomain(domain: CustomDomain) {
+    if (!selectedService || domainBusy) return;
+    setDomainBusy(true); setDomainError("");
+    try {
+      const response = await fetch("/api/deployments/render/domains", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify", serviceId: selectedService.id, domainId: domain.id || domain.name }),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Render could not start DNS verification.");
+      setNotice(result.message || "DNS verification requested from Render. Refresh in a moment.");
+      const refreshed = await fetch("/api/deployments/render/domains?serviceId=" + encodeURIComponent(selectedService.id), { cache: "no-store" });
+      const data = await refreshed.json() as { deploymentUrl?: string | null; domains?: CustomDomain[]; message?: string };
+      if (!refreshed.ok) throw new Error(data.message || "Could not refresh domain status.");
+      setDeploymentUrl(data.deploymentUrl ?? ""); setDomains(data.domains ?? []);
+      void hapticNotice(true);
+    } catch (cause) { setDomainError(cause instanceof Error ? cause.message : "DNS verification could not be requested."); void hapticNotice(false); }
+    finally { setDomainBusy(false); }
+  }
+
+  async function refreshCustomDomains() {
+    if (!selectedService || domainsLoading || domainBusy) return;
+    setDomainsLoading(true); setDomainError("");
+    try {
+      const response = await fetch("/api/deployments/render/domains?serviceId=" + encodeURIComponent(selectedService.id), { cache: "no-store" });
+      const data = await response.json() as { deploymentUrl?: string | null; domains?: CustomDomain[]; message?: string };
+      if (!response.ok) throw new Error(data.message || "Could not refresh domain status.");
+      setDeploymentUrl(data.deploymentUrl ?? ""); setDomains(data.domains ?? []);
+    } catch (cause) { setDomainError(cause instanceof Error ? cause.message : "Domain status could not be refreshed."); }
+    finally { setDomainsLoading(false); }
+  }
+
   async function connectNeonDatabase() {
     if (!selectedService || neonBusy || !neonProjectId || !neonBranchId || !neonDatabaseName || !neonRoleName) return;
     const message = "Connect the selected Neon database to " + selectedService.name + " using a " + (neonPooled ? "pooled" : "direct") + " connection and set DATABASE_URL? " + (neonUrlExists ? "This will REPLACE the existing DATABASE_URL value." : "A new DATABASE_URL variable will be created.") + " Other variables will not be removed. Render will not deploy automatically; you can deploy after the connection is saved.";
@@ -517,7 +549,7 @@ export function DeploymentWorkplace() {
                       <p className="text-[10px] leading-5 text-slate-500">This is the service URL reported by Render, not a fabricated preview link. A new deploy normally updates the same service URL.</p>
                     </div>
                   </Panel>
-                  <Panel title="Custom domains" subtitle="Add a domain you own and connect it to this Render service">
+                  <Panel title="Custom domains" subtitle="Add, verify and manage domains you own for this Render service" action={<button type="button" onClick={() => void refreshCustomDomains()} disabled={domainsLoading || domainBusy} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{domainsLoading ? "Refreshing…" : "Refresh status"}</button>}>
                     <div className="space-y-4 p-5 sm:p-6">
                       {["web_service", "static_site"].includes(selectedService?.type ?? "") ? (
                         <>
@@ -527,8 +559,11 @@ export function DeploymentWorkplace() {
                           </form>
                           {domainsLoading ? <p className="text-xs text-slate-500">Loading domains…</p> : domains.length ? <div className="divide-y divide-white/[0.07] rounded-xl border border-white/[0.08]">
                             {domains.map((domain) => <div key={domain.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                              <div className="min-w-0"><p className="break-all text-xs font-semibold text-slate-200">{domain.name}</p><p className="mt-1 text-[10px] text-slate-600">{domain.domainType ?? "Custom domain"}{domain.redirectForName ? " · redirects to " + domain.redirectForName : ""}</p></div>
-                              <span className={"rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-wider " + (domain.verificationStatus === "verified" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-amber-400/20 bg-amber-400/10 text-amber-200")}>{domain.verificationStatus ?? "pending"}</span>
+                              <div className="min-w-0 flex-1"><p className="break-all text-xs font-semibold text-slate-200">{domain.name}</p><p className="mt-1 text-[10px] text-slate-600">{domain.domainType ?? "Custom domain"}{domain.redirectForName ? " · redirects to " + domain.redirectForName : ""}</p></div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={"rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-wider " + (domain.verificationStatus === "verified" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-amber-400/20 bg-amber-400/10 text-amber-200")}>{domain.verificationStatus === "verified" ? "DNS verified" : "DNS unverified"}</span>
+                                {domain.verificationStatus !== "verified" ? <button type="button" onClick={() => void verifyCustomDomain(domain)} disabled={domainBusy} className="min-h-8 rounded-lg border border-[#7c6cff]/30 px-3 text-[10px] font-semibold text-[#c1baff] disabled:opacity-40">{domainBusy ? "Checking…" : "Verify DNS"}</button> : <span className="text-[9px] text-emerald-300">TLS managed by Render</span>}
+                              </div>
                             </div>)}
                           </div> : <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-slate-500">No custom domains have been added to this service.</p>}
                           <div className="rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4">

@@ -34,7 +34,10 @@ async function renderRequest(token: string, path: string, init?: RequestInit) {
     if (response.status === 429) throw new Error("RENDER_RATE_LIMITED");
     throw new Error("RENDER_HTTP_" + response.status);
   }
-  return response.json() as Promise<unknown>;
+  const text = await response.text();
+  if (!text) return null;
+  try { return JSON.parse(text) as unknown; }
+  catch { throw new Error("RENDER_INVALID_RESPONSE"); }
 }
 
 function unwrapServices(value: unknown): RenderService[] {
@@ -97,15 +100,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const denied = await auth();
   if (denied) return denied;
-  let body: { serviceId?: unknown; domain?: unknown };
+  let body: { serviceId?: unknown; domain?: unknown; domainId?: unknown; action?: unknown };
   try { body = await request.json() as typeof body; }
   catch { return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 }); }
   if (typeof body.serviceId !== "string" || !/^srv-[a-zA-Z0-9]+$/.test(body.serviceId) ||
-      typeof body.domain !== "string" || body.domain.length > 300) {
-    return NextResponse.json({ error: "INVALID_REQUEST", message: "Select a service and enter a domain name." }, { status: 400 });
+      (body.action === "verify" ? (typeof body.domainId !== "string" || body.domainId.length > 300) : (typeof body.domain !== "string" || body.domain.length > 300))) {
+    return NextResponse.json({ error: "INVALID_REQUEST", message: "Select a service and provide a valid domain." }, { status: 400 });
   }
   try {
-    const domain = normalizeDomain(body.domain);
     const token = await getRenderApiToken();
     const services = unwrapServices(await renderRequest(token, "/services?limit=100"));
     const service = services.find((item) => item.id === body.serviceId);
@@ -114,6 +116,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "DOMAINS_NOT_SUPPORTED", message: "Only web services and static sites support custom domains." }, { status: 400 });
     }
     const existing = unwrapDomains(await renderRequest(token, "/services/" + encodeURIComponent(service.id) + "/custom-domains?limit=100"));
+    if (body.action === "verify") {
+      const selectedDomain = existing.find((item) => item.id === body.domainId || item.name === body.domainId);
+      if (!selectedDomain) return NextResponse.json({ error: "DOMAIN_NOT_FOUND", message: "That domain is not attached to the selected service." }, { status: 404 });
+      await renderRequest(token, "/services/" + encodeURIComponent(service.id) + "/custom-domains/" + encodeURIComponent(selectedDomain.id || selectedDomain.name) + "/verify", { method: "POST" });
+      return NextResponse.json({ success: true, message: "DNS verification requested from Render. Refresh the domain list in a moment.", domain: selectedDomain }, { status: 202, headers: { "Cache-Control": "no-store" } });
+    }
+    const domain = normalizeDomain(body.domain as string);
     if (existing.some((item) => item.name.toLowerCase() === domain.toLowerCase())) {
       return NextResponse.json({ success: true, duplicate: true, domain: existing.find((item) => item.name.toLowerCase() === domain.toLowerCase()) }, { headers: { "Cache-Control": "no-store" } });
     }
