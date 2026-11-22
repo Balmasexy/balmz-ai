@@ -163,7 +163,7 @@ function decodeXml(value: string): string {
 }
 
 function tag(block: string, name: string): string {
-  const match = block.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
+  const match = block.match(new RegExp(`<${name}>([\s\S]*?)</${name}>`));
   return match ? decodeXml(match[1]) : "";
 }
 
@@ -210,7 +210,7 @@ export async function listR2WorkspaceObjects(): Promise<{ objects: StoredObject[
   if (!response.ok) throw new Error(`R2_LIST_FAILED_${response.status}`);
   const xml = await response.text();
   const objects: StoredObject[] = [];
-  for (const match of xml.matchAll(/<Contents>([\\s\\S]*?)<\\/Contents>/g)) {
+  for (const match of xml.matchAll(/<Contents>([\\s\\S]*?)<\/Contents>/g)) {
     const block = match[1];
     const key = tag(block, "Key");
     if (!key.startsWith("projects/")) continue;
