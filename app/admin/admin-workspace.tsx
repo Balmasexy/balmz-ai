@@ -578,7 +578,7 @@ function TerminalSection({ email }: { email: string }) {
                 <p>Connection <span className="mt-1 block text-slate-200">{capacitorStatus.connectionType}</span></p>
                 <p>App version <span className="mt-1 block text-slate-200">{capacitorStatus.version || "Web session / not reported"}</span></p>
               </div>
-              <p className="mt-3 text-[10px] leading-5 text-slate-500">Android ID: com.balmz.ai · Production origin: bal mz-ai.onrender.com</p>
+              <p className="mt-3 text-[10px] leading-5 text-slate-500">Android ID: com.balmz.ai · Production origin: balmz-ai.onrender.com</p>
               <button type="button" onClick={() => setCommand("capacitor")} className="mt-2 min-h-9 w-full rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-slate-300 hover:border-[var(--balmz-orange)]/30 hover:text-white">View Capacitor diagnostics</button>
             </div>
           </div>
