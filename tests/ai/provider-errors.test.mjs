@@ -20,5 +20,5 @@ test("provider diagnostics expose only allowlisted metadata and never raw provid
 test("OpenAI streaming route logs request metadata without credentials or prompt content", () => {
   assert.match(route, /inspectProviderFailure/);
   assert.match(route, /providerFailureMessage/);
-  assert.match(route, /x-request-id/);
+  assert.match(route, /providerErrorCode: details\.errorCode/);
 });
