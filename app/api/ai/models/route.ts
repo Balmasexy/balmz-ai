@@ -36,8 +36,7 @@ export async function GET(request: Request) {
     connectionsAvailable = false;
   }
 
-  const hasConnectedOpenAI = models.some((item) => item.provider === AI_PROVIDERS.openai.label);
-  if (process.env.OPENAI_API_KEY && !hasConnectedOpenAI) {
+  if (process.env.OPENAI_API_KEY) {
     models.unshift(
       { value: "env:gpt-6.2-sol", label: "GPT-6.2 Sol · OpenAI", provider: AI_PROVIDERS.openai.label, modelId: "gpt-6.2-sol" },
       { value: "env:gpt-6.2-astra", label: "GPT-6.2 Astra · OpenAI", provider: AI_PROVIDERS.openai.label, modelId: "gpt-6.2-astra" },
