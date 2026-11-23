@@ -140,8 +140,11 @@ export function AIConnectionsSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerId, displayName, modelId, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}), ...(endpointUrl.trim() ? { endpointUrl: endpointUrl.trim() } : {}) }),
       });
-      const result = await response.json() as { connection?: Connection; message?: string };
-      if (!response.ok || !result.connection) throw new Error(result.message || "Provider connection failed.");
+      const result = await response.json() as { connection?: Connection; message?: string; error?: string };
+      if (!response.ok || !result.connection) {
+        const diagnostic = result.error ? ` [${result.error}]` : "";
+        throw new Error(`${result.message || "Provider connection failed."}${diagnostic}`);
+      }
       setConnections((current) => [...current, result.connection!].sort((a, b) => a.providerName.localeCompare(b.providerName)));
       setApiKey("");
       const credentialSource = apiKey.trim() ? "the key supplied for this connection" : "the server-side/saved credential";
