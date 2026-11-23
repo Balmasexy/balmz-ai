@@ -158,7 +158,7 @@ function safeError(code: string, status: number, message: string) {
   return NextResponse.json({ error: code, message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
+export async function POST(request: Request): Promise<Response> {
   const externalAuth = await resolveWorldWalletAIExternalAuth(request);
   if (externalAuth.error) {
     return safeError(externalAuth.error.code, externalAuth.error.status, externalAuth.error.message);
@@ -426,6 +426,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const legacyModels: Record<string, string> = {
+    "env:gpt-6.2-sol": "gpt-6.2-sol",
+    "env:gpt-6.2-astra": "gpt-6.2-astra",
     "env:gpt-4.1-mini": "gpt-4.1-mini",
     "env:gpt-4.1": "gpt-4.1",
     "gpt-4.1-mini": "gpt-4.1-mini",
@@ -448,7 +450,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       body: JSON.stringify({
         model,
         messages: toOpenAIChatMessages(providerMessages),
-        max_tokens: 1800,
+        max_completion_tokens: 1800,
+        stream: true,
       }),
       signal: AbortSignal.timeout(45_000),
       cache: "no-store",
@@ -466,22 +469,75 @@ export async function POST(request: Request): Promise<NextResponse> {
     return safeError("AI_PROVIDER_ERROR", 502, "The AI provider returned an error. Please try again later.");
   }
 
-  try {
-    const result = await providerResponse.json() as { choices?: Array<{ message?: { content?: string | null } }> };
-    const reply = result.choices?.[0]?.message?.content?.trim();
-    if (!reply) return safeError("EMPTY_AI_RESPONSE", 502, "The AI provider returned an empty response.");
-    if (turnIdentity && historySaved) {
-      historySaved = await saveAssistantTurn({
-        userId: userId,
-        identity: turnIdentity,
-        requestId,
-        reply,
-        model,
-        providerId: "openai",
-      });
-    }
-    return NextResponse.json({ reply, model, provider: "openai", historySaved }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return safeError("INVALID_AI_RESPONSE", 502, "The AI provider response could not be read.");
-  }
+  if (!providerResponse.body) return safeError("INVALID_AI_RESPONSE", 502, "The AI provider returned an empty stream.");
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const reader = providerResponse.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let reply = "";
+      let failed = false;
+      const emit = (event: Record<string, unknown>) => controller.enqueue(encoder.encode("data: " + JSON.stringify(event) + "\n\n"));
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const raw = line.slice(5).trim();
+            if (!raw || raw === "[DONE]") continue;
+            let event: { choices?: Array<{ delta?: { content?: string | Array<{ type?: string; text?: string }> } }> };
+            try { event = JSON.parse(raw); } catch { continue; }
+            const content = event.choices?.[0]?.delta?.content;
+            const delta = typeof content === "string"
+              ? content
+              : Array.isArray(content) ? content.map((part) => part.text ?? "").join("") : "";
+            if (delta) {
+              reply += delta;
+              emit({ type: "delta", delta });
+            }
+          }
+        }
+        if (buffer.startsWith("data:")) {
+          const raw = buffer.slice(5).trim();
+          if (raw && raw !== "[DONE]") {
+            try {
+              const event = JSON.parse(raw) as { choices?: Array<{ delta?: { content?: string } }> };
+              const delta = event.choices?.[0]?.delta?.content ?? "";
+              if (delta) { reply += delta; emit({ type: "delta", delta }); }
+            } catch { /* Ignore an incomplete final SSE frame. */ }
+          }
+        }
+        if (!reply.trim()) {
+          emit({ type: "error", message: "The AI provider returned an empty response." });
+          failed = true;
+        } else {
+          if (turnIdentity && historySaved) {
+            historySaved = await saveAssistantTurn({
+              userId, identity: turnIdentity, requestId, reply, model, providerId: "openai",
+            });
+          }
+          emit({ type: "done", model, provider: "openai", historySaved });
+        }
+      } catch {
+        emit({ type: "error", message: "The streamed AI response was interrupted. Please retry." });
+        failed = true;
+      } finally {
+        if (failed) await reader.cancel().catch(() => undefined);
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
