@@ -276,6 +276,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "CONNECTION_ALREADY_EXISTS", message: "A connection with this provider and name already exists." }, { status: 409 });
     }
     const code = error instanceof Error ? error.message : "AI_CONNECTION_FAILED";
+    // Safe provider diagnostics: never log credentials, request bodies, or upstream response text.
+    console.warn("[ai-provider-connection]", JSON.stringify({
+      operation: body.action === "list-models" ? "list-models" : "connect-test",
+      providerId: isAIProviderId(body.providerId) ? body.providerId : "unknown",
+      modelId: typeof body.modelId === "string" ? body.modelId.slice(0, 180) : null,
+      errorCode: code.slice(0, 80),
+      timestamp: new Date().toISOString(),
+    }));
     const rateLimited = code === "AI_PROVIDER_RATE_LIMITED";
     const retryIn = retryAfterSeconds(error);
     const status = rateLimited ? 429 : code.startsWith("AI_PROVIDER_") ? 502 : 503;
