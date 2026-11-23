@@ -478,13 +478,13 @@ export async function POST(request: Request): Promise<Response> {
       let buffer = "";
       let reply = "";
       let failed = false;
-      const emit = (event: Record<string, unknown>) => controller.enqueue(encoder.encode("data: " + JSON.stringify(event) + "\\n\\n"));
+      const emit = (event: Record<string, unknown>) => controller.enqueue(encoder.encode("data: " + JSON.stringify(event) + "\n\n"));
       try {
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\\n");
+          const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
           for (const line of lines) {
             if (!line.startsWith("data:")) continue;
