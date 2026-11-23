@@ -14,7 +14,7 @@ type ImageAttachment = {
   dataBase64: string;
   previewUrl: string;
 };
-type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[]; hasAttachments?: boolean; status?: "queued" | "completed" | "failed"; requestId?: string | null; model?: string | null };
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string; images?: ImageAttachment[]; media?: Array<{ url: string; kind: "image" | "video" }>; hasAttachments?: boolean; status?: "queued" | "completed" | "failed"; requestId?: string | null; model?: string | null };
 type Conversation = { id: string; title: string; updatedAt: string; messages: Message[] };
 type PendingChatMessage = { conversationId: string; messageId: string; model: string; requestId: string };
 type ModelOption = { value: string; label: string; provider: string; modelId: string };
@@ -167,7 +167,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       const textOnly = conversations.map((conversation) => ({
         ...conversation,
         messages: conversation.messages.map((message) => ({
-          id: message.id, role: message.role, content: message.content, createdAt: message.createdAt,
+          id: message.id, role: message.role, content: message.content, createdAt: message.createdAt, media: message.media,
         })),
       }));
       localStorage.setItem(conversationStorageKey, JSON.stringify(textOnly));
@@ -474,7 +474,10 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         : "An active BALMZ AI plan is required before sending AI requests. Choose a plan to continue.");
       return;
     }
-    if (!model || !modelOptions.some((option) => option.value === model)) {
+    const wantsVideo = /\\b(create|generate|make|render|produce)\\b.{0,60}\\b(video|clip|animation|film)\\b/i.test(text);
+    const wantsImage = /\\b(create|generate|draw|make|design|render|produce)\\b.{0,60}\\b(image|picture|illustration|artwork|logo|photo)\\b/i.test(text);
+    const mediaMode = wantsVideo ? (attachments.length ? "image-to-video" : "text-to-video") : wantsImage ? "image" : null;
+    if (!mediaMode && (!model || !modelOptions.some((option) => option.value === model))) {
       setNotice(modelsMessage || "No AI model is connected yet. Ask the Super Admin to connect and test a provider in AI connections.");
       return;
     }
@@ -496,16 +499,71 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     };
     const next = [...conversation.messages, userMessage];
     updateMessages(conversation.id, next);
+    setPrompt("");
+    setSelectedImages([]);
+    setNotice("");
+    setMobileSidebar(false);
+    if (mediaMode) {
+      const assistantId = crypto.randomUUID();
+      updateMessages(conversation.id, [...next, {
+        id: assistantId, role: "assistant", content: mediaMode === "image" ? "Creating your image…" : "Creating your video…",
+        createdAt: new Date().toISOString(),
+      }]);
+      setBusy(true);
+      try {
+        const requestId = crypto.randomUUID();
+        const response = await fetch("/api/media/runway", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: mediaMode,
+            prompt: text,
+            ratio: "landscape",
+            duration: 5,
+            requestId,
+            ...(mediaMode === "image-to-video" && attachments[0]
+              ? { imageInput: "data:" + attachments[0].mimeType + ";base64," + attachments[0].dataBase64 }
+              : {}),
+          }),
+        });
+        const initial = await response.json().catch(() => ({})) as { message?: string; job?: { jobId?: string; status?: string; output?: string[]; error?: string } };
+        if (!response.ok || !initial.job?.jobId) throw new Error(initial.message || "The media generation request could not be started.");
+        let job = initial.job;
+        for (let attempt = 0; attempt < 100 && job.status !== "SUCCEEDED" && job.status !== "FAILED" && job.status !== "CANCELLED"; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 3000));
+          const poll = await fetch("/api/media/runway?jobId=" + encodeURIComponent(job.jobId!), { cache: "no-store" });
+          const result = await poll.json().catch(() => ({})) as { message?: string; job?: typeof job };
+          if (!poll.ok || !result.job) throw new Error(result.message || "Could not check the media generation job.");
+          job = result.job;
+          if (job.status === "RUNNING") {
+            const current = conversationMessagesRef.current.get(conversation.id) ?? [];
+            updateMessages(conversation.id, current.map((message) => message.id === assistantId
+              ? { ...message, content: mediaMode === "image" ? "Creating your image…" : "Creating your video…" }
+              : message));
+          }
+        }
+        if (job.status !== "SUCCEEDED" || !job.output?.length) throw new Error(job.error || "Runway could not finish this generation. Please try again.");
+        const media = job.output.map((url) => ({ url, kind: mediaMode === "image" ? "image" as const : "video" as const }));
+        const current = conversationMessagesRef.current.get(conversation.id) ?? [];
+        updateMessages(conversation.id, current.map((message) => message.id === assistantId
+          ? { ...message, content: mediaMode === "image" ? "Your image is ready." : "Your video is ready.", media }
+          : message));
+      } catch (cause) {
+        const current = conversationMessagesRef.current.get(conversation.id) ?? [];
+        updateMessages(conversation.id, current.map((message) => message.id === assistantId
+          ? { ...message, content: cause instanceof Error ? cause.message : "Media generation failed." }
+          : message));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     pendingMessagesRef.current.push({
       conversationId: conversation.id,
       messageId: userMessage.id,
       model,
       requestId: crypto.randomUUID(),
     });
-    setPrompt("");
-    setSelectedImages([]);
-    setNotice("");
-    setMobileSidebar(false);
     void processPendingMessages();
   }
 
@@ -872,6 +930,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               {message.role === "assistant" ? <Image src="/balmz-logo.svg" alt="BALMZ AI" width={32} height={32} className="h-8 w-8 shrink-0 rounded-xl object-contain" /> : null}
               <div className={message.role === "user" ? "max-w-[88%] rounded-3xl bg-[#182232] px-5 py-3.5 text-sm leading-7 text-slate-100" : "min-w-0 flex-1 pt-1 text-sm leading-7 text-slate-200"}>
                 <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                {message.media?.length ? <div className="mt-3 grid gap-3">{message.media.map((item) => item.kind === "image"
+                  ? <img key={item.url} src={item.url} alt="Generated by BALMZ AI" className="max-h-[560px] w-full rounded-2xl border border-white/10 object-contain" />
+                  : <video key={item.url} src={item.url} controls playsInline className="max-h-[560px] w-full rounded-2xl border border-white/10" />)}</div> : null}
                 {message.images?.length ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{message.images.map((image) => <img key={image.id} src={image.previewUrl} alt={image.name} className="max-h-52 w-full rounded-xl border border-white/10 object-cover" />)}</div> : null}
                 {!message.images?.length && message.hasAttachments ? <p className="mt-2 text-[10px] leading-5 text-slate-500">Photo attachment was not retained in permanent chat history. Reattach the image to send it again.</p> : null}
                 {message.role === "assistant" ? <button onClick={() => void copyMessage(message)} className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-300"><Icon name="copy" /> {copied === message.id ? "Copied" : "Copy"}</button> : null}
