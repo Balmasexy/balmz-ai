@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { RunwayMediaStudio } from "./runway-media-studio";
 
 type LibraryImage = {
   id: string;
@@ -311,7 +312,9 @@ export function ImagesWorkspace({ userName }: { userName: string }) {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#212121] pb-16 text-[#f5f5f5]">
+    <>
+      <RunwayMediaStudio />
+      <main className="min-h-[100dvh] bg-[#212121] pb-16 text-[#f5f5f5]">
       <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-white/[0.07] bg-[#212121]/95 px-4 backdrop-blur-xl sm:px-7">
         <Link href="/dashboard" aria-label="Back to chat" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08] text-2xl text-white transition hover:bg-white/[0.14]">←</Link>
         <div className="text-center">
@@ -416,6 +419,7 @@ export function ImagesWorkspace({ userName }: { userName: string }) {
           </>
         )}
       </div>
-    </main>
+      </main>
+    </>
   );
 }
