@@ -6,7 +6,7 @@ const helper = await readFile(new URL("../../lib/ai/provider-errors.ts", import.
 const route = await readFile(new URL("../../app/api/ai/chat/route.ts", import.meta.url), "utf8");
 
 test("provider error diagnostics classify quota separately from temporary rate limits", () => {
-  assert.match(helper, /insufficient[_-]?quota/);
+  assert.match(helper, /quotaSignal/);
   assert.match(helper, /AI_PROVIDER_QUOTA_EXCEEDED/);
   assert.match(helper, /AI_PROVIDER_RATE_LIMITED/);
 });
