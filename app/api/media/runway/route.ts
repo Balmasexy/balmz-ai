@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     ? body.requestId
     : randomUUID();
 
-  if (!["image", "text-to-video", "image-to-video"].includes(String(mode))) {
+  if (mode !== "image" && mode !== "text-to-video" && mode !== "image-to-video") {
     return jsonError("INVALID_MEDIA_MODE", "Choose image, text-to-video or image-to-video generation.", 400);
   }
   if (!prompt || prompt.length > 1000) {
