@@ -426,6 +426,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const legacyModels: Record<string, string> = {
+    "env:gpt-6.2-sol": "gpt-6.2-sol",
+    "env:gpt-6.2-astra": "gpt-6.2-astra",
     "env:gpt-4.1-mini": "gpt-4.1-mini",
     "env:gpt-4.1": "gpt-4.1",
     "gpt-4.1-mini": "gpt-4.1-mini",
