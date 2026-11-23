@@ -38,7 +38,9 @@ export async function GET(request: Request) {
 
   const hasConnectedOpenAI = models.some((item) => item.provider === AI_PROVIDERS.openai.label);
   if (process.env.OPENAI_API_KEY && !hasConnectedOpenAI) {
-    models.push(
+    models.unshift(
+      { value: "env:gpt-6.2-sol", label: "GPT-6.2 Sol · OpenAI", provider: AI_PROVIDERS.openai.label, modelId: "gpt-6.2-sol" },
+      { value: "env:gpt-6.2-astra", label: "GPT-6.2 Astra · OpenAI", provider: AI_PROVIDERS.openai.label, modelId: "gpt-6.2-astra" },
       { value: "env:gpt-4.1-mini", label: "GPT-4.1 mini · OpenAI server key", provider: AI_PROVIDERS.openai.label, modelId: "gpt-4.1-mini" },
       { value: "env:gpt-4.1", label: "GPT-4.1 · OpenAI server key", provider: AI_PROVIDERS.openai.label, modelId: "gpt-4.1" },
     );
@@ -57,7 +59,7 @@ export async function GET(request: Request) {
 
   const backendGemini = await getWorldWalletGeminiBackendStatus(userId);
   if (backendGemini.configured && backendGemini.model && !models.some((item) => item.value === "env:world-wallet-gemini")) {
-    models.unshift({
+    models.push({
       value: "env:world-wallet-gemini",
       label: backendGemini.model + " · Google Gemini (World Wallet backend)",
       provider: AI_PROVIDERS.google.label,
