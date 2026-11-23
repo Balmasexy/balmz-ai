@@ -450,7 +450,7 @@ export async function POST(request: Request): Promise<Response> {
       body: JSON.stringify({
         model,
         messages: toOpenAIChatMessages(providerMessages),
-        max_tokens: 1800,
+        max_completion_tokens: 1800,
         stream: true,
       }),
       signal: AbortSignal.timeout(45_000),
