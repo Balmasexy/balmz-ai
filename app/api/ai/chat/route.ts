@@ -7,6 +7,7 @@ import { findAIProviderConnection, sendAIProviderMessage, sendAIProviderMessages
 import { getActiveComplimentaryAccess } from "@/lib/family-access";
 import { getDbPool } from "@/lib/db";
 import { isAdminUser } from "@/lib/admin";
+import { inspectProviderFailure, providerFailureMessage } from "@/lib/ai/provider-errors";
 import { buildWorldWalletAIContextMessage, resolveWorldWalletAIExternalAuth, sendWorldWalletGeminiBackendMessage } from "@/lib/integrations/world-wallet-ai-auth";
 
 export const runtime = "nodejs";
@@ -463,10 +464,33 @@ export async function POST(request: Request): Promise<Response> {
   if (!providerResponse.ok) {
     const providerStatus = providerResponse.status;
     if (providerStatus === 401 || providerStatus === 403) {
+      const requestId = providerResponse.headers.get("x-request-id");
+      console.warn("[BALMZ AI] OpenAI authentication rejected", {
+        provider: "openai",
+        status: providerStatus,
+        requestId: requestId && /^[a-zA-Z0-9_.:-]{1,100}$/.test(requestId) ? requestId : null,
+      });
       return safeError("AI_PROVIDER_AUTH_FAILED", 503, "The server-side OpenAI credential is not accepted. Ask the administrator to check provider configuration.");
     }
-    if (providerStatus === 429) return safeError("AI_PROVIDER_RATE_LIMITED", 503, "The AI provider is temporarily rate-limited. Please try again later.");
-    return safeError("AI_PROVIDER_ERROR", 502, "The AI provider returned an error. Please try again later.");
+    const details = await inspectProviderFailure(providerResponse);
+    console.warn("[BALMZ AI] OpenAI request rejected", {
+      provider: "openai",
+      status: providerStatus,
+      classification: details.classification,
+      providerErrorCode: details.errorCode,
+      providerErrorType: details.errorType,
+      requestId: details.requestId,
+      retryAfterSeconds: details.retryAfterSeconds,
+    });
+    const failure = providerFailureMessage(details);
+    return NextResponse.json({
+      error: failure.code,
+      message: failure.message,
+      ...(details.retryAfterSeconds ? { retryAfterSeconds: details.retryAfterSeconds } : {}),
+    }, {
+      status: providerStatus === 429 ? 503 : 502,
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 
   if (!providerResponse.body) return safeError("INVALID_AI_RESPONSE", 502, "The AI provider returned an empty stream.");
