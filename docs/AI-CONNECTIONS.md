@@ -44,9 +44,15 @@ Campaign Studio is available at `/dashboard/campaign-studio`. It accepts the bri
 
 Campaign generation and optional image generation are each metered against the user's server-side `ai_messages` allowance. OpenAI API usage may be billed separately. The generator instructs the model not to invent product features, pricing, performance statistics, testimonials, guarantees or legal claims.
 
-## Video generation status
+## Runway image and video generation
 
-Video generation is not included in this release. OpenAI discontinued the Sora API on 24 September 2026; BALMZ AI does not call that retired endpoint. A separate supported video provider and its credentials are required before adding video generation or resumable long-form video jobs.
+The authenticated Images workspace at `/dashboard/images` includes Runway media generation. Configure the project API key as the server-only Render environment variable `RUNWAYML_API_SECRET`; do not put it in browser code, `NEXT_PUBLIC_*` variables, source control or user prompts. The credential is used only by the server-side Runway SDK.
+
+The studio supports text-to-image with Runway `gen4_image`, text-to-video with `gen4.5`, and image-to-video with `gen4.5`. Generation is asynchronous: BALMZ AI stores the user's job metadata in the existing account-scoped `public.balmz_notes` table and polls the Runway task status. No schema migration is required. Each generation reserves one `ai_messages` allowance unit; Runway API credits are billed separately by the Runway project. Project permissions, available model access and an available Runway API credit balance are required.
+
+Runway output URLs are temporary and expire within approximately 24–48 hours. The studio displays the generated media and offers an open/save action; users should download completed files promptly. BALMZ AI does not claim that temporary provider URLs are permanent media storage.
+
+Video generation is provided by Runway rather than the retired Sora API endpoint.
 
 ## Credential protection and usage
 
