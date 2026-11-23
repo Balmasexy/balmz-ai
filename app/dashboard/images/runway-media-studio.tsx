@@ -202,7 +202,7 @@ export function RunwayMediaStudio() {
           <form onSubmit={generate} className="space-y-3 rounded-2xl border border-white/[0.08] bg-[#080f19]/80 p-4 sm:p-5">
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-slate-300">Create</span>
-              <select value={mode} onChange={(event) => { setMode(event.target.value as MediaMode); setError(""); }} className="w-full rounded-xl border border-white/10 bg-[#111a27] px-3 py-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">
+              <select value={mode} onChange={(event) => { const nextMode = event.target.value as MediaMode; setMode(nextMode); if (nextMode !== "image" && ratio === "square") setRatio("landscape"); setError(""); }} className="w-full rounded-xl border border-white/10 bg-[#111a27] px-3 py-3 text-sm text-white outline-none focus:border-[var(--balmz-orange)]/50">
                 <option value="image">Image from prompt</option>
                 <option value="text-to-video">Video from prompt</option>
                 <option value="image-to-video">Animate an image</option>
@@ -251,7 +251,7 @@ export function RunwayMediaStudio() {
             <button type="submit" disabled={!configured || generating || !prompt.trim()} className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--balmz-orange)] px-4 py-3 text-sm font-bold text-[#17100a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40">
               {generating ? "Submitting to Runway…" : mode === "image" ? "Generate image" : "Generate video"}
             </button>
-            <p className="text-[10px] leading-4 text-slate-600">Each generation uses one BALMZ AI AI-message allowance and may also consume Runway project credits. Provider pricing is separate.</p>
+            <p className="text-[10px] leading-4 text-slate-600">Each generation uses one BALMZ AI message allowance and may also consume Runway project credits. Provider pricing is separate.</p>
           </form>
         </div>
       </div>
