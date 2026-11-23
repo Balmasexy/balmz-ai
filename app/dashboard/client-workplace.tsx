@@ -474,8 +474,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         : "An active BALMZ AI plan is required before sending AI requests. Choose a plan to continue.");
       return;
     }
-    const wantsVideo = /\\b(create|generate|make|render|produce)\\b.{0,60}\\b(video|clip|animation|film)\\b/i.test(text);
-    const wantsImage = /\\b(create|generate|draw|make|design|render|produce)\\b.{0,60}\\b(image|picture|illustration|artwork|logo|photo)\\b/i.test(text);
+    const wantsVideo = /\b(create|generate|make|render|produce)\b.{0,60}\b(video|clip|animation|film)\b/i.test(text);
+    const wantsImage = /\b(create|generate|draw|make|design|render|produce)\b.{0,60}\b(image|picture|illustration|artwork|logo|photo)\b/i.test(text);
     const mediaMode = wantsVideo ? (attachments.length ? "image-to-video" : "text-to-video") : wantsImage ? "image" : null;
     if (!mediaMode && (!model || !modelOptions.some((option) => option.value === model))) {
       setNotice(modelsMessage || "No AI model is connected yet. Ask the Super Admin to connect and test a provider in AI connections.");
@@ -648,7 +648,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           let buffer = "";
           let streamError = "";
           const consumeFrame = (frame: string) => {
-            for (const line of frame.split("\\n")) {
+            for (const line of frame.split("\n")) {
               if (!line.startsWith("data:")) continue;
               const raw = line.slice(5).trim();
               if (!raw) continue;
@@ -673,7 +673,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
               const { value, done } = await reader.read();
               if (done) break;
               buffer += decoder.decode(value, { stream: true });
-              const frames = buffer.split("\\n\\n");
+              const frames = buffer.split("\n\n");
               buffer = frames.pop() ?? "";
               for (const frame of frames) consumeFrame(frame);
             }
