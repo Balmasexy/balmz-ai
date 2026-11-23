@@ -9,6 +9,16 @@ test("OpenAI tool definitions allow Responses built-ins but not unsafe host tool
   assert.deepEqual(tools.map((item) => item.type), ["web_search", "code_interpreter", "image_generation"]);
 });
 
+test("OpenAI image generation is forced when explicitly selected", () => {
+  assert.ok(capability, "tool capability registry is not implemented");
+  assert.deepEqual(capability.getOpenAIToolChoice(["image_generation"]), { type: "image_generation" });
+  assert.deepEqual(capability.getOpenAIToolChoice(["web_search", "image_generation"]), { type: "image_generation" });
+  assert.equal(capability.getOpenAIToolChoice(["web_search"]), "auto");
+  assert.deepEqual(capability.buildOpenAIResponseTools(["image_generation"]), [
+    { type: "image_generation", action: "generate" },
+  ]);
+});
+
 test("OpenAI file search requires at least one user-owned vector store", () => {
   assert.ok(capability, "tool capability registry is not implemented");
   assert.equal(capability.buildOpenAIResponseTools(["file_search"]).length, 0);

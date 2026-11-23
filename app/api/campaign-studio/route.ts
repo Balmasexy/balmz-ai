@@ -280,7 +280,7 @@ export async function POST(request: Request) {
       const rawImage = await callOpenAI(configuration.apiKey, {
         model: configuration.model,
         input: "Generate a campaign key visual for this brief. Follow this image prompt precisely. Do not add logos, brand marks or visible text unless explicitly described. Prompt: " + result.imagePrompt,
-        tools: [{ type: "image_generation", model: IMAGE_MODEL, size: "1024x1024", quality: "medium", output_format: "png" }],
+        tools: [{ type: "image_generation", model: IMAGE_MODEL, action: "generate", size: "1024x1024", quality: "medium", output_format: "png" }],
         tool_choice: { type: "image_generation" },
         max_output_tokens: 1200,
         store: false,
