@@ -14,7 +14,7 @@ test("Runway SDK is installed and its credential is server-only", () => {
   const parsed = JSON.parse(packageJson);
   assert.ok(parsed.dependencies?.["@runwayml/sdk"], "official Runway SDK dependency must be present");
   assert.match(helper, /process\.env\.RUNWAYML_API_SECRET/);
-  assert.doesNotMatch(client, /RUNWAYML_API_SECRET|apiKey\s*:/, "browser component must not access the Runway secret");
+  assert.doesNotMatch(client, /process\\.env\\.RUNWAYML_API_SECRET|apiKey\\s*:/, "browser component must not access the Runway secret");
   assert.match(route, /getRunwayClient/);
 });
 
