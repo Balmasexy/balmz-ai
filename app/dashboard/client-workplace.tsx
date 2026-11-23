@@ -555,8 +555,8 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           break;
         }
 
-        const payload = await response.json().catch(() => ({})) as { message?: string; error?: string; reply?: string; historySaved?: boolean };
-        if (!response.ok || !payload.reply) {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({})) as { message?: string };
           const message = payload.message || (response.status === 402
             ? "Your plan does not have an available ai_messages allowance."
             : response.status === 503
@@ -568,24 +568,94 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
           break;
         }
 
-        const latestMessages = conversationMessagesRef.current.get(pending.conversationId) ?? [];
-        const latestIndex = latestMessages.findIndex((message) => message.id === pending.messageId);
-        if (latestIndex >= 0) {
-          const assistantMessage: Message = {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: payload.reply,
-            createdAt: new Date().toISOString(),
+        let historySaved: boolean | undefined;
+        let reply = "";
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("text/event-stream") && response.body) {
+          const latestMessages = conversationMessagesRef.current.get(pending.conversationId) ?? [];
+          const latestIndex = latestMessages.findIndex((message) => message.id === pending.messageId);
+          const assistantId = crypto.randomUUID();
+          if (latestIndex >= 0) {
+            const placeholder: Message = {
+              id: assistantId, role: "assistant", content: "", createdAt: new Date().toISOString(),
+            };
+            updateMessages(pending.conversationId, [
+              ...latestMessages.slice(0, latestIndex + 1),
+              placeholder,
+              ...latestMessages.slice(latestIndex + 1),
+            ]);
+          }
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let streamError = "";
+          const consumeFrame = (frame: string) => {
+            for (const line of frame.split("\\n")) {
+              if (!line.startsWith("data:")) continue;
+              const raw = line.slice(5).trim();
+              if (!raw) continue;
+              try {
+                const event = JSON.parse(raw) as { type?: string; delta?: string; message?: string; historySaved?: boolean };
+                if (event.type === "delta" && typeof event.delta === "string") {
+                  reply += event.delta;
+                  const current = conversationMessagesRef.current.get(pending.conversationId) ?? [];
+                  updateMessages(pending.conversationId, current.map((message) =>
+                    message.id === assistantId ? { ...message, content: reply } : message,
+                  ));
+                } else if (event.type === "done") {
+                  historySaved = event.historySaved;
+                } else if (event.type === "error") {
+                  streamError = event.message || "The streamed response could not be completed.";
+                }
+              } catch { /* Ignore malformed event frames. */ }
+            }
           };
-          const updated = [
-            ...latestMessages.slice(0, latestIndex + 1),
-            assistantMessage,
-            ...latestMessages.slice(latestIndex + 1),
-          ];
-          updateMessages(pending.conversationId, updated);
+          try {
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const frames = buffer.split("\\n\\n");
+              buffer = frames.pop() ?? "";
+              for (const frame of frames) consumeFrame(frame);
+            }
+            if (buffer.trim()) consumeFrame(buffer);
+          } catch {
+            streamError = "The streamed response was interrupted. Your message remains queued.";
+          }
+          if (streamError || !reply.trim()) {
+            const current = conversationMessagesRef.current.get(pending.conversationId) ?? [];
+            updateMessages(pending.conversationId, current.filter((message) => message.id !== assistantId));
+            queueBlockedRef.current = true;
+            setQueueBlocked(true);
+            setNotice(streamError || "The AI provider returned an empty response. Your message remains queued.");
+            break;
+          }
+        } else {
+          const payload = await response.json().catch(() => ({})) as { message?: string; reply?: string; historySaved?: boolean };
+          if (!payload.reply) {
+            queueBlockedRef.current = true;
+            setQueueBlocked(true);
+            setNotice(payload.message || "The assistant returned an empty response. Your message remains queued.");
+            break;
+          }
+          reply = payload.reply;
+          historySaved = payload.historySaved;
+          const latestMessages = conversationMessagesRef.current.get(pending.conversationId) ?? [];
+          const latestIndex = latestMessages.findIndex((message) => message.id === pending.messageId);
+          if (latestIndex >= 0) {
+            const assistantMessage: Message = {
+              id: crypto.randomUUID(), role: "assistant", content: reply, createdAt: new Date().toISOString(),
+            };
+            updateMessages(pending.conversationId, [
+              ...latestMessages.slice(0, latestIndex + 1),
+              assistantMessage,
+              ...latestMessages.slice(latestIndex + 1),
+            ]);
+          }
         }
         pendingMessagesRef.current.shift();
-        setNotice(payload.historySaved === false
+        setNotice(historySaved === false
           ? "Reply received, but cloud history could not be confirmed. This conversation remains saved on this device."
           : "");
       }
