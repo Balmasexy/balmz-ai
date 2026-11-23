@@ -55,6 +55,7 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/forgot-password`: request a password-reset email
 - `/reset-password`: set a new password from a valid reset link
 - `/dashboard`: authenticated chat workplace
+- `/dashboard/images`: free image library, creative templates and Runway text-to-image, text-to-video and image-to-video studio
 - `/dashboard/plugins`: plugin and connector directory
 - `/dashboard/connections`: customer-owned Google, Microsoft, Slack, Dropbox, Box, GitHub, GitLab, Notion and remote MCP connections
 - `/dashboard/ai-tools`: model-aware OpenAI Responses and Google Gemini built-in tools
@@ -77,6 +78,10 @@ Never commit `.env.local`, access tokens, private keys, payment credentials or p
 - `/api/auth/*`: Better Auth endpoints
 - `/api/auth/email-status`: safe transactional email readiness status
 - `/mcp`: registered MCP tools endpoint
+
+## Runway media generation
+
+The authenticated Images workspace supports Runway Gen-4 image generation and Gen-4.5 text-to-video/image-to-video jobs. Configure the server-only `RUNWAYML_API_SECRET` variable in Render. Jobs and their owner-scoped task metadata are saved in the existing private notes table; no database migration is needed. Runway API credits are separate from BALMZ AI message allowances. Output URLs are temporary (approximately 24–48 hours), so users should save completed files promptly.
 
 ## Campaign Studio
 
