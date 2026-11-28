@@ -1,6 +1,6 @@
 # Transactional email delivery
 
-BALMZ AI uses Better Auth's built-in email verification and password-reset flows. Resend is the delivery provider. Email credentials are read only by the server and must never be exposed to the browser, committed to Git or pasted into chat.
+BALMZ AI does not require email verification. Resend is used only for password-reset delivery when configured. Email credentials are read only by the server and must never be exposed to the browser, committed to Git or pasted into chat.
 
 ## Before configuring Render
 
@@ -20,17 +20,13 @@ In the BALMZ AI Render web service environment settings, configure both values:
 
 Never create a `NEXT_PUBLIC_RESEND_API_KEY` variable. Do not enter secrets in a chat, issue, source file, commit or CI log.
 
-The application enables mandatory email verification and password-reset delivery only when both values are present. When they are absent, the application keeps existing sign-in available and reports that email delivery is not configured. This protects the existing unverified administrator account from an accidental lockout before delivery is ready.
+Email verification is disabled regardless of these settings. When both values are present, they enable password-reset email delivery only. When they are absent, registration and sign-in still work; only password-reset email delivery is unavailable.
 
-## Verification flow
+## Registration and sign-in
 
 1. A new user registers using `/sign-up`.
-2. Better Auth sends a time-limited verification email.
-3. The user opens the verification link. Better Auth verifies the account and redirects to the configured dashboard callback.
-4. The user signs in normally.
-5. An unverified user who attempts sign-in receives a verification-required response and can request another verification message from `/sign-in`.
-
-The server never sets `user.emailVerified` just because a link was requested or an email was sent. The user must complete the actual verification link.
+2. The account is created and the user is redirected to the dashboard.
+3. The user can sign in normally without an email verification link.
 
 ## Password recovery flow
 
