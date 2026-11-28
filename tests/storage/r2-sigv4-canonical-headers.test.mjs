@@ -4,10 +4,16 @@ import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("../../lib/storage/r2.ts", import.meta.url), "utf8");
 
-test("R2 presigned canonical headers end with the required newline", () => {
-  assert.match(source, /\? `content-type:\\${contentType\.trim\(\)}\\nhost:\\${host}\\n`\s*: `host:\\${host}\\n`;/);
+test("R2 presigned canonical header blocks terminate with a newline", () => {
+  assert.ok(
+    source.includes("? `content-type:${contentType.trim()}\\nhost:${host}\\n`\n    : `host:${host}\\n`;"),
+    "presigned PUT and GET canonical headers must retain their trailing newline",
+  );
 });
 
-test("R2 authenticated canonical headers preserve the blank separator before SignedHeaders", () => {
-  assert.match(source, /\]\.join\("\\\\n"\) \+ "\\\\n";/);
+test("R2 authenticated canonical headers retain the required separator", () => {
+  assert.ok(
+    source.includes('  ].join("\\n") + "\\n";'),
+    "authenticated canonical headers must end with a newline before SignedHeaders",
+  );
 });
