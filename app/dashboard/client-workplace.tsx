@@ -111,6 +111,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
   const pendingMessagesRef = useRef<PendingChatMessage[]>([]);
   const processingQueueRef = useRef(false);
   const queueBlockedRef = useRef(false);
+  const queueBlockedReasonRef = useRef<"quota" | "temporary" | null>(null);
   const processPendingMessagesRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
@@ -310,7 +311,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
     return () => { active = false; if (removeListener) void removeListener(); };
   }, []);
   useEffect(() => {
-    if (!networkConnected || !queueBlockedRef.current || pendingMessagesRef.current.length === 0) return;
+    if (!networkConnected || !queueBlockedRef.current || queueBlockedReasonRef.current === "quota" || pendingMessagesRef.current.length === 0) return;
     queueBlockedRef.current = false;
     setQueueBlocked(false);
     setNotice("");
@@ -343,7 +344,9 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setModelsMessage(payload.message || payload.backendGemini?.message || "");
       setModel((current) => payload.models!.some((option) => option.value === current)
         ? current
-        : payload.models![0]?.value ?? "");
+        : payload.models!.find((option) => /google|gemini/i.test(option.provider + " " + option.label))?.value
+          ?? payload.models![0]?.value
+          ?? "");
     } catch (cause) {
       setModelOptions([]);
       setModel("");
@@ -614,15 +617,27 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
         }
 
         if (!response.ok) {
-          const payload = await response.json().catch(() => ({})) as { message?: string };
+          const payload = await response.json().catch(() => ({})) as { error?: string; message?: string };
           const message = payload.message || (response.status === 402
             ? "Your plan does not have an available ai_messages allowance."
             : response.status === 503
               ? "The selected AI provider is unavailable or not configured. Your message remains queued."
               : "The assistant could not complete this request. Your message remains queued.");
           queueBlockedRef.current = true;
+          queueBlockedReasonRef.current = payload.error === "AI_PROVIDER_QUOTA_EXCEEDED" ? "quota" : "temporary";
           setQueueBlocked(true);
-          setNotice(message);
+          if (payload.error === "AI_PROVIDER_QUOTA_EXCEEDED") {
+            const gemini = modelOptions.find((option) => /google|gemini/i.test(option.provider + " " + option.label));
+            if (gemini) {
+              setModel(gemini.value);
+              setNotice("OpenAI API quota is unavailable. BALMZ AI has selected your connected Gemini model. Your message is still queued; tap Retry queued messages to send it through Gemini.");
+            } else {
+              setNotice("OpenAI API quota is unavailable. Connect or select Google Gemini in the model selector, then retry your queued message. A Render API key cannot replace OpenAI API credits.");
+            }
+          } else {
+            queueBlockedReasonRef.current = "temporary";
+            setNotice(message);
+          }
           break;
         }
 
@@ -722,6 +737,7 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setBusy(false);
       if (pendingMessagesRef.current.length === 0) {
         queueBlockedRef.current = false;
+        queueBlockedReasonRef.current = null;
         setQueueBlocked(false);
       }
     }
@@ -735,7 +751,11 @@ export function ClientWorkplace({ userName, userEmail, isAdmin, planName }: { us
       setQueueBlocked(false);
       return;
     }
+    if (model && modelOptions.some((option) => option.value === model)) {
+      pendingMessagesRef.current = pendingMessagesRef.current.map((pending) => ({ ...pending, model }));
+    }
     queueBlockedRef.current = false;
+    queueBlockedReasonRef.current = null;
     setQueueBlocked(false);
     setNotice("");
     void processPendingMessages();
