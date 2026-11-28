@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/admin";
-import { createR2PresignedUrl, createR2ProjectObjectKey, deleteR2ProjectObject, isR2Configured, listR2WorkspaceObjects } from "@/lib/storage/r2";
+import { createR2PresignedUrl, createR2ProjectObjectKey, deleteR2ProjectObject, getR2ConfigurationStatus, isR2Configured, listR2WorkspaceObjects } from "@/lib/storage/r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,23 @@ async function authorized() {
   return null;
 }
 function unavailable() {
-  return NextResponse.json({ configured: false, bucket: null, objects: [], listedBytes: 0, truncated: false, message: "Add R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME to the BALMZ AI Render service. The connection is shared by this Deployment Workplace; individual project services do not need their own R2 credentials." }, { headers: { "Cache-Control": "no-store" } });
+  const status = getR2ConfigurationStatus();
+  const reasons = [
+    ...(status.missing.length ? [`Missing variables: ${status.missing.join(", ")}.`] : []),
+    ...(status.invalid.length ? [`Invalid format: ${status.invalid.join(", ")}.`] : []),
+  ];
+  return NextResponse.json({
+    configured: false,
+    bucket: null,
+    missing: status.missing,
+    invalid: status.invalid,
+    objects: [],
+    listedBytes: 0,
+    truncated: false,
+    message: reasons.length
+      ? `R2 environment check failed on this BALMZ AI service. ${reasons.join(" ")} Variable names only are shown; secret values are never returned. Confirm the values are attached to this exact Render web service.`
+      : "R2 configuration is incomplete on this BALMZ AI service.",
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 function validProject(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,79}$/.test(value);
