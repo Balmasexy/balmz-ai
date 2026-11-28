@@ -106,8 +106,8 @@ export function createR2PresignedUrl(method: "GET" | "PUT", key: string, content
     "X-Amz-SignedHeaders": signedHeaders,
   });
   const headers = contentType && method === "PUT"
-    ? `content-type:${contentType.trim()}\nhost:${host}\n`
-    : `host:${host}\n`;
+    ? `content-type:${contentType.trim()}\nhost:${host}`
+    : `host:${host}`;
   const canonicalRequest = [
     method,
     objectPath(settings.bucket, key),
@@ -145,7 +145,6 @@ async function signedR2Request(method: "GET" | "DELETE", key: string, query: Rec
     `host:${host}`,
     `x-amz-content-sha256:${payloadHash}`,
     `x-amz-date:${amzDate}`,
-    "",
   ].join("\n");
   const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
   const canonicalRequest = [
