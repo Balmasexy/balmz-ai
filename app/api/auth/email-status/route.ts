@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const enabled = isTransactionalEmailConfigured();
   return NextResponse.json(
-    { enabled, verificationRequired: enabled, passwordResetAvailable: enabled },
+    { enabled: false, verificationRequired: false, passwordResetAvailable: enabled },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
