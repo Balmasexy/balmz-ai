@@ -6,6 +6,7 @@ import {
   createR2ObjectKey,
   createR2PresignedUrl,
   deleteR2AdminObject,
+  getR2ConfigurationStatus,
   isR2Configured,
   listR2AdminObjects,
 } from "@/lib/storage/r2";
@@ -21,13 +22,22 @@ async function authorized() {
 }
 
 function notConfigured() {
+  const status = getR2ConfigurationStatus();
+  const reasons = [
+    ...(status.missing.length ? [`Missing variables: ${status.missing.join(", ")}.`] : []),
+    ...(status.invalid.length ? [`Invalid format: ${status.invalid.join(", ")}.`] : []),
+  ];
   return NextResponse.json({
     configured: false,
     provider: "Cloudflare R2",
+    missing: status.missing,
+    invalid: status.invalid,
     objects: [],
     listedBytes: 0,
     truncated: false,
-    message: "Connect a private Cloudflare R2 bucket by adding the four R2 storage secrets to the BALMZ AI Render service. No files are stored until the connection is configured.",
+    message: reasons.length
+      ? `R2 environment check failed on this BALMZ AI service. ${reasons.join(" ")} Variable names only are shown; secret values are never returned. Confirm the values are attached to this exact Render web service, not only another service.`
+      : "R2 configuration is incomplete on this BALMZ AI service. Variable names only are shown; secret values are never returned.",
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
