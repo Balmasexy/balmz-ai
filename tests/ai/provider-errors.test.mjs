@@ -22,3 +22,15 @@ test("OpenAI streaming route logs request metadata without credentials or prompt
   assert.match(route, /providerFailureMessage/);
   assert.match(route, /providerErrorCode: details\.errorCode/);
 });
+
+const workplace = await readFile(new URL("../../app/dashboard/client-workplace.tsx", import.meta.url), "utf8");
+
+test("chat defaults to a connected Gemini model before a paid OpenAI model", () => {
+  assert.match(workplace, /find\(\(option\) => \/google\|gemini\/i\.test\(option\.provider \+ " " \+ option\.label\)\)/);
+});
+
+test("quota failures keep messages queued and require an explicit retry using the selected provider", () => {
+  assert.match(workplace, /queueBlockedReasonRef\.current === "quota"/);
+  assert.match(workplace, /payload\.error === "AI_PROVIDER_QUOTA_EXCEEDED"/);
+  assert.match(workplace, /pendingMessagesRef\.current = pendingMessagesRef\.current\.map\(\(pending\) => \(\{ \.\.\.pending, model \}\)\)/);
+});
