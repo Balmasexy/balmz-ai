@@ -62,8 +62,26 @@ function objectPath(bucket: string, key: string): string {
   return `/${encodePath(bucket)}${key ? `/${encodePath(key)}` : ""}`;
 }
 
+export function getR2ConfigurationStatus(): { configured: boolean; missing: string[]; invalid: string[] } {
+  const accountId = process.env.R2_ACCOUNT_ID?.trim();
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.R2_BUCKET_NAME?.trim();
+  const missing = [
+    ...(!accountId ? ["R2_ACCOUNT_ID"] : []),
+    ...(!accessKeyId ? ["R2_ACCESS_KEY_ID"] : []),
+    ...(!secretAccessKey ? ["R2_SECRET_ACCESS_KEY"] : []),
+    ...(!bucket ? ["R2_BUCKET_NAME"] : []),
+  ];
+  const invalid = [
+    ...(accountId && !/^[a-f0-9]{32}$/i.test(accountId) ? ["R2_ACCOUNT_ID"] : []),
+    ...(bucket && !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket) ? ["R2_BUCKET_NAME"] : []),
+  ];
+  return { configured: missing.length === 0 && invalid.length === 0, missing, invalid };
+}
+
 export function isR2Configured(): boolean {
-  return config() !== null;
+  return getR2ConfigurationStatus().configured;
 }
 
 export function createR2ObjectKey(filename: string): string {
